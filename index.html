@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1c1c1e">
+  <title>MTB Skills</title>
+  <style>
+    :root {
+      --bg: #f2f2f7;
+      --surface: #ffffff;
+      --border: #e5e5ea;
+      --text: #1c1c1e;
+      --text2: #6c6c70;
+      --primary: #007aff;
+      --danger: #ff3b30;
+      /* level colors — l3=blue so "level 3 = blue trail" is intuitive for coaches */
+      --l0: #8e8e93;
+      --l1: #dc2626;
+      --l2: #ea580c;
+      --l3: #2563eb;
+      --l4: #16a34a;
+      --l5: #7c3aed;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #app { max-width: 480px; margin: 0 auto; min-height: 100dvh; }
+
+    /* ── Header ── */
+    .hdr {
+      background: #1c1c1e;
+      color: #fff;
+      padding: 12px 8px 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      min-height: 56px;
+    }
+    .hdr-title { flex: 1; font-size: 17px; font-weight: 600; }
+
+    .ico-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .ico-btn:active { background: rgba(255,255,255,0.12); }
+
+    /* ── Level badge ── */
+    .lv {
+      --sz: 36px;
+      width: var(--sz);
+      height: var(--sz);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: calc(var(--sz) * 0.42);
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .lv0 { background: var(--l0); }
+    .lv1 { background: var(--l1); }
+    .lv2 { background: var(--l2); }
+    .lv3 { background: var(--l3); }
+    .lv4 { background: var(--l4); }
+    .lv5 { background: var(--l5); }
+
+    /* ── List rows ── */
+    .list { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+
+    .row {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 14px 14px 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      text-align: left;
+      color: var(--text);
+    }
+    .row:active { background: #ebebf0; }
+    @media (hover: hover) { .row:hover { background: #f5f5f8; } }
+
+    .row-body { flex: 1; min-width: 0; }
+    .row-title { font-size: 16px; font-weight: 600; }
+    .row-sub { font-size: 13px; color: var(--text2); margin-top: 3px; }
+
+    .chevron { color: #c7c7cc; flex-shrink: 0; }
+
+    /* ── Score chips (roster) ── */
+    .chips { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+    .chip { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text2); }
+
+    /* ── Section label ── */
+    .sec { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 16px 6px; }
+
+    /* ── Trail pills ── */
+    .trail-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 16px 16px; }
+    .pill { padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; }
+    .pill-yes { background: #dcfce7; color: #166534; }
+    .pill-no  { background: #f3f4f6; color: #9ca3af; }
+
+    /* ── FAB ── */
+    .fab {
+      position: fixed;
+      bottom: 28px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      font-size: 32px;
+      font-weight: 300;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,122,255,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .fab:active { opacity: 0.85; }
+    @media (min-width: 480px) { .fab { right: calc(50vw - 240px + 20px); } }
+
+    /* ── Level picker ── */
+    .picker { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px 16px; }
+
+    .lv-btn {
+      aspect-ratio: 1;
+      border-radius: 10px;
+      border: 2.5px solid var(--border);
+      background: var(--surface);
+      font-size: 22px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lv-btn:active { opacity: 0.7; }
+    @media (hover: hover) { .lv-btn:hover { opacity: 0.8; } }
+
+    .lv-btn[data-n="1"] { color: var(--l1); }
+    .lv-btn[data-n="2"] { color: var(--l2); }
+    .lv-btn[data-n="3"] { color: var(--l3); }
+    .lv-btn[data-n="4"] { color: var(--l4); }
+    .lv-btn[data-n="5"] { color: var(--l5); }
+
+    .lv-btn.sel { color: #fff; border-color: transparent; }
+    .lv-btn.sel[data-n="1"] { background: var(--l1); }
+    .lv-btn.sel[data-n="2"] { background: var(--l2); }
+    .lv-btn.sel[data-n="3"] { background: var(--l3); }
+    .lv-btn.sel[data-n="4"] { background: var(--l4); }
+    .lv-btn.sel[data-n="5"] { background: var(--l5); }
+
+    /* ── Level description ── */
+    .lv-desc { padding: 0 16px 10px; font-size: 14px; color: var(--text2); min-height: 34px; }
+
+    /* ── Action buttons ── */
+    .actions { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 16px; }
+    .btn {
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      text-align: center;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-outline  { background: var(--surface); color: var(--text); border: 2px solid var(--border); }
+    .btn-danger   { background: var(--danger); color: #fff; }
+
+    /* ── Card ── */
+    .card { background: var(--surface); border-radius: 12px; margin: 0 12px 12px; overflow: hidden; }
+    .card-head { padding: 14px 16px; font-weight: 600; font-size: 15px; border-bottom: 1px solid var(--border); }
+
+    /* ── Rubric accordion ── */
+    .rubric-toggle {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text2);
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+      gap: 12px;
+    }
+    .rubric-toggle:active { background: var(--bg); }
+    .rubric-toggle span:last-child { flex-shrink: 0; }
+
+    .fail-list { list-style: none; padding: 0 16px 14px; }
+    .fail-list li { padding: 7px 0; font-size: 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+    .fail-list li::before { content: '✕'; color: var(--danger); font-weight: 700; flex-shrink: 0; }
+
+    /* ── Observation history ── */
+    .obs-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border); }
+    .obs-meta { flex: 1; font-size: 14px; color: var(--text2); }
+    .obs-note { font-size: 13px; color: var(--text2); font-style: italic; }
+
+    /* ── Empty state ── */
+    .empty { padding: 64px 24px; text-align: center; color: var(--text2); }
+    .empty h2 { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+
+    /* ── Modal ── */
+    .modal-bg {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-bg.hidden { display: none; }
+    .modal-sheet {
+      background: var(--surface);
+      border-radius: 16px 16px 0 0;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90dvh;
+      overflow-y: auto;
+    }
+    .modal-head {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 17px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      z-index: 1;
+    }
+    .modal-head .ico-btn { color: var(--text2); }
+    .modal-head .ico-btn:active { background: var(--bg); }
+
+    /* ── Form ── */
+    .fg { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+    .fl { font-size: 13px; font-weight: 600; color: var(--text2); }
+    .fi {
+      padding: 13px 14px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 16px;
+      width: 100%;
+      background: var(--surface);
+      color: var(--text);
+    }
+    .fi:focus { outline: none; border-color: var(--primary); }
+
+    /* ── Utilities ── */
+    .ph { height: 80px; }
+    .hint { padding: 0 16px 12px; font-size: 13px; color: var(--text2); text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal" class="modal-bg hidden">
+    <div class="modal-sheet">
+      <div id="modal-content"></div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
