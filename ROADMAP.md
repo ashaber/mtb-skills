@@ -13,7 +13,7 @@ Phased build plan for a coach-facing skill assessment tool. Each phase is indepe
 - **Athlete roster** — add and manage athletes manually in-app
 - **Session assessment** — select athlete → select skill → select level 1–5 → log observation
 - **Observation history** — chronological log per athlete per skill
-- **Confirm skill level** — coach explicitly confirms a level when the consistency gate is met (separate from raw observations)
+- **Confirm skill level** — coach explicitly confirms a level when the consistency gate is met (separate from raw observations). The consistency gate is a coach judgment call, not an algorithm: the rubric defines it as "consistent = earns the level; one good rep does not qualify." The app surfaces the observation history to support that judgment but never auto-promotes a level.
 - **Trail readiness view** — given confirmed levels, show which trails the athlete is ready for per the rubric minimums
 - **Data export** — full JSON download (backup + shareable with head coach)
 
@@ -22,8 +22,29 @@ Phased build plan for a coach-facing skill assessment tool. Each phase is indepe
 - `localStorage` for persistence
 - Data model includes `team_id` and `coach_id` on all records for future-proofing
 
+### Deployment
+- GitHub Pages — deploys from `main` branch root (`/`)
+- Live at: https://ashaber.github.io/mtb-skills/
+- `index.html` at repo root is the entry point
+- Updates ship on git push — no build step, no manual deploy action
+
 ### Offline
 Fully offline by design — no network calls.
+
+### Definition of Done
+- [ ] `index.html` at repo root, served by GitHub Pages
+- [ ] Live and accessible at https://ashaber.github.io/mtb-skills/
+- [ ] Opens and functions on Android (Chrome)
+- [ ] Opens and functions on iOS (Safari)
+- [ ] Athlete roster: add and manage athletes
+- [ ] Session assessment: log observation (athlete → skill → level 1–5 → date)
+- [ ] Observation history: chronological log per athlete per skill
+- [ ] Confirm skill level: coach explicitly sets confirmed level
+- [ ] Trail readiness: computed from confirmed levels, matches rubric minimums
+- [ ] JSON export: full data download
+- [ ] Data persists across page reloads (localStorage)
+- [ ] Works with no network connection
+- [ ] All records use UUIDs, carry `team_id` and `coach_id`
 
 ---
 
@@ -71,9 +92,20 @@ Team data lives in that team's Google Sheet — not a shared database. This is i
 
 ---
 
-## Moonshot — Video Analysis
+## Phase 1+ — Reference Video per Skill Level
 
-**Collaborator:** PhD student, physiology background
+**Collaborator:** Tim Curry (co-author of rubric, Assistant Professor of Physiology)
+
+Tim and Andrew shot video of each skill demonstrated at each target level. Editing is partially complete; a second shoot is planned to refine. The feature adds a YouTube-linked reference clip to each rubric card so a coach can watch the skill performed correctly at a specific level.
+
+- Each skill card gets an optional "watch example" link → opens a YouTube clip
+- Clips are keyed by `skill + level` — stored in `rubric.js` alongside the rubric content
+- No data model change required — this is rubric content, not athlete data
+- Does not block Phase 1 — can ship as a rubric content update once clips are ready
+
+## Moonshot — Automated Video Analysis
+
+**Collaborator:** Tim Curry
 
 - Tagged video clips attached to observations
 - Automated technique detection (e.g., body position classification from video)

@@ -10,6 +10,31 @@ A coach-facing skill assessment tool for NICA MTB coaches. See ROADMAP.md for ph
 - No sequential IDs — use UUIDs everywhere (multi-device merge safety)
 - Data model must not lock out multi-tenant: all records carry `team_id` and `coach_id` from Phase 1
 
+**Deployment:**
+- Static hosting via GitHub Pages — deploys from `main` branch, root (`/`)
+- Live URL: https://ashaber.github.io/mtb-skills/
+- `index.html` must live at repo root
+- Updates ship on git push to main — no build step, no manual deploy
+- Phase 2c adds service worker for PWA install (home screen icon, offline)
+- Phase 4 backend deploys separately (Railway/Render/Fly.io); frontend deploy unchanged
+
+**Definition of Done — Phase 1:**
+- [ ] `index.html` exists at repo root and is the app entry point
+- [ ] App is live at https://ashaber.github.io/mtb-skills/
+- [ ] Opens and functions correctly on Android (Chrome)
+- [ ] Opens and functions correctly on iOS (Safari)
+- [ ] All Phase 1 features working:
+  - [ ] Add and manage athletes (roster)
+  - [ ] Log an observation (athlete → skill → level 1–5 → session date)
+  - [ ] View observation history per athlete per skill
+  - [ ] Confirm a skill level (separate from raw observations)
+  - [ ] Trail readiness view computed from confirmed levels
+  - [ ] JSON export (full data download)
+- [ ] Data persists across page reloads (localStorage)
+- [ ] App works with no network connection
+- [ ] No sequential IDs — all records use UUIDs
+- [ ] All records carry `team_id` and `coach_id`
+
 **Key files:**
 - `RUBRIC.md` — authoritative rubric content; card content is master
 - `app/rubric.js` — rubric data as ES module; all views import from here

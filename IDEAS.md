@@ -1,0 +1,31 @@
+# Ideas — MTB Skills Assessment App
+
+Raw brainstorm capture. No phase commitment. Promote to GitHub issue when ready to discuss seriously.
+
+---
+
+## 2026-06-06
+
+### Trail Network & Ride Plan Checker
+Coach builds a local trail network — a list of trails with name, rating (green/blue/black/double black), and required skill minimums (Body Position, Braking, Cornering — same scale as rubric). Trails also carry a **seasonal condition adjustment**: e.g. loose and dry = effectively harder, raise minimums by 1. Coach loads a ride plan (ordered list of trails for a practice or race day) and the app flags any athletes who are below the required skill level for any trail on the plan.
+
+**Details worth capturing:**
+- Trail minimums follow the same BP/Bk/Cn format as the rubric (e.g. 3-3-2)
+- Seasonal adjustment is a modifier on the minimum, not the trail rating itself
+- Conditions examples: loose/dry (+1), wet roots (+1 Braking), hardpack (no adjustment)
+- Ride plan = ordered trail list; app shows per-athlete pass/fail per trail
+- In a later phase, Head Coach / Team Director sets or approves trail minimums (not individual coaches)
+- Could integrate with the Phase 4 multi-tenant backend — league-wide trail library, team-specific adjustments
+
+**Open questions:**
+- Who maintains the trail list? (coach-entered in Phase 1, HC/TD in later phase)
+- Is the trail library per-team or shared across the league?
+- Does the app need to know trail order / sequence, or just flag any trail on the plan?
+
+---
+
+### Video Reference per Skill Level *(promoted to ROADMAP.md Phase 1+)*
+YouTube-linked clips per skill/level on rubric cards. Tim's existing video assets are the source.
+
+### BICP Monetization Path *(noted in ROADMAP.md)*
+BICP (for-profit skills org) as alternative to NICA if app becomes commercializable.
