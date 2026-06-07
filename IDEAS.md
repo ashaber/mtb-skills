@@ -24,6 +24,15 @@ Coach builds a local trail network — a list of trails with name, rating (green
 
 ---
 
+### Athlete Trading 
+Allow two coaches to exchange athletes.  E.g., athlete moves up to a higher skill/faster group, or moves down on a rest day.  Could be a QR code encoding athlete detail to load on other coaches roster.
+
+### Athlete Info
+Any special medical requirements like Epi pen or insulin.  Parent contact info for emergencies.  When an athlete is traded (see above) would include athlete info so a new coach working with athlete has necessary info
+
+### practice roster
+show athletes from roster, record attendance for the practice.  Allow temporary adds when unable to receive trading card from normal coach.
+
 ### Video Reference per Skill Level *(promoted to ROADMAP.md Phase 1+)*
 YouTube-linked clips per skill/level on rubric cards. Tim's existing video assets are the source.
 

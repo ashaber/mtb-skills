@@ -67,13 +67,53 @@ Short sections can be speed-managed or walked. Assess at the start of every seas
 
 ## App
 
-A coach-facing assessment tool is being built in `app/`. See [ROADMAP.md](ROADMAP.md) for the full phased plan.
+A coach-facing assessment tool. Source in `src/`, built with [Vite](https://vitejs.dev/). See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 **Short summary:**
 - Phase 1: Local HTML app, localStorage, no login, fully offline
 - Phase 2: PWA + Google Sheets backend, offline-first sync, Google OAuth
 - Phase 3: Native mobile (iOS/Android)
 - Phase 4: Multi-tenant backend (optional, league-level)
+
+## Development
+
+### Prerequisites
+
+Node 20+ and npm.
+
+```bash
+npm install
+```
+
+### Test on your computer
+
+```bash
+npm run dev
+```
+
+Opens at `http://localhost:5173`. Hot reload on every save.
+
+### Test on your phone
+
+```bash
+npm run dev -- --host
+```
+
+Vite prints a **Network** URL (e.g. `http://192.168.1.42:5173`). Open it on any phone connected to the same WiFi — no build, no cable needed. Works for both Android Chrome and iOS Safari.
+
+### Run tests
+
+```bash
+npm run test          # Vitest unit tests (rubric logic, storage)
+pytest tests/e2e/     # Playwright browser tests (requires npm run build first)
+```
+
+### Build for production
+
+```bash
+npm run build         # outputs to dist/
+npm run preview       # serve dist/ locally to verify before deploy
+```
 
 ## Rubric roadmap
 

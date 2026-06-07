@@ -8,6 +8,8 @@
  * Data model: see app/schema.md
  */
 
+import log, { STORAGE_KEY as LOG_KEY } from './log.js';
+
 const KEYS = {
   athletes:       'mtb_athletes',
   observations:   'mtb_observations',
@@ -23,7 +25,8 @@ const KEYS = {
 function load(key) {
   try {
     return JSON.parse(localStorage.getItem(key) ?? 'null') ?? [];
-  } catch {
+  } catch (e) {
+    log.error('storage.read.error', { key, error: e.message });
     return [];
   }
 }
@@ -207,13 +210,14 @@ export function getAthleteConfirmedLevels(athleteId) {
 
 export function exportAll() {
   return JSON.stringify({
-    exported_at:    new Date().toISOString(),
-    schema_version: 1,
-    coach:          getCoach(),
-    team_id:        getTeamId(),
-    athletes:       getAthletes(),
-    observations:   getObservations(),
+    exported_at:     new Date().toISOString(),
+    schema_version:  1,
+    coach:           getCoach(),
+    team_id:         getTeamId(),
+    athletes:        getAthletes(),
+    observations:    getObservations(),
     confirmed_levels: getConfirmedLevels(),
+    log:             JSON.parse(localStorage.getItem(LOG_KEY) || '[]'),
   }, null, 2);
 }
 

@@ -18,21 +18,24 @@ Phased build plan for a coach-facing skill assessment tool. Each phase is indepe
 - **Data export** — full JSON download (backup + shareable with head coach)
 
 ### Tech
-- Vanilla HTML/CSS/JS, ES modules, no build step
+- Vanilla JS (ES modules), **Vite** as build tool — no framework
+- `npm run dev` → localhost:5173 (hot reload during development)
+- `npm run build` → `dist/` (static files deployed to Pages)
 - `localStorage` for persistence
+- **Vitest** for unit tests, **Playwright (Python)** for e2e tests
 - Data model includes `team_id` and `coach_id` on all records for future-proofing
 
 ### Deployment
-- GitHub Pages — deploys from `main` branch root (`/`)
+- GitHub Pages — GitHub Actions builds `dist/` on push to `main`, deploys to Pages
 - Live at: https://ashaber.github.io/mtb-skills/
-- `index.html` at repo root is the entry point
-- Updates ship on git push — no build step, no manual deploy action
+- `index.html` at repo root is the Vite entry point
+- Updates ship automatically on merge to `main` via CI
 
 ### Offline
 Fully offline by design — no network calls.
 
 ### Definition of Done
-- [ ] `index.html` at repo root, served by GitHub Pages
+- [ ] `index.html` at repo root, served by GitHub Pages via `dist/`
 - [ ] Live and accessible at https://ashaber.github.io/mtb-skills/
 - [ ] Opens and functions on Android (Chrome)
 - [ ] Opens and functions on iOS (Safari)
@@ -41,10 +44,16 @@ Fully offline by design — no network calls.
 - [ ] Observation history: chronological log per athlete per skill
 - [ ] Confirm skill level: coach explicitly sets confirmed level
 - [ ] Trail readiness: computed from confirmed levels, matches rubric minimums
-- [ ] JSON export: full data download
+- [ ] JSON export: full data download including log
+- [ ] JSON export verified: re-imports cleanly with no data loss
 - [ ] Data persists across page reloads (localStorage)
 - [ ] Works with no network connection
 - [ ] All records use UUIDs, carry `team_id` and `coach_id`
+- [ ] Vitest unit tests pass (`npm run test`)
+- [ ] Playwright e2e tests pass on Chromium and WebKit
+- [ ] Manual verify on real Android (Chrome) and iOS (Safari)
+- [ ] README.md updated, ROADMAP.md phase status updated
+- [ ] Git tag applied: `v1.0`
 
 ---
 
@@ -85,10 +94,29 @@ Team data lives in that team's Google Sheet — not a shared database. This is i
 
 **Goal:** League-level visibility; inter-rater reliability tooling.
 
-- PostgreSQL with a `teams` table — existing data model already supports this without migration
+### Backend stack
+- **Python FastAPI** — REST API, Docker container (python:3.12-slim)
+- **GCP Cloud Run** — serverless container hosting, scales to zero, no cluster to manage
+- **GCP Artifact Registry** — Docker image storage
+- **Supabase** — managed PostgreSQL (do not self-host Postgres)
+- **Frontend** — same Vite build, deploy target changes from GitHub Pages to GCS bucket or Firebase Hosting
+
+### CI/CD at Phase 4 (GitHub Actions)
+```
+push to main →
+  test job: npm run test + pytest tests/e2e/
+  build-frontend: npm run build → deploy dist/ to GCS/Firebase
+  build-backend: docker build → push to Artifact Registry → deploy to Cloud Run
+```
+
+### Features
+- PostgreSQL with a `teams` table — existing data model supports this without migration
 - League director visibility across teams
 - NICA PitZone integration if their API becomes accessible
 - Inter-rater reliability testing between trained coaches
+
+### Architecture note
+Monorepo: frontend in `src/`, backend in `backend/`. Split into separate repos later only if team size or deploy cadence requires it.
 
 ---
 
