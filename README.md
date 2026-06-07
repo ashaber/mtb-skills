@@ -1,5 +1,7 @@
 # MTB Skills Assessment & Trail Readiness
 
+**Live app:** https://ashaber.github.io/mtb-skills/
+
 A practical rubric for NICA mountain bike coaches to assess student-athlete skill levels, select appropriate trails, and set measurable goals.
 
 ## What this is
