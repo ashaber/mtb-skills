@@ -6,7 +6,7 @@ Phased build plan for a coach-facing skill assessment tool. Each phase is indepe
 
 ## Phase 1 — Local HTML App
 
-**Status:** In progress
+**Status:** ✅ Complete
 **Goal:** A working tool any coach can open on any device. No server, no login, no network dependency.
 
 ### Features

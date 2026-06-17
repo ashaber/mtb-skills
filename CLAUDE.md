@@ -71,9 +71,244 @@ mtb-skills/
 - `src/rubric.js` — rubric data as ES module; all views import from here
 - `src/storage.js` — data access abstraction; swap this to change backend
 - `src/log.js` — in-app logger; ring buffer to localStorage + console
+- `src/main.js` — all UI views and event handlers (single-file app)
 - `app/schema.md` — data model documentation
 - `vite.config.js` — Vite configuration
 - `package.json` — npm scripts: dev, build, test
+
+**Documentation strategy:**
+- All rubric content (`detail`, `failure_modes`, `when_breaks`) is bundled in `src/rubric.js` — fully offline, no network needed on trail
+- Long-form supplemental docs (RUBRIC.md, changelog, release notes) live on GitHub Pages — linked from app Settings, not required for core use
+- Video clips (Phase 1+) link to YouTube — acceptable network dependency since video requires connectivity anyway
+- Never link to external docs for content a coach needs during a ride
+
+---
+
+## Current Sprint — UI/UX Polish (Phase 1b)
+
+**Branch:** `phase1/ui-polish`
+**Goal:** Elevate the app from functional to coach-ready. Fix placeholder gaps, add onboarding, add rubric education screen.
+
+### 1. Onboarding flow (first-launch)
+Detect first launch (`getCoach() === null`). Show a welcome screen before the blank roster:
+- App name + one-line purpose ("Assess MTB skills. Know which trails your riders are ready for.")
+- Three-step flow summary: Observe → Confirm → Trail Readiness
+- Coach name input (required to proceed) — calls `saveCoach()`
+- Optional team name — calls `saveTeamSettings({ teamName })`
+- "Get started" → goes to roster
+- Skip is not offered — coach name is required for `coach_id` on all records
+
+**Acceptance criteria:**
+- [ ] First launch shows onboarding, not empty roster
+- [ ] Returning user (coach already set) goes directly to roster
+- [ ] Coach name saved and visible in Settings after onboarding
+- [ ] Vitest: `getCoach() === null` triggers onboarding state
+- [ ] Playwright: first visit shows onboarding; after name entry, roster shown
+
+### 2. Education screen — Digital field guide
+New view: `'rubric'` state in `s.view`. Entry point: bottom nav or header button.
+
+Layout mirrors the printed field cards:
+- Skill selector tabs: Body Position | Braking | Cornering
+- For each skill, 5 level cards stacked:
+  - Level badge (colored circle) + trail rating + consistency gate
+  - Failure modes list (from `rubric.js` `failure_modes`)
+  - Expandable "Detail" section (from `rubric.js` `detail`) — collapsed by default
+  - Video links: **do not show** — no content ready yet. No placeholder, no "coming soon" text. When `video_url` is added to a level in `rubric.js`, the link will appear automatically. Until then, render nothing.
+- Back button returns to wherever the coach came from
+
+**Data:** reads entirely from `src/rubric.js` — no storage changes, works offline.
+
+**Acceptance criteria:**
+- [ ] Education screen accessible from main nav
+- [ ] All 3 skills, all 5 levels rendered with correct content from rubric.js
+- [ ] Detail section expands/collapses per level
+- [ ] Video placeholder shown (not broken link) when no URL set
+- [ ] Playwright: education screen loads, all skill tabs work, expand/collapse works
+
+### 3. Wire up storage stubs
+`storage.js` has two implemented-but-unused functions. Connect them:
+
+**Athlete photos** (`getPhoto`, `savePhoto`):
+- Add photo display to athlete profile header (avatar circle)
+- Tap avatar → file picker → saves as data-URL via `savePhoto()`
+- Falls back to initials avatar if no photo set
+- Note: data-URLs in localStorage are large — warn in log if photo > 200KB
+
+**Team settings** (`getTeamSettings`, `saveTeamSettings`):
+- Add "Team Name" field to Settings modal
+- Display team name in roster header (replaces or subtitles "MTB Skills")
+- Used in JSON export
+
+**Acceptance criteria:**
+- [ ] Athlete profile shows photo or initials avatar
+- [ ] Tapping avatar opens file picker, saves photo, displays immediately
+- [ ] Team name editable in Settings, shown in roster header
+- [ ] Playwright: upload photo flow, team name persists across reload
+
+### 4. Navigation — bottom nav bar
+Currently no persistent navigation. Add a minimal bottom nav:
+- **Roster** (people icon) — current home
+- **Rubric** (book icon) — education screen
+- **Settings** (gear icon) — currently only reachable from roster header
+
+Active tab highlighted. Hidden when a modal is open.
+
+**Acceptance criteria:**
+- [ ] Bottom nav visible on roster, rubric, and settings views
+- [ ] Active tab visually indicated
+- [ ] Playwright: nav between all three sections
+
+### 5. Deprecated meta tag
+Fix issue noted in console:
+- Replace `<meta name="apple-mobile-web-app-capable" content="yes">` with `<meta name="mobile-web-app-capable" content="yes">` in `index.html`
+- Closes GitHub issue #3 (partially — the main.js 404 was resolved by deploy)
+
+### Sprint DOD
+- [ ] All 5 items above complete
+- [ ] Vitest unit tests updated/added for any new logic
+- [ ] Playwright e2e tests cover all new flows
+- [ ] No bare `console.*` — all logging via `src/log.js`
+- [ ] No dead code, no placeholder comments left in shipped code
+- [ ] PR description references these items
+- [ ] README updated if feature list changes
+- [ ] Closes GitHub issues #3
+
+---
+
+## Next Sprint — People, Athlete Info, Practice Roster (Phase 1c)
+
+**Branch:** `phase1/people-and-practice`
+**Goal:** Expand roster from athletes-only to people (athletes + coaches). Add athlete info. Add practice roster with attendance.
+
+### Schema migration: Athlete → Person
+
+**This is a breaking schema change. Must be done first — all other items in this sprint depend on it.**
+
+Rename the concept from `Athlete` to `Person`. Existing `mtb_athletes` localStorage key is preserved for backward compatibility — all reads default missing `role` to `'athlete'`.
+
+```json
+{
+  "id":                        "uuid",
+  "team_id":                   "uuid",
+  "name":                      "string",
+  "role":                      "athlete | coach",
+  "grade":                     "integer | null",
+  "season_year":               "integer",
+  "medical_notes":             "string | null",
+  "emergency_contact_name":    "string | null",
+  "emergency_contact_phone":   "string | null"
+}
+```
+
+**Migration rules:**
+- Storage key stays `mtb_athletes` — no data loss for existing installs
+- `getAthletes()` renamed to `getPeople()` — returns all roles by default, accepts optional `{ role }` filter
+- All existing records missing `role` field default to `'athlete'` on read
+- `saveAthlete()` renamed to `savePerson()` — accepts `role` field, defaults to `'athlete'`
+- `deleteAthlete()` renamed to `deletePerson()`
+- Export `schema_version` bumps 1 → 2
+- `importAll()` migration shim: if `schema_version === 1`, map `athletes` array to people with `role: 'athlete'`
+- `coach_id` on Observation and ConfirmedLevel still refers to the device Coach settings object — **not** a Person record. These are different: the *device's assessing coach* vs *a person being assessed*. Do not conflate.
+
+**Acceptance criteria:**
+- [ ] Existing localStorage data (schema v1) loads correctly after migration — no data loss
+- [ ] New people saved with explicit `role` field
+- [ ] Export includes `schema_version: 2`
+- [ ] Import of v1 export migrates cleanly to v2
+- [ ] Vitest: migration shim tested — v1 import produces correct v2 records
+
+### Roster filter
+Add filter control to roster header: **All · Athletes · Coaches**
+
+- Filter state: `s.roster_filter = 'all' | 'athletes' | 'coaches'`
+- Persisted in localStorage so it survives reload (`mtb_roster_filter`)
+- "Add person" FAB respects filter context: if filter is 'coaches', new person defaults to `role: 'coach'`; if 'athletes', defaults to `role: 'athlete'`; if 'all', show role selector in add modal
+
+**Acceptance criteria:**
+- [ ] Filter chips visible on roster
+- [ ] Filtering by athletes shows only `role: 'athlete'` records
+- [ ] Filtering by coaches shows only `role: 'coach'` records
+- [ ] Filter selection persists across reload
+- [ ] Add modal sets correct default role based on active filter
+- [ ] Playwright: filter toggle, add athlete, add coach, verify separation
+
+### Athlete info
+Add optional medical and emergency contact fields to Person. Surfaced via an info icon (ℹ) on the athlete/person profile — taps to a dedicated info modal.
+
+**UX rules:**
+- Info icon only shown if any info field is set — no empty modal clutter
+- Edit pencil inside the info modal to update fields
+- Privacy note in modal: "Stored on this device only. Included in JSON export."
+- Fields: Medical notes (free text), Emergency contact name, Emergency contact phone
+- All fields optional — blank = not stored
+
+**Acceptance criteria:**
+- [ ] Info icon appears on profile when any info field is set
+- [ ] Info icon hidden when no fields set
+- [ ] Info modal shows all set fields, edit opens form
+- [ ] Privacy note visible in modal
+- [ ] Info fields survive reload and export/import round-trip
+- [ ] Playwright: add info, verify icon appears, verify persists across reload
+
+### Practice roster
+New entity and view for recording practice attendance.
+
+**New entities:**
+```json
+// Practice
+{
+  "id":       "uuid",
+  "team_id":  "uuid",
+  "coach_id": "uuid",
+  "date":     "YYYY-MM-DD",
+  "notes":    "string | null"
+}
+
+// PracticeAttendance
+{
+  "id":          "uuid",
+  "practice_id": "uuid",
+  "person_id":   "uuid",
+  "team_id":     "uuid",
+  "status":      "attending | absent | temp_add",
+  "name_override": "string | null"
+}
+```
+
+`temp_add` status covers athletes added manually when a trading card wasn't received from their usual coach. `name_override` stores the name for temp adds who aren't in the permanent roster.
+
+**New localStorage keys:**
+- `mtb_practices` — Practice[]
+- `mtb_attendance` — PracticeAttendance[]
+
+**UX:**
+- Practice roster accessible from bottom nav or roster header
+- On open: shows today's practice (auto-created if none exists for today)
+- Roster list with attending/absent toggle per person — attending sorted to top, absent below
+- Filter mirrors main roster filter (athletes / coaches / all)
+- "+ Temp add" button for riders not on permanent roster
+- Tap a person row → their athlete profile (same as main roster)
+
+**Acceptance criteria:**
+- [ ] Practice view opens, creates today's practice if none exists
+- [ ] Mark attending/absent persists across reload
+- [ ] Attending sorted above absent
+- [ ] Filter (athletes/coaches/all) works in practice view
+- [ ] Temp add creates attendance record with `status: 'temp_add'`
+- [ ] Vitest: practice and attendance storage functions
+- [ ] Playwright: mark attendance, reload, verify state persists
+
+### Sprint DOD
+- [ ] All schema migration items complete and tested
+- [ ] Roster filter working (all / athletes / coaches)
+- [ ] Athlete info fields add/edit/display
+- [ ] Practice roster with attendance and sorting
+- [ ] Vitest coverage: migration shim, getPeople filters, practice/attendance storage
+- [ ] Playwright coverage: filter, info modal, practice attendance flow
+- [ ] `app/schema.md` updated to schema v2
+- [ ] No bare `console.*` — all logging via `src/log.js`
+- [ ] PR description references DOD items
 
 **Assessment model:**
 - Raw observations are immutable append-only: `{ athlete_id, skill, level_observed, session_date }`

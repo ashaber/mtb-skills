@@ -232,3 +232,32 @@ export function importAll(jsonString) {
   if (data.confirmed_levels) save(KEYS.confirmedLevels, data.confirmed_levels);
   if (data.coach)           localStorage.setItem(KEYS.coach, JSON.stringify(data.coach));
 }
+
+// ---------------------------------------------------------------------------
+// Athlete photos (stored as data-URLs per athlete ID)
+// ---------------------------------------------------------------------------
+const PHOTO_KEY = 'mtb_photos';
+
+export function getPhoto(athleteId) {
+  try { return (JSON.parse(localStorage.getItem(PHOTO_KEY) || '{}'))[athleteId] || null; }
+  catch { return null; }
+}
+export function savePhoto(athleteId, dataUrl) {
+  const photos = JSON.parse(localStorage.getItem(PHOTO_KEY) || '{}');
+  photos[athleteId] = dataUrl;
+  localStorage.setItem(PHOTO_KEY, JSON.stringify(photos));
+}
+
+// ---------------------------------------------------------------------------
+// Team / league settings (white-label name, coach display name)
+// ---------------------------------------------------------------------------
+const TEAM_SETTINGS_KEY = 'mtb_team_settings';
+
+export function getTeamSettings() {
+  try { return JSON.parse(localStorage.getItem(TEAM_SETTINGS_KEY) || '{}'); }
+  catch { return {}; }
+}
+export function saveTeamSettings(settings) {
+  const existing = getTeamSettings();
+  localStorage.setItem(TEAM_SETTINGS_KEY, JSON.stringify({ ...existing, ...settings }));
+}

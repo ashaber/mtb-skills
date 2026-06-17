@@ -1,236 +1,201 @@
+/**
+ * src/main.js — state machine, event handlers, boot.
+ * Two views: 'roster' | 'card'. Card replaces the old athlete + skill views.
+ */
+
 import log from './log.js';
-import { SKILLS, SKILL_IDS, TRAIL_LABELS, trailReadiness } from './rubric.js';
 import {
   getAthletes, saveAthlete, deleteAthlete,
   saveObservation, getObservations,
   setConfirmedLevel, getAthleteConfirmedLevels,
   getCoach, saveCoach,
+  getPhoto, savePhoto,
+  getTeamSettings, saveTeamSettings,
   exportAll, importAll,
 } from './storage.js';
+import { SKILL_IDS } from './rubric.js';
+import { viewRoster, viewCard, modalAddAthlete, modalSettings } from './views.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
-
 const s = {
-  view:      'roster',  // 'roster' | 'athlete' | 'skill'
-  athleteId: null,
-  skill:     null,
-  picked:    null,      // level selected in picker (1–5 or null)
-  rubricOpen: false,
+  view:       'roster',   // 'roster' | 'card'
+  athleteId:  null,
+  expandedId: null,       // which roster row has inline accordion open
+  draft:      {},         // { [athleteId]: { body_position, braking, cornering } }
 };
 
-// ── Navigation ────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function today() { return new Date().toISOString().slice(0, 10); }
 
+function ensureDraft(athleteId) {
+  if (!s.draft[athleteId]) {
+    const conf = getAthleteConfirmedLevels(athleteId);
+    s.draft[athleteId] = {
+      body_position: conf.body_position || 1,
+      braking:       conf.braking       || 1,
+      cornering:     conf.cornering     || 1,
+    };
+  }
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
 function go(view, patch = {}) {
-  s.view       = view;
-  s.picked     = null;
-  s.rubricOpen = false;
+  s.view = view;
   Object.assign(s, patch);
   draw();
   window.scrollTo(0, 0);
 }
 
-// ── Rendering ─────────────────────────────────────────────────────────────────
+function goCard(athleteId) {
+  ensureDraft(athleteId);
+  go('card', { athleteId });
+}
 
+function goRoster() {
+  go('roster');
+}
+
+// ── Draw ──────────────────────────────────────────────────────────────────────
 function draw() {
   document.getElementById('app').innerHTML =
-    s.view === 'roster'  ? viewRoster()  :
-    s.view === 'athlete' ? viewAthlete() :
-    s.view === 'skill'   ? viewSkill()   : '';
+    s.view === 'card' ? viewCard(s) : viewRoster(s);
+
+  // Wire photo upload (can't use event delegation for file inputs)
+  const photoInput = document.getElementById('photo-upload');
+  if (photoInput) {
+    photoInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const aid = photoInput.dataset.aid;
+        savePhoto(aid, ev.target.result);
+        log.info('photo.save', { athlete_id: aid });
+        draw();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Wire notes textarea (auto-save on blur)
+  const notesArea = document.querySelector('.notes-area');
+  if (notesArea) {
+    notesArea.addEventListener('blur', e => {
+      const aid = e.target.dataset.id;
+      const a = getAthletes().find(x => x.id === aid);
+      if (a) { saveAthlete({ ...a, notes: e.target.value }); }
+    });
+  }
 }
 
-// ── Shared helpers ────────────────────────────────────────────────────────────
+// ── Log / Confirm helpers ─────────────────────────────────────────────────────
+function logSession(athleteId) {
+  const d = s.draft[athleteId];
+  if (!d) return;
+  const conf = getAthleteConfirmedLevels(athleteId);
+  const sessionDate = today();
 
-function esc(v) {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  SKILL_IDS.forEach(sk => {
+    const lv = d[sk];
+    saveObservation({ athlete_id: athleteId, skill: sk, level_observed: lv, session_date: sessionDate });
+    // Initial level: if no confirmed level yet, this first observation sets it.
+    if (!conf[sk]) setConfirmedLevel({ athlete_id: athleteId, skill: sk, level: lv });
+  });
+
+  log.info('session.log', { athlete_id: athleteId, bp: d.body_position, brk: d.braking, crn: d.cornering });
+  flash(`${conf.body_position ? 'Observation' : 'Initial levels'} saved`);
+  draw();
 }
 
-function badge(level, size = 36) {
-  const n = level || 0;
-  return `<span class="lv lv${n}" style="--sz:${size}px">${n || '—'}</span>`;
+function confirmSession(athleteId) {
+  const d = s.draft[athleteId];
+  if (!d) return;
+  SKILL_IDS.forEach(sk => {
+    setConfirmedLevel({ athlete_id: athleteId, skill: sk, level: d[sk] });
+  });
+  log.info('session.confirm', { athlete_id: athleteId });
+  flash('Confirmed levels updated');
+  draw();
 }
 
-function fmtDate(iso) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
+function confirmOneSkill(athleteId, skill, level) {
+  setConfirmedLevel({ athlete_id: athleteId, skill, level });
+  s.draft[athleteId] = { ...s.draft[athleteId], [skill]: level };
+  log.info('skill.confirm', { athlete_id: athleteId, skill, level });
+  flash(`${skill.replace('_', ' ')} confirmed at Lv ${level}`);
+  draw();
 }
 
-const SHORT = { body_position: 'BP', braking: 'Brk', cornering: 'Crn' };
-
-const CHEVRON = `<svg class="chevron" width="18" height="18" viewBox="0 0 18 18"
-  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-  <path d="M7 4l5 5-5 5"/></svg>`;
-
-const BACK = `<svg width="20" height="20" viewBox="0 0 20 20"
-  fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-  <path d="M13 5l-6 6 6 6"/></svg>`;
-
-const GEAR = `<svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor">
-  <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0
-    01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947
-    2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836
-    1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6
-    1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734
-    2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6
-    0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532
-    1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
-</svg>`;
-
-const TRASH = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000
-    2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0
-    0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0
-    102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-</svg>`;
-
-// ── Roster view ───────────────────────────────────────────────────────────────
-
-function viewRoster() {
-  const athletes = getAthletes().sort((a, b) => a.name.localeCompare(b.name));
-
-  const list = athletes.length === 0
-    ? `<div class="empty">
-        <h2>No athletes yet</h2>
-        Tap + to add your first athlete.
-       </div>`
-    : athletes.map(a => {
-        const c = getAthleteConfirmedLevels(a.id);
-        const chips = SKILL_IDS.map(sk =>
-          `<span class="chip">${badge(c[sk], 24)}<span>${SHORT[sk]}</span></span>`
-        ).join('');
-        return `<button class="row" data-a="go-athlete" data-id="${a.id}">
-          <div class="row-body">
-            <div class="row-title">${esc(a.name)}</div>
-            <div class="chips">${chips}</div>
-          </div>
-          ${CHEVRON}
-        </button>`;
-      }).join('');
-
-  return `
-    <div class="hdr">
-      <span class="hdr-title">MTB Skills</span>
-      <button class="ico-btn" data-a="open-settings" aria-label="Settings">${GEAR}</button>
-    </div>
-    <div class="list">${list}</div>
-    <div class="ph"></div>
-    <button class="fab" data-a="add-athlete" aria-label="Add athlete">+</button>`;
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let _toastTimer;
+function flash(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('toast--show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('toast--show'), 2000);
 }
 
-// ── Athlete view ──────────────────────────────────────────────────────────────
+// ── App events ────────────────────────────────────────────────────────────────
+function onAppClick(e) {
+  const el = e.target.closest('[data-a]');
+  if (!el) return;
+  const { a: action, id, sk, n, aid, lv } = el.dataset;
 
-function viewAthlete() {
-  const a = getAthletes().find(x => x.id === s.athleteId);
-  if (!a) { go('roster'); return ''; }
+  if (action === 'go-roster') return goRoster();
+  if (action === 'go-card')   return goCard(id);
 
-  const conf = getAthleteConfirmedLevels(a.id);
-  const ready = trailReadiness(conf);
+  if (action === 'toggle-expand') {
+    s.expandedId = (s.expandedId === id) ? null : id;
+    ensureDraft(id);
+    draw();
+    return;
+  }
 
-  const pills = Object.keys(TRAIL_LABELS).map(t =>
-    `<span class="pill ${ready.includes(t) ? 'pill-yes' : 'pill-no'}">${esc(TRAIL_LABELS[t])}</span>`
-  ).join('');
+  if (action === 'draft-level') {
+    s.draft[aid] = s.draft[aid] || {};
+    s.draft[aid][sk] = +n;
+    draw();
+    return;
+  }
 
-  const skills = SKILL_IDS.map(sk => {
-    const obs = getObservations({ athlete_id: a.id, skill: sk });
-    const last = obs.length ? obs[obs.length - 1] : null;
-    const sub = last
-      ? `Last seen ${fmtDate(last.session_date)} · Level ${last.level_observed}`
-      : 'No observations yet';
-    return `<button class="row" data-a="go-skill" data-skill="${sk}">
-      ${badge(conf[sk], 44)}
-      <div class="row-body">
-        <div class="row-title">${esc(SKILLS[sk].name)}</div>
-        <div class="row-sub">${sub}</div>
-      </div>
-      ${CHEVRON}
-    </button>`;
-  }).join('');
+  if (action === 'log-session')     return logSession(id);
+  if (action === 'confirm-session') return confirmSession(id);
+  if (action === 'confirm-skill')   return confirmOneSkill(id, sk, +n);
 
-  return `
-    <div class="hdr">
-      <button class="ico-btn" data-a="go-roster" aria-label="Back">${BACK}</button>
-      <span class="hdr-title">${esc(a.name)}</span>
-      <button class="ico-btn" data-a="del-athlete" data-id="${a.id}" aria-label="Delete">${TRASH}</button>
-    </div>
-    <div class="sec">Trail Readiness</div>
-    <div class="trail-row">${pills}</div>
-    <div class="sec">Skills</div>
-    <div class="list" style="padding-top:4px">${skills}</div>
-    <div class="ph"></div>`;
+  if (action === 'del-athlete') {
+    const a = getAthletes().find(x => x.id === id);
+    if (a && confirm(`Delete ${a.name}? All observations will be removed.`)) {
+      deleteAthlete(id);
+      delete s.draft[id];
+      log.info('athlete.delete', { athlete_id: id });
+      goRoster();
+    }
+    return;
+  }
+
+  if (action === 'open-add')      return openModal(modalAddAthlete());
+  if (action === 'open-settings') return openModal(modalSettings());
+
+  if (action === 'open-rubric-doc') {
+    // Placeholder — wire to the real long-form doc URL per skill/level
+    alert(`Full rubric: ${sk.replace('_', ' ')} › Level ${lv}\n(Connect to long-form reference document URL)`);
+    return;
+  }
+  if (action === 'open-rubric-video') {
+    alert(`Video: ${sk.replace('_', ' ')} › Level ${lv}\n(Connect to Tim's technique clip URL)`);
+    return;
+  }
+
+  if (action === 'save-notes') return; // handled via blur on textarea
 }
 
-// ── Skill view ────────────────────────────────────────────────────────────────
-
-function viewSkill() {
-  const a = getAthletes().find(x => x.id === s.athleteId);
-  if (!a) { go('roster'); return ''; }
-
-  const sk   = s.skill;
-  const def  = SKILLS[sk];
-  const conf = getAthleteConfirmedLevels(a.id)[sk];
-
-  const pickerBtns = [1,2,3,4,5].map(n =>
-    `<button class="lv-btn${s.picked === n ? ' sel' : ''}"
-      data-a="pick" data-n="${n}">${n}</button>`
-  ).join('');
-
-  const desc = s.picked
-    ? def.levels[s.picked].when_breaks
-    : conf ? `Confirmed: Level ${conf}` : 'No confirmed level yet';
-
-  const actions = s.picked
-    ? `<div class="actions">
-        <button class="btn btn-primary" data-a="log-obs">Log Observation</button>
-        <button class="btn btn-outline" data-a="confirm-lv">
-          Confirm Level ${s.picked}${conf ? ` (currently ${conf})` : ''}
-        </button>
-       </div>`
-    : `<div class="hint">Select a level to log or confirm</div>`;
-
-  const rubricLevel = s.picked || conf || 1;
-  const rubricDef   = def.levels[rubricLevel];
-  const rubric = `
-    <div class="card">
-      <button class="rubric-toggle" data-a="toggle-rubric">
-        <span>Rubric · Level ${rubricLevel}: ${esc(rubricDef.when_breaks)}</span>
-        <span>${s.rubricOpen ? '▲' : '▼'}</span>
-      </button>
-      ${s.rubricOpen
-        ? `<ul class="fail-list">${rubricDef.failure_modes.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`
-        : ''}
-    </div>`;
-
-  const observations = getObservations({ athlete_id: a.id, skill: sk }).slice().reverse();
-  const history = observations.length
-    ? observations.map(o => `
-        <div class="obs-row">
-          ${badge(o.level_observed, 32)}
-          <span class="obs-meta">${fmtDate(o.session_date)}</span>
-          ${o.notes ? `<span class="obs-note">${esc(o.notes)}</span>` : ''}
-        </div>`).join('')
-    : `<div style="padding:16px;font-size:14px;color:var(--text2)">No observations logged yet</div>`;
-
-  return `
-    <div class="hdr">
-      <button class="ico-btn" data-a="go-athlete" aria-label="Back">${BACK}</button>
-      <span class="hdr-title" style="font-size:15px">${esc(a.name)} · ${esc(def.name)}</span>
-      ${badge(conf, 34)}
-    </div>
-    <div class="sec">Select Level Observed</div>
-    <div class="picker">${pickerBtns}</div>
-    <div class="lv-desc">${esc(desc)}</div>
-    ${actions}
-    ${rubric}
-    <div class="card">
-      <div class="card-head">Observation History</div>
-      ${history}
-    </div>
-    <div style="height:24px"></div>`;
-}
-
-// ── Modals ────────────────────────────────────────────────────────────────────
-
+// ── Modal events ──────────────────────────────────────────────────────────────
 function openModal(html) {
   document.getElementById('modal-content').innerHTML = html;
   document.getElementById('modal').classList.remove('hidden');
@@ -243,107 +208,8 @@ function closeModal() {
   document.getElementById('modal').classList.add('hidden');
 }
 
-function modalAddAthlete() {
-  return `
-    <div class="modal-head">
-      Add Athlete
-      <button class="ico-btn" data-m="close">✕</button>
-    </div>
-    <div class="fg">
-      <label class="fl" for="inp-name">Name</label>
-      <input class="fi" id="inp-name" type="text" placeholder="Athlete name" autocapitalize="words">
-      <label class="fl" for="inp-grade" style="margin-top:4px">Grade (optional)</label>
-      <input class="fi" id="inp-grade" type="number" min="6" max="12" placeholder="e.g. 9" autocomplete="off">
-    </div>
-    <div class="fg" style="padding-top:0">
-      <button class="btn btn-primary" data-m="save-athlete">Add Athlete</button>
-    </div>
-    <div style="height:12px"></div>`;
-}
-
-function modalSettings() {
-  const coach = getCoach();
-  return `
-    <div class="modal-head">
-      Settings
-      <button class="ico-btn" data-m="close">✕</button>
-    </div>
-    <div class="fg">
-      <label class="fl" for="inp-coach">Coach Name</label>
-      <input class="fi" id="inp-coach" type="text" value="${esc(coach?.name ?? '')}" placeholder="Your name">
-    </div>
-    <div class="fg" style="padding-top:0">
-      <button class="btn btn-primary" data-m="save-coach">Save</button>
-    </div>
-    <div style="border-top:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:8px">
-      <div class="fl" style="padding-bottom:4px">Data</div>
-      <button class="btn btn-outline" data-m="export">Export JSON Backup</button>
-      <label class="btn btn-outline" style="cursor:pointer">
-        Import JSON Backup
-        <input id="imp-file" type="file" accept=".json" style="display:none">
-      </label>
-    </div>
-    <div style="height:16px"></div>`;
-}
-
-// ── Event handlers ────────────────────────────────────────────────────────────
-
-function onAppClick(e) {
-  const el = e.target.closest('[data-a]');
-  if (!el) return;
-  const { a: action, id, skill, n } = el.dataset;
-
-  if (action === 'go-roster')   return go('roster');
-  if (action === 'go-athlete')  return id ? go('athlete', { athleteId: id }) : go('athlete');
-  if (action === 'go-skill')    return go('skill', { skill });
-
-  if (action === 'open-settings') return openModal(modalSettings());
-  if (action === 'add-athlete')   return openModal(modalAddAthlete());
-
-  if (action === 'del-athlete') {
-    const a = getAthletes().find(x => x.id === id);
-    if (a && confirm(`Delete ${a.name}? All observations will be removed.`)) {
-      deleteAthlete(id);
-      log.info('athlete.delete', { athlete_id: id });
-      go('roster');
-    }
-    return;
-  }
-
-  if (action === 'pick') {
-    s.picked = s.picked === Number(n) ? null : Number(n);
-    draw();
-    return;
-  }
-
-  if (action === 'toggle-rubric') {
-    s.rubricOpen = !s.rubricOpen;
-    draw();
-    return;
-  }
-
-  if (action === 'log-obs') {
-    if (!s.picked) return;
-    saveObservation({ athlete_id: s.athleteId, skill: s.skill, level_observed: s.picked });
-    log.info('observation.log', { athlete_id: s.athleteId, skill: s.skill, level: s.picked });
-    s.picked = null;
-    draw();
-    return;
-  }
-
-  if (action === 'confirm-lv') {
-    if (!s.picked) return;
-    setConfirmedLevel({ athlete_id: s.athleteId, skill: s.skill, level: s.picked });
-    log.info('level.confirm', { athlete_id: s.athleteId, skill: s.skill, level: s.picked });
-    s.picked = null;
-    draw();
-    return;
-  }
-}
-
 function onModalClick(e) {
   if (e.target === document.getElementById('modal')) return closeModal();
-
   const el = e.target.closest('[data-m]');
   if (!el) return;
   const action = el.dataset.m;
@@ -351,20 +217,27 @@ function onModalClick(e) {
   if (action === 'close') return closeModal();
 
   if (action === 'save-athlete') {
-    const name = document.getElementById('inp-name')?.value?.trim();
+    const name  = document.getElementById('inp-name')?.value?.trim();
     if (!name) { document.getElementById('inp-name')?.focus(); return; }
     const grade = document.getElementById('inp-grade')?.value;
-    const athlete = saveAthlete({ name, grade: grade ? Number(grade) : null });
-    log.info('athlete.add', { athlete_id: athlete.id });
+    const plate = document.getElementById('inp-plate')?.value;
+    const a = saveAthlete({ name, grade: grade ? +grade : null, plate: plate ? +plate : null });
+    ensureDraft(a.id);
+    s.expandedId = a.id;
+    log.info('athlete.add', { athlete_id: a.id });
     closeModal();
     draw();
     return;
   }
 
-  if (action === 'save-coach') {
-    const name = document.getElementById('inp-coach')?.value?.trim();
-    if (name) saveCoach({ name });
+  if (action === 'save-settings') {
+    const teamName  = document.getElementById('inp-team')?.value?.trim();
+    const coachName = document.getElementById('inp-coach')?.value?.trim();
+    if (teamName)  saveTeamSettings({ name: teamName });
+    if (coachName) { saveCoach({ name: coachName }); saveTeamSettings({ coachName }); }
+    log.info('settings.save', {});
     closeModal();
+    draw();
     return;
   }
 
@@ -374,7 +247,7 @@ function onModalClick(e) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `mtb-skills-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `mtb-skills-${today()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     return;
@@ -382,9 +255,8 @@ function onModalClick(e) {
 }
 
 function onModalKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey)
     document.querySelector('#modal-content button[data-m^="save"]')?.click();
-  }
   if (e.key === 'Escape') closeModal();
 }
 
@@ -397,9 +269,9 @@ function onImport(e) {
       importAll(ev.target.result);
       log.info('data.import.success', { athletes: getAthletes().length });
       closeModal();
-      go('roster');
-    } catch (e) {
-      log.error('data.import.failed', { error: e.message });
+      goRoster();
+    } catch (err) {
+      log.error('data.import.failed', { error: err.message });
       alert('Could not import — check that this is a valid MTB Skills backup file.');
     }
   };
@@ -407,7 +279,6 @@ function onImport(e) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-
 document.getElementById('app').addEventListener('click', onAppClick);
 document.getElementById('modal').addEventListener('click', onModalClick);
 document.getElementById('modal').addEventListener('keydown', onModalKeydown);
