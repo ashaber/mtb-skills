@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#1c1b18">
   <title>MTB Skills</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -88,11 +88,10 @@
 
     /* ── Level selector (segmented) ──────────────────────────────────────── */
     .lv-selector { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-    .lv-seg { height: 50px; border-radius: 10px; border: 2px solid var(--border); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; transition: opacity .1s; }
+    .lv-seg { height: 44px; border-radius: 10px; border: 2px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity .1s; }
     .lv-seg:active { opacity: .75; }
     .lv-seg.sel { border-color: transparent; }
     .lv-seg-n { font: 700 22px/1 var(--font-disp); }
-    .lv-seg-mark { display: flex; }
 
     .expand-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 
@@ -127,24 +126,28 @@
     .card-hero-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
     .plate-pill { font: 800 11px/1 var(--font-disp); color: #fff; background: var(--ink); border-radius: 6px; padding: 3px 7px; }
     .card-grade { font: 700 12px/1 var(--font-body); color: var(--dim); }
-    .trail-ready-section { margin-top: 10px; }
+    .trail-ready-band { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .trail-ready-label { font: 700 9.5px/1 var(--font-disp); letter-spacing: .1em; color: var(--dim); text-transform: uppercase; flex-shrink: 0; }
     .section-micro { display: block; font: 700 9.5px/1 var(--font-disp); letter-spacing: .1em; color: var(--dim); text-transform: uppercase; margin-bottom: 5px; }
-    .ready-row { display: flex; align-items: center; gap: 8px; }
+    .ready-row { display: flex; align-items: center; gap: 10px; }
 
     .card-section { padding: 14px 16px 4px; }
     .card-section-label { font: 800 11px/1 var(--font-disp); letter-spacing: .1em; color: var(--dim); margin-bottom: 10px; }
 
     /* ── Skill block (card view) ─────────────────────────────────────────── */
     .skill-block { background: var(--surface); border-radius: 15px; padding: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); margin-bottom: 12px; }
-    .skill-block-main { display: flex; gap: 12px; }
-    .posture-box { width: 116px; flex-shrink: 0; background: #faf9f5; border-radius: 12px; border: 1px solid var(--border); }
-    .skill-block-right { flex: 1; min-width: 0; }
-    .skill-block-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 3px; }
-    .skill-block-name { font: 700 18px/1 var(--font-disp); text-transform: uppercase; white-space: nowrap; }
-    .skill-block-lv { font: 700 12px/1 var(--font-body); white-space: nowrap; }
-    .skill-cue { font: 500 11.5px/1.3 var(--font-body); color: var(--dim); margin: 3px 0 4px; }
-    .skill-rubric-line { display: flex; align-items: flex-start; gap: 6px; margin-top: 14px; font: italic 500 11.5px/1.3 var(--font-body); color: var(--dim); }
-    .rubric-x { font-style: normal; font-weight: 800; color: var(--accent); flex-shrink: 0; }
+    .skill-block-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+    .skill-block-name { font: 700 18px/1 var(--font-disp); text-transform: uppercase; }
+    .skill-block-lv { font: 700 13px/1 var(--font-body); }
+
+    .sb-rubric-row { display: grid; grid-template-columns: 2fr 3fr; gap: 0; margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .sb-col { padding: 9px 11px; }
+    .sb-col-right { border-left: 1px solid var(--border); background: var(--bg); }
+    .sb-col-hdr { display: block; font: 700 9px/1 var(--font-disp); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; }
+    .sb-when { font: 500 12.5px/1.45 var(--font-body); color: var(--ink); margin: 0; }
+    .sb-fail-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .sb-fail-item { font: 400 12px/1.4 var(--font-body); color: var(--ink); padding-left: 10px; position: relative; }
+    .sb-fail-item::before { content: '·'; position: absolute; left: 0; color: var(--dim); }
 
     .trend-row { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0ede5; }
     .trend-spark-wrap { flex-shrink: 0; }
@@ -153,9 +156,7 @@
     .btn-suggest { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px; border-radius: 9px; border: none; color: #fff; font: 700 13px/1 var(--font-disp); letter-spacing: .02em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
     .btn-suggest:active { opacity: .8; }
     .trend-stable { display: block; margin-top: 6px; font: 600 12.5px/1 var(--font-body); color: #5b9b6a; }
-
-    .rubric-links { display: flex; gap: 8px; margin-top: 10px; }
-    .rubric-link-btn { display: flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); font: 700 12px/1 var(--font-disp); letter-spacing: .02em; color: var(--ink); cursor: pointer; }
+    .sb-guide-link { background: none; border: none; padding: 8px 0 0; font: 600 12px/1 var(--font-body); color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: block; }
 
     .session-actions { display: flex; gap: 8px; margin-top: 12px; }
     .session-actions .btn { flex: 1; }
@@ -209,6 +210,50 @@
     /* ── Toast ───────────────────────────────────────────────────────────── */
     #toast { position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%) translateY(12px); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 12px; font: 600 13.5px/1 var(--font-body); display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.3); z-index: 200; white-space: nowrap; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
     #toast.toast--show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Header actions group ────────────────────────────────────────────── */
+    .hdr-actions { display: flex; align-items: center; gap: 2px; }
+
+    /* ── Education / Field guide view ────────────────────────────────────── */
+    .rubric-view { position: fixed; inset: 0; max-width: 412px; margin: 0 auto; background: var(--bg); z-index: 20; display: flex; flex-direction: column; }
+    .rubric-topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 8px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .rubric-view-title { font: 800 14px/1 var(--font-disp); letter-spacing: .1em; color: var(--dim); text-transform: uppercase; }
+    .rubric-tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-bottom: 2px solid var(--border); flex-shrink: 0; }
+    .rubric-tab { padding: 11px 2px; border: none; border-bottom: 3px solid transparent; background: none; cursor: pointer; font: 700 11px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; color: var(--dim); margin-bottom: -2px; transition: color .15s; }
+    .rubric-tab--active { color: var(--accent); border-bottom-color: var(--accent); }
+    .rubric-tab:active { opacity: .7; }
+    .rubric-scroll { flex: 1; overflow-y: auto; padding: 14px 14px 0; }
+    .rubric-skill-desc { font: 500 13px/1.5 var(--font-body); color: var(--ink); margin-bottom: 6px; }
+    .rc-calibration { font: 400 12.5px/1.55 var(--font-body); color: var(--dim); margin-bottom: 10px; padding: 10px 13px; background: var(--surface); border-radius: 11px; border-left: 3px solid var(--border); }
+    .rc-note { font: 500 12.5px/1.5 var(--font-body); color: var(--dim); margin-bottom: 10px; padding: 8px 13px; background: var(--surface); border-radius: 11px; border-left: 3px solid var(--accent); }
+
+    /* ── Rubric level cards ──────────────────────────────────────────────── */
+    .rubric-card { background: var(--surface); border-radius: 15px; padding: 14px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .rc-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .rc-badge { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font: 800 22px/1 var(--font-disp); color: #fff; flex-shrink: 0; }
+    .rc-head-info { flex: 1; min-width: 0; }
+    .rc-gate { font: 600 14px/1.3 var(--font-body); color: var(--ink); }
+    .rc-dims { display: flex; flex-direction: column; }
+    .rc-dim { padding: 8px 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
+    .rc-dim-label { font: 700 10px/1 var(--font-disp); letter-spacing: .07em; text-transform: uppercase; color: var(--dim); }
+    .rc-dim-sub { font: 500 10px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; }
+    .rc-dim-text { font: 400 13px/1.5 var(--font-body); color: var(--ink); }
+    .rc-video-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg); font: 700 12px/1 var(--font-disp); color: var(--ink); text-decoration: none; margin-top: 10px; }
+
+    /* ── Guide tab ───────────────────────────────────────────────────────── */
+    .rc-section { margin-bottom: 18px; }
+    .rc-section-title { font: 800 15px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; color: var(--ink); margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    .rc-sub-title { font: 700 12px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; color: var(--dim); margin: 14px 0 6px; }
+    .rc-body { font: 400 13.5px/1.6 var(--font-body); color: var(--ink); margin: 0 0 8px; }
+    .rc-body-sm { font: 400 12.5px/1.55 var(--font-body); color: var(--dim); margin: 0 0 6px; }
+    .rc-example { background: var(--surface); border-radius: 11px; padding: 11px 13px; border-left: 3px solid var(--accent); }
+    .rc-trail-mins { display: flex; flex-direction: column; gap: 0; background: var(--surface); border-radius: 11px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .rc-trail-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 13px; border-top: 1px solid var(--border); }
+    .rc-trail-row:first-child { border-top: none; }
+    .rc-trail-name { font: 700 13px/1 var(--font-body); min-width: 90px; flex-shrink: 0; }
+    .rc-trail-req { font: 400 12.5px/1.4 var(--font-body); color: var(--dim); }
+    .rc-guide-list { margin: 0 0 8px; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 5px; }
+    .rc-guide-li { font: 400 13px/1.5 var(--font-body); color: var(--ink); }
   </style>
 </head>
 <body>

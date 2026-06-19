@@ -14,14 +14,15 @@ import {
   exportAll, importAll,
 } from './storage.js';
 import { SKILL_IDS } from './rubric.js';
-import { viewRoster, viewCard, modalAddAthlete, modalSettings } from './views.js';
+import { viewRoster, viewCard, viewRubric, modalAddAthlete, modalSettings } from './views.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const s = {
-  view:       'roster',   // 'roster' | 'card'
-  athleteId:  null,
-  expandedId: null,       // which roster row has inline accordion open
-  draft:      {},         // { [athleteId]: { body_position, braking, cornering } }
+  view:           'roster',        // 'roster' | 'card' | 'rubric'
+  athleteId:      null,
+  expandedId:     null,            // which roster row has inline accordion open
+  draft:          {},              // { [athleteId]: { body_position, braking, cornering } }
+  rubricSkill:    SKILL_IDS[0],    // active tab in education screen
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -58,7 +59,9 @@ function goRoster() {
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function draw() {
   document.getElementById('app').innerHTML =
-    s.view === 'card' ? viewCard(s) : viewRoster(s);
+    s.view === 'card'   ? viewCard(s)   :
+    s.view === 'rubric' ? viewRubric(s) :
+    viewRoster(s);
 
   // Wire photo upload (can't use event delegation for file inputs)
   const photoInput = document.getElementById('photo-upload');
@@ -150,6 +153,18 @@ function onAppClick(e) {
   if (action === 'go-roster') return goRoster();
   if (action === 'go-card')   return goCard(id);
 
+  if (action === 'go-rubric') {
+    log.info('nav.rubric', {});
+    go('rubric');
+    return;
+  }
+
+  if (action === 'rubric-tab') {
+    s.rubricSkill = el.dataset.id;
+    draw();
+    return;
+  }
+
   if (action === 'toggle-expand') {
     s.expandedId = (s.expandedId === id) ? null : id;
     ensureDraft(id);
@@ -182,13 +197,10 @@ function onAppClick(e) {
   if (action === 'open-add')      return openModal(modalAddAthlete());
   if (action === 'open-settings') return openModal(modalSettings());
 
-  if (action === 'open-rubric-doc') {
-    // Placeholder — wire to the real long-form doc URL per skill/level
-    alert(`Full rubric: ${sk.replace('_', ' ')} › Level ${lv}\n(Connect to long-form reference document URL)`);
-    return;
-  }
-  if (action === 'open-rubric-video') {
-    alert(`Video: ${sk.replace('_', ' ')} › Level ${lv}\n(Connect to Tim's technique clip URL)`);
+  if (action === 'go-rubric-skill') {
+    s.rubricSkill = sk;
+    log.info('nav.rubric', { skill: sk });
+    go('rubric');
     return;
   }
 

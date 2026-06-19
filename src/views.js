@@ -5,7 +5,7 @@
  */
 
 import log from './log.js';
-import { SKILLS, SKILL_IDS } from './rubric.js';
+import { SKILLS, SKILL_IDS, TRAIL_GUIDE, COACH_NOTES, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
 import {
   getAthletes, getAthleteConfirmedLevels, getObservations,
   getCoach, getPhoto, getTeamSettings, exportAll,
@@ -21,6 +21,7 @@ const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'shor
 // SVG icons
 const BACK  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 5l-6 6 6 6"/></svg>`;
 const TRASH = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
+const BOOK  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>`;
 
 // ── Roster view ─────────────────────────────────────────────────────────────
 export function viewRoster(s) {
@@ -92,9 +93,12 @@ export function viewRoster(s) {
     <div class="hdr" id="hdr">
       <div class="hdr-top">
         <span class="hdr-kicker">${esc(teamName)}</span>
-        <button class="ico-btn" data-a="open-settings" aria-label="Settings">
-          <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
-        </button>
+        <div class="hdr-actions">
+          <button class="ico-btn" data-a="go-rubric" aria-label="Field Guide">${BOOK}</button>
+          <button class="ico-btn" data-a="open-settings" aria-label="Settings">
+            <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+          </button>
+        </div>
       </div>
       <div class="hdr-title-row">
         <h1 class="hdr-title">Team Roster</h1>
@@ -136,17 +140,23 @@ export function viewCard(s) {
     const trend   = trendSVG(history, confirmedLv, 160, 44);
     const hasObs  = history.length > 0;
 
+    const failureItems = SKILLS[sk].levels[lv].failure_modes
+      .map(f => `<li class="sb-fail-item">${esc(f)}</li>`).join('');
+
     return `<div class="skill-block">
-      <div class="skill-block-main">
-        <div class="posture-box">${postureSVG(sk, lv, LV[lv], 116)}</div>
-        <div class="skill-block-right">
-          <div class="skill-block-head">
-            <span class="skill-block-name">${SKILLS[sk].name.toUpperCase()}</span>
-            <span class="skill-block-lv" style="color:${LV[lv]}">LEVEL ${lv}</span>
-          </div>
-          <p class="skill-cue">${esc(SKILLS[sk].levels[lv].when_breaks)}</p>
-          ${levelSelectorHTML(sk, lv, a.id, 'full')}
-          <p class="skill-rubric-line"><span class="rubric-x">✕</span><em>${esc(SKILLS[sk].levels[lv].failure_modes.slice(0,2).join(' · '))}</em></p>
+      <div class="skill-block-head">
+        <span class="skill-block-name">${SKILLS[sk].name.toUpperCase()}</span>
+        <span class="skill-block-lv" style="color:${LV[lv]}">LEVEL ${lv}</span>
+      </div>
+      ${levelSelectorHTML(sk, lv, a.id, 'full')}
+      <div class="sb-rubric-row">
+        <div class="sb-col">
+          <span class="sb-col-hdr">WHEN IT BREAKS</span>
+          <p class="sb-when">${esc(SKILLS[sk].levels[lv].when_breaks)}</p>
+        </div>
+        <div class="sb-col sb-col-right">
+          <span class="sb-col-hdr">WHAT BREAKS — ANY OF:</span>
+          <ul class="sb-fail-list">${failureItems}</ul>
         </div>
       </div>
       <div class="trend-row">
@@ -161,10 +171,7 @@ export function viewCard(s) {
             : `<span class="trend-stable">● Holding at level</span>`}
         </div>
       </div>
-      <div class="rubric-links">
-        <button class="rubric-link-btn" data-a="open-rubric-doc" data-sk="${sk}" data-lv="${lv}">📄 FULL RUBRIC</button>
-        <button class="rubric-link-btn" data-a="open-rubric-video" data-sk="${sk}" data-lv="${lv}">▶ VIDEO</button>
-      </div>
+      <button class="sb-guide-link" data-a="go-rubric-skill" data-sk="${sk}">Full rubric in Field Guide →</button>
     </div>`;
   }).join('');
 
@@ -198,11 +205,11 @@ export function viewCard(s) {
               ${a.plate ? `<span class="plate-pill">#${esc(String(a.plate))}</span>` : ''}
               <span class="card-grade">GRADE ${esc(String(a.grade || '—'))}</span>
             </div>
-            <div class="trail-ready-section">
-              <span class="section-micro">TRAIL READY</span>
-              <div class="ready-row">${readyRowHTML(conf, 18)}</div>
-            </div>
           </div>
+        </div>
+        <div class="trail-ready-band">
+          <span class="trail-ready-label">TRAIL READY</span>
+          <div class="ready-row">${readyRowHTML(conf, 22)}</div>
         </div>
 
         <div class="card-section">
@@ -256,7 +263,10 @@ function viewEmpty() {
     <div class="hdr">
       <div class="hdr-top">
         <span class="hdr-kicker">${esc(teamName)}</span>
-        <button class="ico-btn" data-a="open-settings" aria-label="Settings">⚙</button>
+        <div class="hdr-actions">
+          <button class="ico-btn" data-a="go-rubric" aria-label="Field Guide">${BOOK}</button>
+          <button class="ico-btn" data-a="open-settings" aria-label="Settings">⚙</button>
+        </div>
       </div>
       <div class="hdr-title-row">
         <h1 class="hdr-title">Team Roster</h1>
@@ -302,6 +312,146 @@ export function modalAddAthlete() {
       <button class="btn btn-primary" data-m="save-athlete">Add Rider</button>
     </div>
     <div style="height:12px"></div>`;
+}
+
+// ── Education / Field guide view ─────────────────────────────────────────────
+export function viewRubric(s) {
+  const activeTab = s.rubricSkill || SKILL_IDS[0];
+
+  const allTabs = [...SKILL_IDS, 'guide'];
+  const tabLabels = { body_position: 'Body Position', braking: 'Braking', cornering: 'Cornering', guide: 'Guide' };
+
+  const tabs = allTabs.map(id => {
+    const active = id === activeTab;
+    return `<button class="rubric-tab${active ? ' rubric-tab--active' : ''}"
+      data-a="rubric-tab" data-id="${id}">${tabLabels[id]}</button>`;
+  }).join('');
+
+  const body = activeTab === 'guide' ? rubricGuideBody() : rubricSkillBody(activeTab);
+
+  return `
+    <div class="rubric-view" id="rubric-view">
+      <div class="rubric-topbar">
+        <button class="ico-btn" data-a="go-roster">${BACK} ROSTER</button>
+        <span class="rubric-view-title">FIELD GUIDE</span>
+        <span style="width:88px"></span>
+      </div>
+      <div class="rubric-tabs" role="tablist">${tabs}</div>
+      <div class="rubric-scroll">
+        ${body}
+        <div class="ph"></div>
+      </div>
+    </div>`;
+}
+
+function rubricSkillBody(skillId) {
+  const skill = SKILLS[skillId];
+
+  const notes = (skill.notes || [])
+    .map(n => `<p class="rc-note">${esc(n)}</p>`)
+    .join('');
+
+  const cards = [1, 2, 3, 4, 5].map(lv => {
+    const lvData = skill.levels[lv];
+    const color  = LV[lv];
+
+    const dimRows = skill.dimensions.map(dim => {
+      const label = dim.sublabel
+        ? `${esc(dim.label)} <span class="rc-dim-sub">${esc(dim.sublabel)}</span>`
+        : esc(dim.label);
+      return `<div class="rc-dim">
+        <span class="rc-dim-label">${label}</span>
+        <span class="rc-dim-text">${esc(dim.levels[lv])}</span>
+      </div>`;
+    }).join('');
+
+    const videoLink = lvData.video_url
+      ? `<a class="rc-video-link" href="${esc(lvData.video_url)}" target="_blank" rel="noopener">▶ Video</a>`
+      : '';
+
+    return `<div class="rubric-card" data-lv="${lv}">
+      <div class="rc-head">
+        <div class="rc-badge" style="background:${color}">${lv}</div>
+        <div class="rc-head-info">
+          <div class="rc-gate">${esc(lvData.when_breaks)}</div>
+        </div>
+      </div>
+      <div class="rc-dims">${dimRows}</div>
+      ${videoLink}
+    </div>`;
+  }).join('');
+
+  return `
+    <p class="rubric-skill-desc">${esc(skill.description)}</p>
+    <p class="rc-calibration">${esc(skill.calibration_note)}</p>
+    ${notes}
+    <div class="rubric-cards">${cards}</div>`;
+}
+
+function rubricGuideBody() {
+  const g = TRAIL_GUIDE;
+  const cn = COACH_NOTES;
+
+  const minimumRows = Object.entries(TRAIL_MINIMUMS).map(([key, mins]) => {
+    const label = TRAIL_LABELS[key];
+    const reqs  = Object.entries(mins).map(([sk, lv]) =>
+      `${SKILLS[sk].name} ${lv}`).join(' · ');
+    return `<div class="rc-trail-row"><span class="rc-trail-name">${esc(label)}</span><span class="rc-trail-req">${esc(reqs)}</span></div>`;
+  }).join('');
+
+  const assessRules = g.assessment_rules
+    .map(r => `<li class="rc-guide-li">${esc(r)}</li>`).join('');
+  const scoreExamples = g.score_examples
+    .map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
+  const commonErrors = cn.common_errors
+    .map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
+  const interdeps = cn.interdependencies
+    .map(i => `<li class="rc-guide-li">${esc(i)}</li>`).join('');
+  const essentials = cn.key_essentials
+    .map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
+
+  return `
+    <div class="rc-section">
+      <h2 class="rc-section-title">Trail Selection</h2>
+      <p class="rc-body">${esc(g.intro)}</p>
+
+      <h3 class="rc-sub-title">Minimum skill levels</h3>
+      <p class="rc-body-sm">${esc(g.minimums_note)}</p>
+      <div class="rc-trail-mins">${minimumRows}</div>
+
+      <h3 class="rc-sub-title">Trail ratings reflect the hardest feature</h3>
+      <p class="rc-body">${esc(g.trail_ratings_note)}</p>
+
+      <h3 class="rc-sub-title">How to assess</h3>
+      <ul class="rc-guide-list">${assessRules}</ul>
+
+      <h3 class="rc-sub-title">A real example</h3>
+      <p class="rc-body rc-example">${esc(g.real_example)}</p>
+
+      <h3 class="rc-sub-title">Score notation</h3>
+      <p class="rc-body">${esc(g.score_notation)}</p>
+      <ul class="rc-guide-list">${scoreExamples}</ul>
+      <p class="rc-body-sm">Reassessment cadence: ${esc(g.reassessment)}</p>
+    </div>
+
+    <div class="rc-section">
+      <h2 class="rc-section-title">Coach Notes</h2>
+
+      <h3 class="rc-sub-title">Fitts &amp; Posner — motor learning stages</h3>
+      <p class="rc-body">${esc(cn.fitts_posner)}</p>
+
+      <h3 class="rc-sub-title">Calibration — expected skill distribution</h3>
+      <p class="rc-body">${esc(cn.calibration)}</p>
+
+      <h3 class="rc-sub-title">Common assessment errors</h3>
+      <ul class="rc-guide-list">${commonErrors}</ul>
+
+      <h3 class="rc-sub-title">Skill interdependencies</h3>
+      <ul class="rc-guide-list">${interdeps}</ul>
+
+      <h3 class="rc-sub-title">3 Key Essentials — always present above Level 1</h3>
+      <ul class="rc-guide-list">${essentials}</ul>
+    </div>`;
 }
 
 // ── Modal: settings ───────────────────────────────────────────────────────────

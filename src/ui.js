@@ -161,7 +161,6 @@ export function levelSelectorHTML(skill, draftLevel, athleteId, size = 'compact'
     return `<button class="lv-seg${sel ? ' sel' : ''}" style="${style}"
       data-a="draft-level" data-sk="${skill}" data-n="${n}" data-aid="${athleteId}">
       <span class="lv-seg-n">${n}</span>
-      <span class="lv-seg-mark">${trailMarkSVG(LEVEL_MARK[n], size === 'compact' ? 10 : 12, sel ? '#fff' : undefined)}</span>
     </button>`;
   }).join('');
   return `<div class="lv-selector">${segs}</div>`;

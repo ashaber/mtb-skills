@@ -84,29 +84,21 @@ mtb-skills/
 
 ---
 
-## Current Sprint — UI/UX Polish (Phase 1b)
+## Current Sprint — Education Screen (Phase 1b)
 
-**Branch:** `phase1/ui-polish`
-**Goal:** Elevate the app from functional to coach-ready. Fix placeholder gaps, add onboarding, add rubric education screen.
+**Branch:** `feature/education`
+**Goal:** Build the in-app rubric education screen — digital version of the printed field cards.
 
-### 1. Onboarding flow (first-launch)
-Detect first launch (`getCoach() === null`). Show a welcome screen before the blank roster:
-- App name + one-line purpose ("Assess MTB skills. Know which trails your riders are ready for.")
-- Three-step flow summary: Observe → Confirm → Trail Readiness
-- Coach name input (required to proceed) — calls `saveCoach()`
-- Optional team name — calls `saveTeamSettings({ teamName })`
-- "Get started" → goes to roster
-- Skip is not offered — coach name is required for `coach_id` on all records
+**Already done on this branch:**
+- ✅ Storage stubs wired up: athlete photos (`getPhoto`/`savePhoto`) and team settings (`getTeamSettings`/`saveTeamSettings`) connected in views.js and main.js
 
-**Acceptance criteria:**
-- [ ] First launch shows onboarding, not empty roster
-- [ ] Returning user (coach already set) goes directly to roster
-- [ ] Coach name saved and visible in Settings after onboarding
-- [ ] Vitest: `getCoach() === null` triggers onboarding state
-- [ ] Playwright: first visit shows onboarding; after name entry, roster shown
+**Deferred to a follow-on branch:**
+- Onboarding flow (first-launch welcome + coach name prompt)
+- Bottom nav bar (persistent navigation between Roster / Rubric / Settings)
+- Deprecated meta tag fix (`apple-mobile-web-app-capable` → `mobile-web-app-capable`)
 
-### 2. Education screen — Digital field guide
-New view: `'rubric'` state in `s.view`. Entry point: bottom nav or header button.
+### Education screen — Digital field guide
+New view: `'rubric'` state in `s.view`. Entry point: header button (bottom nav deferred).
 
 Layout mirrors the printed field cards:
 - Skill selector tabs: Body Position | Braking | Cornering
@@ -115,64 +107,25 @@ Layout mirrors the printed field cards:
   - Failure modes list (from `rubric.js` `failure_modes`)
   - Expandable "Detail" section (from `rubric.js` `detail`) — collapsed by default
   - Video links: **do not show** — no content ready yet. No placeholder, no "coming soon" text. When `video_url` is added to a level in `rubric.js`, the link will appear automatically. Until then, render nothing.
-- Back button returns to wherever the coach came from
+- Back button returns to roster
 
 **Data:** reads entirely from `src/rubric.js` — no storage changes, works offline.
 
 **Acceptance criteria:**
-- [ ] Education screen accessible from main nav
+- [ ] Education screen reachable from roster header
 - [ ] All 3 skills, all 5 levels rendered with correct content from rubric.js
+- [ ] Card layout mirrors printed field card format (level badge, trail rating, failure modes)
 - [ ] Detail section expands/collapses per level
-- [ ] Video placeholder shown (not broken link) when no URL set
+- [ ] Video link rendered per level only when `video_url` is set in rubric.js — nothing shown when absent
 - [ ] Playwright: education screen loads, all skill tabs work, expand/collapse works
 
-### 3. Wire up storage stubs
-`storage.js` has two implemented-but-unused functions. Connect them:
-
-**Athlete photos** (`getPhoto`, `savePhoto`):
-- Add photo display to athlete profile header (avatar circle)
-- Tap avatar → file picker → saves as data-URL via `savePhoto()`
-- Falls back to initials avatar if no photo set
-- Note: data-URLs in localStorage are large — warn in log if photo > 200KB
-
-**Team settings** (`getTeamSettings`, `saveTeamSettings`):
-- Add "Team Name" field to Settings modal
-- Display team name in roster header (replaces or subtitles "MTB Skills")
-- Used in JSON export
-
-**Acceptance criteria:**
-- [ ] Athlete profile shows photo or initials avatar
-- [ ] Tapping avatar opens file picker, saves photo, displays immediately
-- [ ] Team name editable in Settings, shown in roster header
-- [ ] Playwright: upload photo flow, team name persists across reload
-
-### 4. Navigation — bottom nav bar
-Currently no persistent navigation. Add a minimal bottom nav:
-- **Roster** (people icon) — current home
-- **Rubric** (book icon) — education screen
-- **Settings** (gear icon) — currently only reachable from roster header
-
-Active tab highlighted. Hidden when a modal is open.
-
-**Acceptance criteria:**
-- [ ] Bottom nav visible on roster, rubric, and settings views
-- [ ] Active tab visually indicated
-- [ ] Playwright: nav between all three sections
-
-### 5. Deprecated meta tag
-Fix issue noted in console:
-- Replace `<meta name="apple-mobile-web-app-capable" content="yes">` with `<meta name="mobile-web-app-capable" content="yes">` in `index.html`
-- Closes GitHub issue #3 (partially — the main.js 404 was resolved by deploy)
-
 ### Sprint DOD
-- [ ] All 5 items above complete
-- [ ] Vitest unit tests updated/added for any new logic
-- [ ] Playwright e2e tests cover all new flows
+- [ ] Education screen complete per acceptance criteria above
+- [ ] Vitest unit tests for any new logic
+- [ ] Playwright e2e tests cover education screen flows
 - [ ] No bare `console.*` — all logging via `src/log.js`
 - [ ] No dead code, no placeholder comments left in shipped code
 - [ ] PR description references these items
-- [ ] README updated if feature list changes
-- [ ] Closes GitHub issues #3
 
 ---
 
@@ -240,8 +193,9 @@ Add optional medical and emergency contact fields to Person. Surfaced via an inf
 - Info icon only shown if any info field is set — no empty modal clutter
 - Edit pencil inside the info modal to update fields
 - Privacy note in modal: "Stored on this device only. Included in JSON export."
-- Fields: Medical notes (free text), Emergency contact name, Emergency contact phone
+- Fields: Medical notes (free text, e.g. "Epi pen", "insulin"), Emergency contact name, Emergency contact phone
 - All fields optional — blank = not stored
+- Info fields are included in the athlete trading QR payload so a receiving coach has necessary safety info
 
 **Acceptance criteria:**
 - [ ] Info icon appears on profile when any info field is set
@@ -287,25 +241,57 @@ New entity and view for recording practice attendance.
 - On open: shows today's practice (auto-created if none exists for today)
 - Roster list with attending/absent toggle per person — attending sorted to top, absent below
 - Filter mirrors main roster filter (athletes / coaches / all)
-- "+ Temp add" button for riders not on permanent roster
+- "+ Temp add" button for riders not on permanent roster — covers athletes whose trading card wasn't received from their usual coach
 - Tap a person row → their athlete profile (same as main roster)
+- Coaches appear on roster: Level 3 coaches are expected to evaluate Level 1 and 2 coaches, not only athletes
 
 **Acceptance criteria:**
 - [ ] Practice view opens, creates today's practice if none exists
 - [ ] Mark attending/absent persists across reload
 - [ ] Attending sorted above absent
 - [ ] Filter (athletes/coaches/all) works in practice view
+- [ ] Coaches visible in practice roster when filter includes coaches
 - [ ] Temp add creates attendance record with `status: 'temp_add'`
 - [ ] Vitest: practice and attendance storage functions
 - [ ] Playwright: mark attendance, reload, verify state persists
+
+### Athlete trading
+Allow a coach to export an athlete to another coach — e.g. athlete moves up to a higher-skill group for the day, or moves down on a rest day.
+
+**Mechanism:** Exporting coach generates a QR code on their device. Receiving coach scans it → athlete record (with safety info) is added to their roster.
+
+**Export payload (JSON encoded as QR):**
+- Person record: name, role, grade, medical notes, emergency contact name/phone
+- Confirmed skill levels (not raw observations — only the confirmed state matters for the receiving coach)
+- Photo omitted by default — too large for QR
+
+**Import rules:**
+- UUID match → show merge prompt, never silently overwrite
+- New UUID → add to roster as a new person
+- Medical and emergency contact fields always included so receiving coach has necessary safety context
+
+**UX:**
+- "Share" button on athlete profile → generates QR code modal
+- "Scan athlete QR" entry point on roster screen → opens camera, parses QR, shows preview before adding
+- Temp add in practice roster (`status: 'temp_add'`) is the fallback when a trading card QR was not received
+
+**Acceptance criteria:**
+- [ ] Share button on athlete profile generates scannable QR with correct payload
+- [ ] QR includes person record and confirmed skill levels
+- [ ] Import via QR scan shows athlete preview before adding to roster
+- [ ] UUID collision shows merge prompt rather than silent overwrite
+- [ ] Athlete info (medical, emergency contact) included in QR payload
+- [ ] Vitest: QR payload serialization and deserialization round-trip
+- [ ] Playwright: share QR modal opens; import flow adds athlete with correct fields
 
 ### Sprint DOD
 - [ ] All schema migration items complete and tested
 - [ ] Roster filter working (all / athletes / coaches)
 - [ ] Athlete info fields add/edit/display
-- [ ] Practice roster with attendance and sorting
-- [ ] Vitest coverage: migration shim, getPeople filters, practice/attendance storage
-- [ ] Playwright coverage: filter, info modal, practice attendance flow
+- [ ] Practice roster with attendance, sorting, and coach visibility
+- [ ] Athlete trading: QR export and import flow
+- [ ] Vitest coverage: migration shim, getPeople filters, practice/attendance storage, QR round-trip
+- [ ] Playwright coverage: filter, info modal, practice attendance flow, trading QR flow
 - [ ] `app/schema.md` updated to schema v2
 - [ ] No bare `console.*` — all logging via `src/log.js`
 - [ ] PR description references DOD items
