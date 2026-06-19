@@ -247,11 +247,12 @@
     .rc-body { font: 400 13.5px/1.6 var(--font-body); color: var(--ink); margin: 0 0 8px; }
     .rc-body-sm { font: 400 12.5px/1.55 var(--font-body); color: var(--dim); margin: 0 0 6px; }
     .rc-example { background: var(--surface); border-radius: 11px; padding: 11px 13px; border-left: 3px solid var(--accent); }
-    .rc-trail-mins { display: flex; flex-direction: column; gap: 0; background: var(--surface); border-radius: 11px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
-    .rc-trail-row { display: flex; align-items: baseline; gap: 10px; padding: 9px 13px; border-top: 1px solid var(--border); }
-    .rc-trail-row:first-child { border-top: none; }
-    .rc-trail-name { font: 700 13px/1 var(--font-body); min-width: 90px; flex-shrink: 0; }
-    .rc-trail-req { font: 400 12.5px/1.4 var(--font-body); color: var(--dim); }
+    .rc-trail-mins { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 11px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .rc-trail-mins thead th { font: 600 11px/1 var(--font-body); color: var(--dim); text-transform: uppercase; letter-spacing: .05em; padding: 8px 13px; text-align: center; border-bottom: 1px solid var(--border); }
+    .rc-trail-mins thead th.rc-trail-name { text-align: left; }
+    .rc-trail-row td { padding: 9px 13px; border-top: 1px solid var(--border); }
+    .rc-trail-name { font: 700 13px/1 var(--font-body); text-align: left; min-width: 90px; }
+    .rc-trail-cell { font: 600 15px/1 var(--font-body); text-align: center; color: var(--text); width: 48px; }
     .rc-guide-list { margin: 0 0 8px; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 5px; }
     .rc-guide-li { font: 400 13px/1.5 var(--font-body); color: var(--ink); }
   </style>

@@ -187,7 +187,16 @@ A coach taps "Share" on an athlete's card → QR code modal appears → another 
 
 **Current state:** The trail-ready band shows 4 trail symbols (green/blue/black/double-black) at full opacity if the rider is ready, dimmed if not. A coach can see which trails a rider is ready for, but not *why* they're blocked from the next tier.
 
-**The problem:** A rider with BP:3, BRK:1, CRN:2 is blocked from green circle by Braking — but the band just shows the green symbol dimmed. The coach has to cross-reference rubric minimums manually.
+**Minimums (authoritative values in `TRAIL_MINIMUMS` in `rubric.js`):**
+
+| Trail | BP | BRK | CRN |
+|---|---|---|---|
+| Green ● | 2 | 1 | 1 |
+| Blue ■ | 2 | 2 | 2 |
+| Black ◆ | 3 | 3 | 3 |
+| Dbl Black ◆◆ | 5 | 4 | 5 |
+
+**The problem:** A rider with BP:1, BRK:3, CRN:2 is blocked from green circle by Body Position alone — but the band just shows the green symbol dimmed. The coach has to cross-reference rubric minimums manually.
 
 **Target behavior:** For each trail tier the rider is NOT yet ready for, show the specific skill(s) below minimum. Minimums are in `TRAIL_MINIMUMS` in `rubric.js`.
 

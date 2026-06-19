@@ -394,9 +394,12 @@ function rubricGuideBody() {
 
   const minimumRows = Object.entries(TRAIL_MINIMUMS).map(([key, mins]) => {
     const label = TRAIL_LABELS[key];
-    const reqs  = Object.entries(mins).map(([sk, lv]) =>
-      `${SKILLS[sk].name} ${lv}`).join(' · ');
-    return `<div class="rc-trail-row"><span class="rc-trail-name">${esc(label)}</span><span class="rc-trail-req">${esc(reqs)}</span></div>`;
+    return `<tr class="rc-trail-row">
+      <td class="rc-trail-name">${esc(label)}</td>
+      <td class="rc-trail-cell">${mins.body_position}</td>
+      <td class="rc-trail-cell">${mins.braking}</td>
+      <td class="rc-trail-cell">${mins.cornering}</td>
+    </tr>`;
   }).join('');
 
   const assessRules = g.assessment_rules
@@ -417,7 +420,15 @@ function rubricGuideBody() {
 
       <h3 class="rc-sub-title">Minimum skill levels</h3>
       <p class="rc-body-sm">${esc(g.minimums_note)}</p>
-      <div class="rc-trail-mins">${minimumRows}</div>
+      <table class="rc-trail-mins">
+        <thead><tr>
+          <th class="rc-trail-name"></th>
+          <th class="rc-trail-cell">BP</th>
+          <th class="rc-trail-cell">BRK</th>
+          <th class="rc-trail-cell">CRN</th>
+        </tr></thead>
+        <tbody>${minimumRows}</tbody>
+      </table>
 
       <h3 class="rc-sub-title">Trail ratings reflect the hardest feature</h3>
       <p class="rc-body">${esc(g.trail_ratings_note)}</p>

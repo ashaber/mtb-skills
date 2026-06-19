@@ -58,19 +58,19 @@ describe('trailReadiness', () => {
     expect(trailReadiness({})).toHaveLength(0);
   });
 
-  it('unlocks green at BP≥2, Braking≥2, Cornering≥1', () => {
-    const ready = trailReadiness({ body_position: 2, braking: 2, cornering: 1 });
+  it('unlocks green at BP≥2, Braking≥1, Cornering≥1', () => {
+    const ready = trailReadiness({ body_position: 2, braking: 1, cornering: 1 });
     expect(ready).toContain('green');
     expect(ready).not.toContain('blue');
   });
 
   it('does not unlock green if any minimum is unmet', () => {
-    expect(trailReadiness({ body_position: 2, braking: 1, cornering: 1 })).not.toContain('green');
-    expect(trailReadiness({ body_position: 1, braking: 2, cornering: 1 })).not.toContain('green');
+    expect(trailReadiness({ body_position: 1, braking: 1, cornering: 1 })).not.toContain('green');
+    expect(trailReadiness({ body_position: 2, braking: 1, cornering: 0 })).not.toContain('green');
   });
 
-  it('unlocks green and blue at BP≥3, Braking≥2, Cornering≥2', () => {
-    const ready = trailReadiness({ body_position: 3, braking: 2, cornering: 2 });
+  it('unlocks green and blue at BP≥2, Braking≥2, Cornering≥2', () => {
+    const ready = trailReadiness({ body_position: 2, braking: 2, cornering: 2 });
     expect(ready).toContain('green');
     expect(ready).toContain('blue');
     expect(ready).not.toContain('black');
@@ -84,8 +84,8 @@ describe('trailReadiness', () => {
     expect(ready).not.toContain('double_black');
   });
 
-  it('unlocks all 4 trails at 4-4-4', () => {
-    const ready = trailReadiness({ body_position: 4, braking: 4, cornering: 4 });
+  it('unlocks all 4 trails at 5-4-5', () => {
+    const ready = trailReadiness({ body_position: 5, braking: 4, cornering: 5 });
     expect(ready).toHaveLength(4);
     expect(ready).toContain('double_black');
   });

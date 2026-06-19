@@ -369,10 +369,10 @@ export const SKILL_IDS = Object.keys(SKILLS);
 // Trail readiness: minimum confirmed level required per skill.
 // Floors not ceilings — match to the hardest feature on the trail.
 export const TRAIL_MINIMUMS = {
-  green:        { body_position: 2, braking: 2, cornering: 1 },
-  blue:         { body_position: 3, braking: 2, cornering: 2 },
+  green:        { body_position: 2, braking: 1, cornering: 1 },
+  blue:         { body_position: 2, braking: 2, cornering: 2 },
   black:        { body_position: 3, braking: 3, cornering: 3 },
-  double_black: { body_position: 4, braking: 4, cornering: 4 },
+  double_black: { body_position: 5, braking: 4, cornering: 5 },
 };
 
 export const TRAIL_LABELS = {
