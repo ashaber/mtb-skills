@@ -117,15 +117,17 @@ emergency_contact_phone:   string | null
 **UX on athlete card:**
 - Info section appears below Coach Notes when any field is set — no section shown if all blank
 - Tap "Edit safety info" → modal with 3 fields + privacy note: *"Stored on this device only. Included in trading card and JSON export."*
-- No icon in roster row — full card only (no clutter in compact view)
+- small <!> triangle with exclamation icon in roster row
+- full card shows med detail in expand collapse at top of full card.
 
 **Acceptance criteria:**
-- [ ] Fields saved to localStorage on athlete record
-- [ ] Info section visible on card only when at least one field is set
-- [ ] Edit modal pre-fills current values, saves on confirm
-- [ ] Fields survive reload and export/import round-trip
+- [x] Fields saved to localStorage on athlete record
+- [x] Info section visible on card only when at least one field is set
+- [x] Edit modal pre-fills current values, saves on confirm
+- [x] Fields survive reload and export/import round-trip
 - [ ] Vitest: athlete record with/without info fields serializes and deserializes cleanly
-- [ ] Playwright: add info, reload, verify fields present on card
+- [x] Playwright: add info, reload, verify fields present on card
+- [x] extra info icon on roster compact view 
 
 ---
 
@@ -170,16 +172,16 @@ A coach taps "Share" on an athlete's card → QR code modal appears → another 
 - Use `jsQR` for camera decode (pure JS, offline-safe)
 
 **Acceptance criteria:**
-- [ ] "Share card" button on athlete card generates QR code modal
-- [ ] QR payload includes name, grade, medical info, confirmed levels, source_athlete_id
+- [x] "Share card" button on athlete card generates QR code modal
+- [x] QR payload includes name, grade, medical info, confirmed levels, source_athlete_id
 - [ ] QR is scannable by another device (test phone-to-phone)
-- [ ] "Scan card" button opens camera
-- [ ] Scanned QR shows preview before adding to roster
-- [ ] New athlete added with correct fields populated
-- [ ] `source_athlete_id` UUID collision shows merge prompt, does not silently overwrite
-- [ ] Entire flow works offline (no network calls)
-- [ ] Vitest: QR payload encode/decode round-trip, merge detection logic
-- [ ] Playwright: share modal opens with QR; import preview shown before add
+- [x] "Scan card" button opens camera
+- [x] Scanned QR shows preview before adding to roster
+- [x] New athlete added with correct fields populated
+- [x] `source_athlete_id` UUID collision shows merge prompt, does not silently overwrite
+- [x] Entire flow works offline (no network calls)
+- [x] Vitest: QR payload encode/decode round-trip, merge detection logic
+- [x] Playwright: share modal opens with QR; import preview shown before add
 
 ---
 
@@ -215,25 +217,26 @@ TRAIL READY
 **`readyRowHTML()` in `src/ui.js`** needs a new variant or a `detail=true` flag for the expanded card view.
 
 **Acceptance criteria:**
-- [ ] Athlete card trail band shows blocked skill abbreviations per blocked tier
-- [ ] Only skills below minimum for that specific tier are shown (not all failing skills)
-- [ ] Ready tiers show ✓, no skill names
-- [ ] Roster row trail marks unchanged (compact, no text)
-- [ ] Display correct when rider has 0 confirmed levels (all tiers blocked, show all skills)
-- [ ] Display correct when rider is ready for all tiers (all show ✓)
-- [ ] Vitest: bottleneck computation for each trail tier across varied level combinations
+- [x] Athlete card trail band shows blocked skill abbreviations per blocked tier
+- [x] Only skills below minimum for that specific tier are shown (not all failing skills)
+- [x] Ready tiers show ✓, no skill names
+- [x] Roster row trail marks unchanged (compact, no text)
+- [x] Display correct when rider has 0 confirmed levels (all tiers blocked, show all skills)
+- [x] Display correct when rider is ready for all tiers (all show ✓)
+- [x] Vitest: bottleneck computation for each trail tier across varied level combinations
 
 ---
 
 ### Sprint DOD
-- [ ] Athlete info fields: save, display, edit, persist
-- [ ] Trading card QR export: correct payload, renders in modal, scannable
-- [ ] Trading card QR import: camera scan, preview, add to roster, merge prompt on UUID collision
-- [ ] Trail readiness matrix: blocked skill names shown per tier on athlete card
-- [ ] All flows work offline
-- [ ] Vitest: QR round-trip, merge detection, bottleneck computation
-- [ ] Playwright: info fields flow, share modal, import preview, trail readiness band
-- [ ] No bare `console.*` — all logging via `src/log.js`
+- [x] Athlete info fields: save, display, edit, persist
+- [x] Trading card QR export: correct payload, renders in modal, scannable
+- [ ] Trading card QR export: verified scannable phone-to-phone (requires real device)
+- [x] Trading card QR import: camera scan, preview, add to roster, merge prompt on UUID collision
+- [x] Trail readiness matrix: blocked skill names shown per tier on athlete card
+- [x] All flows work offline
+- [x] Vitest: QR round-trip, merge detection, bottleneck computation
+- [x] Playwright: info fields flow, share modal, import preview, trail readiness band
+- [x] No bare `console.*` — all logging via `src/log.js`
 - [ ] PR description references DOD items
 
 ---

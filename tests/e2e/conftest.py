@@ -5,8 +5,7 @@ import http.server
 import pytest
 from playwright.sync_api import sync_playwright
 
-# tests/e2e/conftest.py → tests/e2e → tests → repo root
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Repo root = directory containing pytest.ini; pytest sets config.rootpath to it automatically.
 PORT = 8765
 
 BROWSERS = [
@@ -15,20 +14,28 @@ BROWSERS = [
 ]
 
 
-class _Handler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=os.path.join(REPO_ROOT, 'dist'), **kwargs)
+def _repo_root(config: pytest.Config) -> str:
+    return str(config.rootpath)
 
-    def log_message(self, *args):
-        pass  # suppress access log noise
+
+class _Handler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, root: str, **kwargs):
+        super().__init__(*args, directory=os.path.join(root, 'dist'), **kwargs)
+
+    def log_message(self, *args) -> None:
+        pass
 
 
 @pytest.fixture(scope='session')
-def base_url():
-    dist = os.path.join(REPO_ROOT, 'dist')
-    if not os.path.exists(os.path.join(dist, 'index.html')):
-        subprocess.run(['npm', 'run', 'build'], cwd=REPO_ROOT, check=True)
-    httpd = http.server.HTTPServer(('127.0.0.1', PORT), _Handler)
+def base_url(pytestconfig: pytest.Config) -> str:
+    root = _repo_root(pytestconfig)
+    dist = os.path.join(root, 'dist')
+    subprocess.run(['npm', 'run', 'build'], cwd=root, check=True)
+
+    def handler_factory(*args, **kwargs):
+        return _Handler(*args, root=root, **kwargs)
+
+    httpd = http.server.HTTPServer(('127.0.0.1', PORT), handler_factory)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     yield f'http://127.0.0.1:{PORT}'
     httpd.shutdown()

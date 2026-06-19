@@ -24,6 +24,17 @@ Coach builds a local trail network — a list of trails with name, rating (green
 
 ---
 
+### App sharing and promotion
+- Add a QR code in app settings pointing to github pages url
+- consider a kill switch.  Allow the app to be shared but need a way to prevent it from being used fully for free or copied/reverse engineered
+- add an about section in settings below share qr.  Describe how the app is used for a practice and a brief roadmap of what is coming.  Highlight that while useful for a ride pod to track practice, it is more about the skill tracking
+- Will used for promotion of app and skills assessment at NICA national conference next week.
+
+### Swipe motions and single click entries
+- simplify opening full athlete card.  Once expanded on roster, swipe left opens full card.  On full card, swipe right goes back to roster with athlete collapsed
+- on roster, clicking a level records observation without a button click. remove record observation button.  Will result in inability to record observation of multiple skills as a single entry but we're not using the data that way.
+
+
 ### Athlete Trading *(in progress — Phase 1c)*
 Allow two coaches to exchange athletes.  E.g., athlete moves up to a higher skill/faster group, or moves down on a rest day.  Could be a QR code encoding athlete detail to load on other coaches roster.
 
@@ -46,5 +57,7 @@ In-app rubric reference. Digital version of the field card layout (skill → lev
 ### Video Reference per Skill Level *(promoted to ROADMAP.md Phase 1+)*
 YouTube-linked clips per skill/level on rubric cards. Tim's existing video assets are the source.
 
-### BICP Monetization Path *(noted in ROADMAP.md)*
-BICP (for-profit skills org) as alternative to NICA if app becomes commercializable.
+### Monetization Path *(noted in ROADMAP.md)*
+- BICP (for-profit skills org) as alternative to NICA if app becomes commercializable.  
+- Better plan, make practice app sellable to teams and leagues
+

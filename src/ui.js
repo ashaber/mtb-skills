@@ -68,13 +68,40 @@ export function trailMarkSVG(kind, size = 20, color) {
 // level → trail kind (for the posture-level infographic scale legend)
 const LEVEL_MARK = { 1:'flat', 2:'circle', 3:'square', 4:'diamond', 5:'double' };
 
-// ── Trail readiness row HTML ──────────────────────────────────────────────
+const SKILL_ABBR = { body_position: 'BP', braking: 'BRK', cornering: 'CRN' };
+
+// Returns skill abbreviations that are below minimum for a given trail key.
+export function bottleneckSkills(conf, trailKey) {
+  const mins = TRAIL_MINIMUMS[trailKey];
+  if (!mins) return [];
+  return Object.entries(mins)
+    .filter(([sk, min]) => (conf[sk] ?? 0) < min)
+    .map(([sk]) => SKILL_ABBR[sk]);
+}
+
+// ── Trail readiness row HTML (compact — roster row) ───────────────────────
 export function readyRowHTML(conf, size = 18) {
   const ready = readyTrails(conf);
   return Object.entries(TRAIL_META).map(([key, t]) => {
     const on = ready.includes(key);
     const col = (key === 'black' || key === 'double_black') ? (on ? '#16181d' : '#a0a09a') : t.color;
     return `<span title="${t.label}" style="display:inline-flex;align-items:center;opacity:${on ? 1 : 0.25};filter:${on ? 'none' : 'grayscale(1)'}">${trailMarkSVG(t.kind, size, col)}</span>`;
+  }).join('');
+}
+
+// ── Trail readiness row HTML (detail — athlete card) ──────────────────────
+// Shows blocked skill abbreviations per tier instead of just opacity.
+export function readyRowDetailHTML(conf, size = 20) {
+  return Object.entries(TRAIL_META).map(([key, t]) => {
+    const blockers = bottleneckSkills(conf, key);
+    const ready = blockers.length === 0;
+    const isDark = key === 'black' || key === 'double_black';
+    const col = isDark ? (ready ? '#16181d' : '#a0a09a') : t.color;
+    const mark = `<span style="opacity:${ready ? 1 : 0.3}">${trailMarkSVG(t.kind, size, col)}</span>`;
+    const status = ready
+      ? `<span class="rdt-check">✓</span>`
+      : `<span class="rdt-fail">${blockers.join(' · ')}</span>`;
+    return `<span class="rdt" title="${t.label}">${mark}${status}</span>`;
   }).join('');
 }
 

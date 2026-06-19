@@ -269,3 +269,212 @@ def test_import_round_trip(page: Page, base_url: str, tmp_path) -> None:
     page.click('[data-a="open-settings"]')
     page.set_input_files('#imp-file', str(export_path))
     expect(page.get_by_text('Import Test')).to_be_visible()
+
+
+# ── Trail readiness detail band ───────────────────────────────────────────────
+
+def test_trail_ready_band_shows_check_when_ready(page: Page) -> None:
+    """A rider with all skills confirmed at green minimum shows ✓ for green."""
+    add_athlete(page, 'Green Rider')
+    expand_row(page, 'Green Rider')
+    # BP=2, BRK=1, CRN=1 → green unlocked (min: BP≥2, BRK≥1, CRN≥1)
+    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="2"]')
+    page.click('[data-a="draft-level"][data-sk="braking"][data-n="1"]')
+    page.click('[data-a="draft-level"][data-sk="cornering"][data-n="1"]')
+    page.click('[data-a="log-session"]')
+    open_card(page, 'Green Rider')
+    band = page.locator('.ready-detail-row')
+    expect(band).to_be_visible()
+    expect(band.locator('.rdt-check').first).to_have_text('✓')
+
+
+def test_trail_ready_band_shows_blockers_when_not_ready(page: Page) -> None:
+    """A rider with BP=1 shows BP as blocker for green tier."""
+    add_athlete(page, 'Bad Rider')
+    expand_row(page, 'Bad Rider')
+    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="1"]')
+    page.click('[data-a="draft-level"][data-sk="braking"][data-n="1"]')
+    page.click('[data-a="draft-level"][data-sk="cornering"][data-n="1"]')
+    page.click('[data-a="log-session"]')
+    open_card(page, 'Bad Rider')
+    band = page.locator('.ready-detail-row')
+    expect(band).to_be_visible()
+    # All tiers blocked — at least one rdt-fail should be visible
+    expect(band.locator('.rdt-fail').first).to_be_visible()
+    # Green blocker should be BP (BP=1 < 2)
+    expect(band.locator('.rdt-fail').first).to_have_text('BP')
+
+
+def test_trail_ready_band_all_check_when_all_ready(page: Page) -> None:
+    """A rider at 5-4-5 shows ✓ for all 4 tiers."""
+    add_athlete(page, 'Elite Rider')
+    expand_row(page, 'Elite Rider')
+    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="5"]')
+    page.click('[data-a="draft-level"][data-sk="braking"][data-n="4"]')
+    page.click('[data-a="draft-level"][data-sk="cornering"][data-n="5"]')
+    page.click('[data-a="log-session"]')
+    open_card(page, 'Elite Rider')
+    band = page.locator('.ready-detail-row')
+    expect(band.locator('.rdt-check')).to_have_count(4)
+    expect(band.locator('.rdt-fail')).to_have_count(0)
+
+
+def test_roster_row_trail_marks_unchanged(page: Page) -> None:
+    """Compact roster row still shows the 4 opacity-based trail marks (not detail)."""
+    add_athlete(page, 'Roster Check')
+    # The roster row should have .ready-row (compact), not .ready-detail-row
+    expect(page.locator('.ready-row').first).to_be_visible()
+    expect(page.locator('.ready-detail-row')).to_have_count(0)
+
+
+# ── Safety info ───────────────────────────────────────────────────────────────
+
+def test_safety_info_modal_opens(page: Page) -> None:
+    add_athlete(page, 'Sam Safety')
+    open_card(page, 'Sam Safety')
+    page.click('[data-a="edit-safety"]')
+    expect(page.locator('#inp-medical')).to_be_visible()
+    expect(page.locator('#inp-ec-name')).to_be_visible()
+    expect(page.locator('#inp-ec-phone')).to_be_visible()
+
+
+def test_safety_info_saves_and_displays(page: Page) -> None:
+    add_athlete(page, 'Dana Safe')
+    open_card(page, 'Dana Safe')
+    page.click('[data-a="edit-safety"]')
+    page.fill('#inp-medical', 'Epi pen')
+    page.fill('#inp-ec-name', 'Pat Safe')
+    page.fill('#inp-ec-phone', '208-555-9999')
+    page.click('[data-m="save-safety"]')
+    # Safety info now shows in collapsible <details> at top of card
+    expect(page.locator('.safety-details')).to_be_visible()
+    expect(page.locator('.safety-card')).to_be_visible()
+    expect(page.get_by_text('Epi pen')).to_be_visible()
+    expect(page.get_by_text('Pat Safe')).to_be_visible()
+
+
+def test_safety_info_persists_reload(page: Page, base_url: str) -> None:
+    add_athlete(page, 'Riley Persist')
+    open_card(page, 'Riley Persist')
+    page.click('[data-a="edit-safety"]')
+    page.fill('#inp-medical', 'Inhaler')
+    page.click('[data-m="save-safety"]')
+    page.reload()
+    open_card(page, 'Riley Persist')
+    expect(page.locator('.safety-details')).to_be_visible()
+    expect(page.get_by_text('Inhaler')).to_be_visible()
+
+
+def test_safety_details_absent_when_no_info(page: Page) -> None:
+    """Collapsible safety block absent when no info set."""
+    add_athlete(page, 'Clean Rider')
+    open_card(page, 'Clean Rider')
+    expect(page.locator('.safety-details')).to_have_count(0)
+
+
+def test_safety_flag_appears_in_roster_row(page: Page) -> None:
+    """Warning icon appears in roster row after safety info is added."""
+    add_athlete(page, 'Flag Test')
+    open_card(page, 'Flag Test')
+    page.click('[data-a="edit-safety"]')
+    page.fill('#inp-medical', 'Peanut allergy')
+    page.click('[data-m="save-safety"]')
+    page.click('[data-a="go-roster"]')
+    expect(page.locator('.safety-flag').first).to_be_visible()
+
+
+def test_safety_flag_absent_when_no_info(page: Page) -> None:
+    """No warning icon in roster row when safety info is blank."""
+    add_athlete(page, 'No Flag')
+    expect(page.locator('.safety-flag')).to_have_count(0)
+
+
+# ── Share card (QR export) ────────────────────────────────────────────────────
+
+def test_share_card_button_visible_on_card(page: Page) -> None:
+    add_athlete(page, 'Share Test')
+    open_card(page, 'Share Test')
+    expect(page.locator('[data-a="share-card"]')).to_be_visible()
+
+
+def test_share_card_modal_opens_with_qr(page: Page) -> None:
+    add_athlete(page, 'QR Rider')
+    open_card(page, 'QR Rider')
+    page.click('[data-a="share-card"]')
+    # QR generation is async — wait for the image to appear
+    expect(page.locator('.share-qr')).to_be_visible(timeout=5000)
+    expect(page.locator('.share-card-name')).to_have_text('QR Rider')
+
+
+def test_share_card_modal_shows_skill_levels(page: Page) -> None:
+    add_athlete(page, 'Level Rider')
+    expand_row(page, 'Level Rider')
+    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="3"]')
+    page.click('[data-a="log-session"]')
+    open_card(page, 'Level Rider')
+    page.click('[data-a="share-card"]')
+    expect(page.locator('.share-qr')).to_be_visible(timeout=5000)
+    expect(page.locator('.share-card-levels')).to_contain_text('BP 3')
+
+
+# ── Scan card (QR import) ─────────────────────────────────────────────────────
+
+def test_scan_card_button_visible_on_roster(page: Page) -> None:
+    add_athlete(page, 'Scan Test')
+    expect(page.locator('[data-a="scan-card"]')).to_be_visible()
+
+
+def test_scan_card_modal_opens(page: Page) -> None:
+    add_athlete(page, 'Camera Rider')
+    page.click('[data-a="scan-card"]')
+    expect(page.locator('#scan-video')).to_be_visible()
+    expect(page.locator('#scan-hint')).to_be_visible()
+
+
+def test_scan_card_modal_closes(page: Page) -> None:
+    add_athlete(page, 'Close Scan')
+    page.click('[data-a="scan-card"]')
+    expect(page.locator('#scan-video')).to_be_visible()
+    page.click('[data-m="close"]')
+    # closeModal hides the overlay; content stays in DOM but is not visible
+    expect(page.locator('#scan-video')).to_be_hidden()
+
+
+# ── Import preview (via test hook) ────────────────────────────────────────────
+
+QR_PAYLOAD = json.dumps({
+    'v': 1,
+    'source_athlete_id': 'test-uuid-new-001',
+    'name': 'Alex Incoming',
+    'grade': 10,
+    'medical_notes': 'Epi pen',
+    'emergency_contact_name': 'Jordan Incoming',
+    'emergency_contact_phone': '208-555-0001',
+    'confirmed_levels': {'body_position': 2, 'braking': 2, 'cornering': 1},
+})
+
+
+def test_import_preview_shows_for_new_athlete(page: Page) -> None:
+    page.evaluate(f'window.__test_onQRDetected({json.dumps(QR_PAYLOAD)})')
+    expect(page.locator('.import-preview-name')).to_have_text('Alex Incoming')
+    expect(page.locator('.import-preview-levels')).to_contain_text('BP 2')
+    expect(page.get_by_text('Epi pen')).to_be_visible()
+
+
+def test_import_confirm_adds_athlete(page: Page) -> None:
+    page.evaluate(f'window.__test_onQRDetected({json.dumps(QR_PAYLOAD)})')
+    expect(page.locator('.import-preview-name')).to_be_visible()
+    page.click('[data-m="confirm-import"]')
+    # pName() truncates display to "Alex I." — use the mono-btn aria-label which holds the full name
+    expect(page.locator('[aria-label="Open Alex Incoming\'s card"]')).to_be_visible()
+
+
+def test_import_merge_warning_on_uuid_collision(page: Page) -> None:
+    # First, add Alex Incoming via normal import so they're on the roster with same UUID
+    page.evaluate(f'window.__test_onQRDetected({json.dumps(QR_PAYLOAD)})')
+    page.click('[data-m="confirm-import"]')
+    # Now scan the same card again — should show merge warning
+    page.evaluate(f'window.__test_onQRDetected({json.dumps(QR_PAYLOAD)})')
+    expect(page.locator('.import-merge-warn')).to_be_visible()
+    expect(page.locator('[data-m="confirm-merge"]')).to_be_visible()
+    expect(page.locator('[data-m="confirm-import"]')).to_be_visible()

@@ -14,7 +14,14 @@ import {
   exportAll, importAll,
 } from './storage.js';
 import { SKILL_IDS } from './rubric.js';
-import { viewRoster, viewCard, viewRubric, modalAddAthlete, modalSettings } from './views.js';
+import { encodeCard, decodeCard, detectMerge } from './trading.js';
+import QRCode from 'qrcode';
+import jsQR from 'jsqr';
+import {
+  viewRoster, viewCard, viewRubric,
+  modalAddAthlete, modalSettings,
+  modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
+} from './views.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const s = {
@@ -24,6 +31,11 @@ const s = {
   draft:          {},              // { [athleteId]: { body_position, braking, cornering } }
   rubricSkill:    SKILL_IDS[0],    // active tab in education screen
 };
+
+// ── Camera / import state ─────────────────────────────────────────────────────
+let _cameraStream = null;
+let _scanFrame    = null;
+let _pendingImport = null; // { payload, existingAthlete }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -183,6 +195,30 @@ function onAppClick(e) {
   if (action === 'confirm-session') return confirmSession(id);
   if (action === 'confirm-skill')   return confirmOneSkill(id, sk, +n);
 
+  if (action === 'edit-safety') {
+    const a = getAthletes().find(x => x.id === id);
+    if (a) openModal(modalSafetyInfo(a));
+    return;
+  }
+
+  if (action === 'share-card') {
+    const a = getAthletes().find(x => x.id === id);
+    if (!a) return;
+    const conf = getAthleteConfirmedLevels(id);
+    const payload = encodeCard(a, conf);
+    QRCode.toDataURL(payload, { width: 260, margin: 2, errorCorrectionLevel: 'Q' })
+      .then(dataUrl => openModal(modalShareCard(a, conf, dataUrl)))
+      .catch(err => log.error('qr.generate.failed', { error: err.message }));
+    log.info('card.share', { athlete_id: id });
+    return;
+  }
+
+  if (action === 'scan-card') {
+    openModal(modalScanCard());
+    startCameraScan();
+    return;
+  }
+
   if (action === 'del-athlete') {
     const a = getAthletes().find(x => x.id === id);
     if (a && confirm(`Delete ${a.name}? All observations will be removed.`)) {
@@ -226,7 +262,7 @@ function onModalClick(e) {
   if (!el) return;
   const action = el.dataset.m;
 
-  if (action === 'close') return closeModal();
+  if (action === 'close') { stopCamera(); return closeModal(); }
 
   if (action === 'save-athlete') {
     const name  = document.getElementById('inp-name')?.value?.trim();
@@ -248,6 +284,64 @@ function onModalClick(e) {
     if (teamName)  saveTeamSettings({ name: teamName });
     if (coachName) { saveCoach({ name: coachName }); saveTeamSettings({ coachName }); }
     log.info('settings.save', {});
+    closeModal();
+    draw();
+    return;
+  }
+
+  if (action === 'save-safety') {
+    const athlete = getAthletes().find(x => x.id === el.dataset.id);
+    if (!athlete) return;
+    const medical = document.getElementById('inp-medical')?.value.trim() || null;
+    const ecName  = document.getElementById('inp-ec-name')?.value.trim()  || null;
+    const ecPhone = document.getElementById('inp-ec-phone')?.value.trim() || null;
+    saveAthlete({ ...athlete, medical_notes: medical, emergency_contact_name: ecName, emergency_contact_phone: ecPhone });
+    log.info('safety.save', { athlete_id: athlete.id });
+    closeModal();
+    draw();
+    return;
+  }
+
+  if (action === 'confirm-import') {
+    if (!_pendingImport) return;
+    const { payload } = _pendingImport;
+    const athlete = saveAthlete({
+      id:                      payload.source_athlete_id ?? undefined,
+      name:                    payload.name,
+      grade:                   payload.grade ?? null,
+      medical_notes:           payload.medical_notes ?? null,
+      emergency_contact_name:  payload.emergency_contact_name ?? null,
+      emergency_contact_phone: payload.emergency_contact_phone ?? null,
+    });
+    const conf = payload.confirmed_levels || {};
+    SKILL_IDS.forEach(sk => {
+      if (conf[sk]) setConfirmedLevel({ athlete_id: athlete.id, skill: sk, level: conf[sk] });
+    });
+    _pendingImport = null;
+    log.info('card.import', { athlete_id: athlete.id });
+    flash(`${payload.name} added to roster`);
+    closeModal();
+    draw();
+    return;
+  }
+
+  if (action === 'confirm-merge') {
+    if (!_pendingImport?.existingAthlete) return;
+    const { payload, existingAthlete } = _pendingImport;
+    saveAthlete({
+      ...existingAthlete,
+      grade:                   payload.grade ?? existingAthlete.grade,
+      medical_notes:           payload.medical_notes ?? existingAthlete.medical_notes,
+      emergency_contact_name:  payload.emergency_contact_name ?? existingAthlete.emergency_contact_name,
+      emergency_contact_phone: payload.emergency_contact_phone ?? existingAthlete.emergency_contact_phone,
+    });
+    const conf = payload.confirmed_levels || {};
+    SKILL_IDS.forEach(sk => {
+      if (conf[sk]) setConfirmedLevel({ athlete_id: existingAthlete.id, skill: sk, level: conf[sk] });
+    });
+    _pendingImport = null;
+    log.info('card.merge', { athlete_id: existingAthlete.id });
+    flash(`${existingAthlete.name} updated`);
     closeModal();
     draw();
     return;
@@ -290,10 +384,87 @@ function onImport(e) {
   reader.readAsText(file);
 }
 
+// ── Camera scan ───────────────────────────────────────────────────────────────
+function startCameraScan() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setScanHint('Camera not available on this device or connection.');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(stream => {
+      _cameraStream = stream;
+      const video = document.getElementById('scan-video');
+      if (!video) { stopCamera(); return; }
+      video.srcObject = stream;
+      video.play();
+      video.addEventListener('loadedmetadata', () => { _scanFrame = requestAnimationFrame(scanTick); });
+    })
+    .catch(err => {
+      log.error('camera.access.failed', { error: err.message });
+      setScanHint('Camera permission denied. Allow camera access and try again.');
+    });
+}
+
+function scanTick() {
+  const video  = document.getElementById('scan-video');
+  const canvas = document.getElementById('scan-canvas');
+  if (!video || !canvas || !_cameraStream) return;
+  if (video.readyState < video.HAVE_ENOUGH_DATA) {
+    _scanFrame = requestAnimationFrame(scanTick);
+    return;
+  }
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(img.data, img.width, img.height);
+  if (code) {
+    stopCamera();
+    onQRDetected(code.data);
+  } else {
+    _scanFrame = requestAnimationFrame(scanTick);
+  }
+}
+
+function stopCamera() {
+  if (_scanFrame) { cancelAnimationFrame(_scanFrame); _scanFrame = null; }
+  if (_cameraStream) {
+    _cameraStream.getTracks().forEach(t => t.stop());
+    _cameraStream = null;
+  }
+}
+
+function setScanHint(msg) {
+  const el = document.getElementById('scan-hint');
+  if (el) el.textContent = msg;
+}
+
+function onQRDetected(rawData) {
+  let payload;
+  try {
+    payload = decodeCard(rawData);
+  } catch (err) {
+    log.warn('qr.decode.failed', { error: err.message });
+    openModal(modalScanCard());
+    startCameraScan();
+    setScanHint('QR code not recognized as an athlete card. Try again.');
+    return;
+  }
+  const existing = detectMerge(getAthletes(), payload.source_athlete_id);
+  _pendingImport = { payload, existingAthlete: existing };
+  log.info('qr.detected', { name: payload.name, merge: !!existing });
+  closeModal();
+  openModal(modalImportPreview(payload, existing));
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 document.getElementById('app').addEventListener('click', onAppClick);
 document.getElementById('modal').addEventListener('click', onModalClick);
 document.getElementById('modal').addEventListener('keydown', onModalKeydown);
+
+// Playwright test hook — exposes QR-detected handler without camera dependency
+window.__test_onQRDetected = onQRDetected;
 
 log.info('app.init', { athletes: getAthletes().length, observations: getObservations().length });
 draw();
