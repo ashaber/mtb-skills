@@ -24,10 +24,21 @@ Coach builds a local trail network — a list of trails with name, rating (green
 
 ---
 
-### Athlete Trading 
+### App sharing and promotion
+- Add a QR code in app settings pointing to github pages url
+- consider a kill switch.  Allow the app to be shared but need a way to prevent it from being used fully for free or copied/reverse engineered
+- add an about section in settings below share qr.  Describe how the app is used for a practice and a brief roadmap of what is coming.  Highlight that while useful for a ride pod to track practice, it is more about the skill tracking
+- Will used for promotion of app and skills assessment at NICA national conference next week.
+
+### Swipe motions and single click entries
+- simplify opening full athlete card.  Once expanded on roster, swipe left opens full card.  On full card, swipe right goes back to roster with athlete collapsed
+- on roster, clicking a level records observation without a button click. remove record observation button.  Will result in inability to record observation of multiple skills as a single entry but we're not using the data that way.
+
+
+### Athlete Trading *(in progress — Phase 1c)*
 Allow two coaches to exchange athletes.  E.g., athlete moves up to a higher skill/faster group, or moves down on a rest day.  Could be a QR code encoding athlete detail to load on other coaches roster.
 
-### Athlete Info
+### Athlete Info *(in progress — Phase 1c)*
 Any special medical requirements like Epi pen or insulin.  Parent contact info for emergencies.  When an athlete is traded (see above) would include athlete info so a new coach working with athlete has necessary info.  Make an info icon but limit
 
 ### practice roster
@@ -36,7 +47,7 @@ show athletes from roster, record attendance for the practice.  Allow temporary 
 ### Onboarding Screen
 First-launch experience for brand new users. Set expectations before they hit the blank roster: what the app does, how the assessment flow works (observe → confirm → trail readiness), and a prompt to set up their coach profile and team. Reduces confusion for coaches who receive the URL cold with no context.
 
-### Education Screen — Digital Field Guide + Rubric
+### Education Screen — Digital Field Guide + Rubric *(shipped — Phase 1b)*
 In-app rubric reference. Digital version of the field card layout (skill → level → when it breaks → what breaks). Each card links to the long-form reference detail for coaches who want more context. Also the entry point to skill-level video clips (Phase 1+). Keeps the rubric accessible during a ride without paper cards.
 - Card view matches the printed field card format for familiarity
 - "More detail" tap expands or links to full reference doc level
@@ -46,5 +57,7 @@ In-app rubric reference. Digital version of the field card layout (skill → lev
 ### Video Reference per Skill Level *(promoted to ROADMAP.md Phase 1+)*
 YouTube-linked clips per skill/level on rubric cards. Tim's existing video assets are the source.
 
-### BICP Monetization Path *(noted in ROADMAP.md)*
-BICP (for-profit skills org) as alternative to NICA if app becomes commercializable.
+### Monetization Path *(noted in ROADMAP.md)*
+- BICP (for-profit skills org) as alternative to NICA if app becomes commercializable.  
+- Better plan, make practice app sellable to teams and leagues
+
