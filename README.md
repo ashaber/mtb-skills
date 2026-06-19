@@ -67,15 +67,17 @@ Short sections can be speed-managed or walked. Assess at the start of every seas
 - Feedback form deployed post-presentation
 - Climbing skill excluded from v1 — to be added as separate module
 
-## App
+## App Build & Roadmap
 
-A coach-facing assessment tool. Source in `src/`, built with [Vite](https://vitejs.dev/). See [ROADMAP.md](ROADMAP.md) for the full phased plan.
+A coach-facing assessment tool. Source in `src/`, built with [Vite](https://vitejs.dev/).
 
-**Short summary:**
-- Phase 1: Local HTML app, localStorage, no login, fully offline
-- Phase 2: PWA + Google Sheets backend, offline-first sync, Google OAuth
-- Phase 3: Native mobile (iOS/Android)
-- Phase 4: Multi-tenant backend (optional, league-level)
+**Current status:** Phase 1 ✅ Complete. Live at https://ashaber.github.io/mtb-skills/
+
+For the full phased build plan, see [ROADMAP.md](ROADMAP.md):
+- **Phase 1:** ✅ Local HTML app, localStorage, no login, fully offline
+- **Phase 2:** PWA + Google Sheets backend, offline-first sync, Google OAuth
+- **Phase 3:** Native mobile (iOS/Android)
+- **Phase 4:** Multi-tenant backend (optional, league-level)
 
 ## Development
 

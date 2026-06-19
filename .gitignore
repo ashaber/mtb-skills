@@ -4,3 +4,10 @@ node_modules/
 *.log
 __pycache__/
 .pytest_cache/
+*.Identifier
+docs/
+.venv/
+coverage/
+.vite/
+.vscode/
+images/
