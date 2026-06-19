@@ -24,10 +24,10 @@ Coach builds a local trail network — a list of trails with name, rating (green
 
 ---
 
-### Athlete Trading 
+### Athlete Trading *(in progress — Phase 1c)*
 Allow two coaches to exchange athletes.  E.g., athlete moves up to a higher skill/faster group, or moves down on a rest day.  Could be a QR code encoding athlete detail to load on other coaches roster.
 
-### Athlete Info
+### Athlete Info *(in progress — Phase 1c)*
 Any special medical requirements like Epi pen or insulin.  Parent contact info for emergencies.  When an athlete is traded (see above) would include athlete info so a new coach working with athlete has necessary info.  Make an info icon but limit
 
 ### practice roster
@@ -36,7 +36,7 @@ show athletes from roster, record attendance for the practice.  Allow temporary 
 ### Onboarding Screen
 First-launch experience for brand new users. Set expectations before they hit the blank roster: what the app does, how the assessment flow works (observe → confirm → trail readiness), and a prompt to set up their coach profile and team. Reduces confusion for coaches who receive the URL cold with no context.
 
-### Education Screen — Digital Field Guide + Rubric
+### Education Screen — Digital Field Guide + Rubric *(shipped — Phase 1b)*
 In-app rubric reference. Digital version of the field card layout (skill → level → when it breaks → what breaks). Each card links to the long-form reference detail for coaches who want more context. Also the entry point to skill-level video clips (Phase 1+). Keeps the rubric accessible during a ride without paper cards.
 - Card view matches the printed field card format for familiarity
 - "More detail" tap expands or links to full reference doc level

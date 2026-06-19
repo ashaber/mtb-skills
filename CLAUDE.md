@@ -68,13 +68,16 @@ mtb-skills/
 **Key files:**
 - `RUBRIC.md` — authoritative rubric content; card content is master. Do not duplicate here.
 - `ROADMAP.md` — phased build plan. Do not duplicate here.
+- `SPRINT_ARCHIVE.md` — completed sprint records with decisions and deferrals.
 - `src/rubric.js` — rubric data as ES module; all views import from here
 - `src/storage.js` — data access abstraction; swap this to change backend
 - `src/log.js` — in-app logger; ring buffer to localStorage + console
-- `src/main.js` — all UI views and event handlers (single-file app)
+- `src/ui.js` — pure visual helper functions (SVGs, level selector, trail readiness)
+- `src/views.js` — HTML-string view functions; all return strings set to `#app.innerHTML`
+- `src/main.js` — state machine, event delegation, draw()
 - `app/schema.md` — data model documentation
 - `vite.config.js` — Vite configuration
-- `package.json` — npm scripts: dev, build, test
+- `package.json` — npm scripts: `dev`, `build`, `test`, `test:e2e`, `test:all`
 
 **Documentation strategy:**
 - All rubric content (`detail`, `failure_modes`, `when_breaks`) is bundled in `src/rubric.js` — fully offline, no network needed on trail
@@ -84,223 +87,182 @@ mtb-skills/
 
 ---
 
-## Current Sprint — Education Screen (Phase 1b)
+## Current Sprint — Athlete Trading Card + Trail Readiness Matrix (Phase 1c)
 
-**Branch:** `feature/education`
-**Goal:** Build the in-app rubric education screen — digital version of the printed field cards.
+**Branch:** `phase1/trading-and-readiness`
+**Goal:** Let coaches hand off athletes to another riding group without paper. Surface which specific skill is blocking each trail tier.
 
-**Already done on this branch:**
-- ✅ Storage stubs wired up: athlete photos (`getPhoto`/`savePhoto`) and team settings (`getTeamSettings`/`saveTeamSettings`) connected in views.js and main.js
-
-**Deferred to a follow-on branch:**
+**Deferred from Phase 1b:**
 - Onboarding flow (first-launch welcome + coach name prompt)
 - Bottom nav bar (persistent navigation between Roster / Rubric / Settings)
-- Deprecated meta tag fix (`apple-mobile-web-app-capable` → `mobile-web-app-capable`)
 
-### Education screen — Digital field guide
-New view: `'rubric'` state in `s.view`. Entry point: header button (bottom nav deferred).
-
-Layout mirrors the printed field cards:
-- Skill selector tabs: Body Position | Braking | Cornering
-- For each skill, 5 level cards stacked:
-  - Level badge (colored circle) + trail rating + consistency gate
-  - Failure modes list (from `rubric.js` `failure_modes`)
-  - Expandable "Detail" section (from `rubric.js` `detail`) — collapsed by default
-  - Video links: **do not show** — no content ready yet. No placeholder, no "coming soon" text. When `video_url` is added to a level in `rubric.js`, the link will appear automatically. Until then, render nothing.
-- Back button returns to roster
-
-**Data:** reads entirely from `src/rubric.js` — no storage changes, works offline.
-
-**Acceptance criteria:**
-- [ ] Education screen reachable from roster header
-- [ ] All 3 skills, all 5 levels rendered with correct content from rubric.js
-- [ ] Card layout mirrors printed field card format (level badge, trail rating, failure modes)
-- [ ] Detail section expands/collapses per level
-- [ ] Video link rendered per level only when `video_url` is set in rubric.js — nothing shown when absent
-- [ ] Playwright: education screen loads, all skill tabs work, expand/collapse works
-
-### Sprint DOD
-- [ ] Education screen complete per acceptance criteria above
-- [ ] Vitest unit tests for any new logic
-- [ ] Playwright e2e tests cover education screen flows
-- [ ] No bare `console.*` — all logging via `src/log.js`
-- [ ] No dead code, no placeholder comments left in shipped code
-- [ ] PR description references these items
+**Deferred to Phase 1d:**
+- Athlete → Person schema migration (coaches as roster members)
+- Practice roster / attendance
+- Roster filter (All · Athletes · Coaches)
 
 ---
 
-## Next Sprint — People, Athlete Info, Practice Roster (Phase 1c)
+### 1. Athlete info fields (prerequisite for trading card)
 
-**Branch:** `phase1/people-and-practice`
-**Goal:** Expand roster from athletes-only to people (athletes + coaches). Add athlete info. Add practice roster with attendance.
+Extend the athlete record with optional safety fields. These exist independently of trading — a coach may want them on the card view for reference during a ride — but they are the payload that makes a traded athlete card immediately safe to work with.
 
-### Schema migration: Athlete → Person
+**Schema additions** (no migration needed — new optional fields on existing records):
+```js
+medical_notes:             string | null   // "Epi pen, insulin"
+emergency_contact_name:    string | null
+emergency_contact_phone:   string | null
+```
 
-**This is a breaking schema change. Must be done first — all other items in this sprint depend on it.**
+**UX on athlete card:**
+- Info section appears below Coach Notes when any field is set — no section shown if all blank
+- Tap "Edit safety info" → modal with 3 fields + privacy note: *"Stored on this device only. Included in trading card and JSON export."*
+- No icon in roster row — full card only (no clutter in compact view)
 
-Rename the concept from `Athlete` to `Person`. Existing `mtb_athletes` localStorage key is preserved for backward compatibility — all reads default missing `role` to `'athlete'`.
+**Acceptance criteria:**
+- [ ] Fields saved to localStorage on athlete record
+- [ ] Info section visible on card only when at least one field is set
+- [ ] Edit modal pre-fills current values, saves on confirm
+- [ ] Fields survive reload and export/import round-trip
+- [ ] Vitest: athlete record with/without info fields serializes and deserializes cleanly
+- [ ] Playwright: add info, reload, verify fields present on card
 
+---
+
+### 2. Athlete trading card (QR export + import)
+
+A coach taps "Share" on an athlete's card → QR code modal appears → another coach scans it on their device → athlete is added to their roster with confirmed skill levels and safety info already populated. No network. Works on trail.
+
+**QR payload** (JSON, base64-encoded):
 ```json
 {
-  "id":                        "uuid",
-  "team_id":                   "uuid",
-  "name":                      "string",
-  "role":                      "athlete | coach",
-  "grade":                     "integer | null",
-  "season_year":               "integer",
-  "medical_notes":             "string | null",
-  "emergency_contact_name":    "string | null",
-  "emergency_contact_phone":   "string | null"
+  "v": 1,
+  "name": "string",
+  "grade": "integer | null",
+  "medical_notes": "string | null",
+  "emergency_contact_name": "string | null",
+  "emergency_contact_phone": "string | null",
+  "confirmed_levels": {
+    "body_position": 1-5 | null,
+    "braking": 1-5 | null,
+    "cornering": 1-5 | null
+  },
+  "source_athlete_id": "uuid"
 }
 ```
 
-**Migration rules:**
-- Storage key stays `mtb_athletes` — no data loss for existing installs
-- `getAthletes()` renamed to `getPeople()` — returns all roles by default, accepts optional `{ role }` filter
-- All existing records missing `role` field default to `'athlete'` on read
-- `saveAthlete()` renamed to `savePerson()` — accepts `role` field, defaults to `'athlete'`
-- `deleteAthlete()` renamed to `deletePerson()`
-- Export `schema_version` bumps 1 → 2
-- `importAll()` migration shim: if `schema_version === 1`, map `athletes` array to people with `role: 'athlete'`
-- `coach_id` on Observation and ConfirmedLevel still refers to the device Coach settings object — **not** a Person record. These are different: the *device's assessing coach* vs *a person being assessed*. Do not conflate.
+- No athlete photo — too large for QR
+- No raw observations — receiving coach only needs confirmed state
+- `source_athlete_id` enables merge detection on import (same athlete, different device)
+
+**Export UX:**
+- "Share card" button on athlete card → modal with QR code rendered inline (no external service)
+- QR sized for phone-to-phone scan at arm's length (~260px, high error correction)
+- Modal shows athlete name, skill levels, and safety info summary below QR so coach can visually verify before sharing
+- Use `qrcode` npm package (pure JS, no server call, offline-safe) — or `qrcode-generator`
+
+**Import UX:**
+- "Scan card" button in roster header → camera opens via `getUserMedia`
+- Parse QR → show preview card (name, levels, safety info) before committing
+- Preview has two actions: **Add to roster** and **Cancel**
+- `source_athlete_id` match → show merge prompt: "This athlete may already be on your roster as [name]. Add as new or update existing?" — never silently overwrite
+- No `source_athlete_id` match → add directly as new athlete
+- Use `jsQR` for camera decode (pure JS, offline-safe)
 
 **Acceptance criteria:**
-- [ ] Existing localStorage data (schema v1) loads correctly after migration — no data loss
-- [ ] New people saved with explicit `role` field
-- [ ] Export includes `schema_version: 2`
-- [ ] Import of v1 export migrates cleanly to v2
-- [ ] Vitest: migration shim tested — v1 import produces correct v2 records
+- [ ] "Share card" button on athlete card generates QR code modal
+- [ ] QR payload includes name, grade, medical info, confirmed levels, source_athlete_id
+- [ ] QR is scannable by another device (test phone-to-phone)
+- [ ] "Scan card" button opens camera
+- [ ] Scanned QR shows preview before adding to roster
+- [ ] New athlete added with correct fields populated
+- [ ] `source_athlete_id` UUID collision shows merge prompt, does not silently overwrite
+- [ ] Entire flow works offline (no network calls)
+- [ ] Vitest: QR payload encode/decode round-trip, merge detection logic
+- [ ] Playwright: share modal opens with QR; import preview shown before add
 
-### Roster filter
-Add filter control to roster header: **All · Athletes · Coaches**
+---
 
-- Filter state: `s.roster_filter = 'all' | 'athletes' | 'coaches'`
-- Persisted in localStorage so it survives reload (`mtb_roster_filter`)
-- "Add person" FAB respects filter context: if filter is 'coaches', new person defaults to `role: 'coach'`; if 'athletes', defaults to `role: 'athlete'`; if 'all', show role selector in add modal
+### 3. Trail readiness matrix — bottleneck skill display
 
-**Acceptance criteria:**
-- [ ] Filter chips visible on roster
-- [ ] Filtering by athletes shows only `role: 'athlete'` records
-- [ ] Filtering by coaches shows only `role: 'coach'` records
-- [ ] Filter selection persists across reload
-- [ ] Add modal sets correct default role based on active filter
-- [ ] Playwright: filter toggle, add athlete, add coach, verify separation
+**Current state:** The trail-ready band shows 4 trail symbols (green/blue/black/double-black) at full opacity if the rider is ready, dimmed if not. A coach can see which trails a rider is ready for, but not *why* they're blocked from the next tier.
 
-### Athlete info
-Add optional medical and emergency contact fields to Person. Surfaced via an info icon (ℹ) on the athlete/person profile — taps to a dedicated info modal.
+**The problem:** A rider with BP:3, BRK:1, CRN:2 is blocked from green circle by Braking — but the band just shows the green symbol dimmed. The coach has to cross-reference rubric minimums manually.
 
-**UX rules:**
-- Info icon only shown if any info field is set — no empty modal clutter
-- Edit pencil inside the info modal to update fields
-- Privacy note in modal: "Stored on this device only. Included in JSON export."
-- Fields: Medical notes (free text, e.g. "Epi pen", "insulin"), Emergency contact name, Emergency contact phone
-- All fields optional — blank = not stored
-- Info fields are included in the athlete trading QR payload so a receiving coach has necessary safety info
+**Target behavior:** For each trail tier the rider is NOT yet ready for, show the specific skill(s) below minimum. Minimums are in `TRAIL_MINIMUMS` in `rubric.js`.
 
-**Acceptance criteria:**
-- [ ] Info icon appears on profile when any info field is set
-- [ ] Info icon hidden when no fields set
-- [ ] Info modal shows all set fields, edit opens form
-- [ ] Privacy note visible in modal
-- [ ] Info fields survive reload and export/import round-trip
-- [ ] Playwright: add info, verify icon appears, verify persists across reload
-
-### Practice roster
-New entity and view for recording practice attendance.
-
-**New entities:**
-```json
-// Practice
-{
-  "id":       "uuid",
-  "team_id":  "uuid",
-  "coach_id": "uuid",
-  "date":     "YYYY-MM-DD",
-  "notes":    "string | null"
-}
-
-// PracticeAttendance
-{
-  "id":          "uuid",
-  "practice_id": "uuid",
-  "person_id":   "uuid",
-  "team_id":     "uuid",
-  "status":      "attending | absent | temp_add",
-  "name_override": "string | null"
-}
+**Display spec for the trail-ready band (athlete card):**
 ```
+TRAIL READY
+🟢 ✓   🔵 BRK   ◆ BP · BRK   ◆◆ BP · BRK · CRN
+```
+- Ready tiers: trail symbol at full color, checkmark
+- Blocked tiers: trail symbol dimmed, then abbreviated skill names in red for each skill below minimum
+- Abbreviations: `BP` `BRK` `CRN`
+- Only show skills that are actually below minimum for that tier — not all three
 
-`temp_add` status covers athletes added manually when a trading card wasn't received from their usual coach. `name_override` stores the name for temp adds who aren't in the permanent roster.
+**Roster row (compact):** Keep the existing 4 trail symbols (opacity-based). The bottleneck detail only appears on the full athlete card where there's room. Do not add text to the compact roster row.
 
-**New localStorage keys:**
-- `mtb_practices` — Practice[]
-- `mtb_attendance` — PracticeAttendance[]
-
-**UX:**
-- Practice roster accessible from bottom nav or roster header
-- On open: shows today's practice (auto-created if none exists for today)
-- Roster list with attending/absent toggle per person — attending sorted to top, absent below
-- Filter mirrors main roster filter (athletes / coaches / all)
-- "+ Temp add" button for riders not on permanent roster — covers athletes whose trading card wasn't received from their usual coach
-- Tap a person row → their athlete profile (same as main roster)
-- Coaches appear on roster: Level 3 coaches are expected to evaluate Level 1 and 2 coaches, not only athletes
+**`readyRowHTML()` in `src/ui.js`** needs a new variant or a `detail=true` flag for the expanded card view.
 
 **Acceptance criteria:**
-- [ ] Practice view opens, creates today's practice if none exists
-- [ ] Mark attending/absent persists across reload
-- [ ] Attending sorted above absent
-- [ ] Filter (athletes/coaches/all) works in practice view
-- [ ] Coaches visible in practice roster when filter includes coaches
-- [ ] Temp add creates attendance record with `status: 'temp_add'`
-- [ ] Vitest: practice and attendance storage functions
-- [ ] Playwright: mark attendance, reload, verify state persists
+- [ ] Athlete card trail band shows blocked skill abbreviations per blocked tier
+- [ ] Only skills below minimum for that specific tier are shown (not all failing skills)
+- [ ] Ready tiers show ✓, no skill names
+- [ ] Roster row trail marks unchanged (compact, no text)
+- [ ] Display correct when rider has 0 confirmed levels (all tiers blocked, show all skills)
+- [ ] Display correct when rider is ready for all tiers (all show ✓)
+- [ ] Vitest: bottleneck computation for each trail tier across varied level combinations
 
-### Athlete trading
-Allow a coach to export an athlete to another coach — e.g. athlete moves up to a higher-skill group for the day, or moves down on a rest day.
-
-**Mechanism:** Exporting coach generates a QR code on their device. Receiving coach scans it → athlete record (with safety info) is added to their roster.
-
-**Export payload (JSON encoded as QR):**
-- Person record: name, role, grade, medical notes, emergency contact name/phone
-- Confirmed skill levels (not raw observations — only the confirmed state matters for the receiving coach)
-- Photo omitted by default — too large for QR
-
-**Import rules:**
-- UUID match → show merge prompt, never silently overwrite
-- New UUID → add to roster as a new person
-- Medical and emergency contact fields always included so receiving coach has necessary safety context
-
-**UX:**
-- "Share" button on athlete profile → generates QR code modal
-- "Scan athlete QR" entry point on roster screen → opens camera, parses QR, shows preview before adding
-- Temp add in practice roster (`status: 'temp_add'`) is the fallback when a trading card QR was not received
-
-**Acceptance criteria:**
-- [ ] Share button on athlete profile generates scannable QR with correct payload
-- [ ] QR includes person record and confirmed skill levels
-- [ ] Import via QR scan shows athlete preview before adding to roster
-- [ ] UUID collision shows merge prompt rather than silent overwrite
-- [ ] Athlete info (medical, emergency contact) included in QR payload
-- [ ] Vitest: QR payload serialization and deserialization round-trip
-- [ ] Playwright: share QR modal opens; import flow adds athlete with correct fields
+---
 
 ### Sprint DOD
-- [ ] All schema migration items complete and tested
-- [ ] Roster filter working (all / athletes / coaches)
-- [ ] Athlete info fields add/edit/display
-- [ ] Practice roster with attendance, sorting, and coach visibility
-- [ ] Athlete trading: QR export and import flow
-- [ ] Vitest coverage: migration shim, getPeople filters, practice/attendance storage, QR round-trip
-- [ ] Playwright coverage: filter, info modal, practice attendance flow, trading QR flow
-- [ ] `app/schema.md` updated to schema v2
+- [ ] Athlete info fields: save, display, edit, persist
+- [ ] Trading card QR export: correct payload, renders in modal, scannable
+- [ ] Trading card QR import: camera scan, preview, add to roster, merge prompt on UUID collision
+- [ ] Trail readiness matrix: blocked skill names shown per tier on athlete card
+- [ ] All flows work offline
+- [ ] Vitest: QR round-trip, merge detection, bottleneck computation
+- [ ] Playwright: info fields flow, share modal, import preview, trail readiness band
 - [ ] No bare `console.*` — all logging via `src/log.js`
 - [ ] PR description references DOD items
 
-**Assessment model:**
-- Raw observations are immutable append-only: `{ athlete_id, skill, level_observed, session_date }`
-- Confirmed level is separate: coach explicitly sets it when consistency gate is met
-- Consistency gate is coach judgment — app surfaces history, never auto-promotes
-- Trail readiness is always computed client-side from confirmed levels + `TRAIL_MINIMUMS` in `rubric.js`
+---
+
+## Deferred — Phase 1d: People, Practice Roster
+
+### Schema migration: Athlete → Person
+
+Rename the concept from `Athlete` to `Person`. Storage key `mtb_athletes` preserved for backward compatibility.
+
+```json
+{
+  "id":       "uuid",
+  "team_id":  "uuid",
+  "name":     "string",
+  "role":     "athlete | coach",
+  "grade":    "integer | null"
+}
+```
+
+- `getAthletes()` → `getPeople()`, optional `{ role }` filter
+- `saveAthlete()` → `savePerson()`, defaults `role: 'athlete'`
+- Export `schema_version` bumps 1 → 2; import shim maps v1 athletes with `role: 'athlete'`
+- `coach_id` on Observation/ConfirmedLevel is the *device's assessing coach*, not a Person record — do not conflate
+
+### Roster filter: All · Athletes · Coaches
+
+- `s.roster_filter` persisted in localStorage
+- "Add person" FAB defaults role based on active filter
+
+### Practice roster
+
+New `Practice` and `PracticeAttendance` entities. Today's practice auto-created on open. Attending/absent toggle. Temp add for riders without a trading card. Coaches visible when filter includes coaches.
+
+**Assessment model (unchanged):**
+- Raw observations are immutable append-only
+- Confirmed level is separate — coach judgment, not auto-promoted
+- Trail readiness computed client-side from confirmed levels + `TRAIL_MINIMUMS`
 
 ---
 
@@ -321,7 +283,8 @@ Allow a coach to export an athlete to another coach — e.g. athlete moves up to
 
 **Playwright (Python)** — e2e/UI tests for full browser flows
 - Lives in `tests/e2e/`
-- Run with `pytest tests/e2e/`
+- Run with `npm run test:e2e` (uses `.venv/bin/pytest` — no pyenv activation needed)
+- `.venv` at project root: Python 3.11.9, recreate with `tests/e2e/requirements.txt` + `playwright install chromium`
 - Exit code 0 = all pass, non-zero = failure — safe for CI
 
 ### What to test (minimum per feature)
