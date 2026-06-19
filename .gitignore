@@ -7,3 +7,7 @@ __pycache__/
 *.Identifier
 docs/
 .venv/
+coverage/
+.vite/
+.vscode/
+images/
