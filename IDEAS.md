@@ -35,10 +35,10 @@ Coach builds a local trail network — a list of trails with name, rating (green
 - on roster, clicking a level records observation without a button click. remove record observation button.  Will result in inability to record observation of multiple skills as a single entry but we're not using the data that way.
 
 
-### Athlete Trading *(in progress — Phase 1c)*
+### Athlete Trading *(complete — Phase 1c)*
 Allow two coaches to exchange athletes.  E.g., athlete moves up to a higher skill/faster group, or moves down on a rest day.  Could be a QR code encoding athlete detail to load on other coaches roster.
 
-### Athlete Info *(in progress — Phase 1c)*
+### Athlete Info *(complete — Phase 1c)*
 Any special medical requirements like Epi pen or insulin.  Parent contact info for emergencies.  When an athlete is traded (see above) would include athlete info so a new coach working with athlete has necessary info.  Make an info icon but limit
 
 ### practice roster
