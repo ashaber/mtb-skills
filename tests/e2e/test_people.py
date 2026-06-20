@@ -76,16 +76,16 @@ def test_add_coach_appears_on_roster(page: Page) -> None:
     expect(page.get_by_text('Coach Riley')).to_be_visible()
 
 
-def test_add_coach_shows_level_badge(page: Page) -> None:
+def test_add_coach_shows_level_in_row(page: Page) -> None:
     add_coach(page, 'Coach Pat', '3')
-    # Coach rows have .coach-level-badge
-    expect(page.locator('.coach-level-badge')).to_be_visible()
-    expect(page.locator('.coach-level-badge').first).to_have_text('L3')
+    # NICA level appears in row meta (.row-grade) as "L3"
+    expect(page.locator('.row-grade').first).to_have_text('L3')
 
 
-def test_add_coach_shows_nica_level_pill(page: Page) -> None:
+def test_add_coach_shows_skill_chips(page: Page) -> None:
     add_coach(page, 'Coach Kim', '1')
-    expect(page.locator('.coach-level-pill').first).to_contain_text('NICA L1')
+    # Coach rows show BP/BRK/CRN skill chips (same as athletes)
+    expect(page.locator('.chips-caret').first).to_contain_text('BP')
 
 
 def test_coach_requires_level_selection(page: Page) -> None:

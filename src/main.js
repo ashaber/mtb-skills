@@ -14,6 +14,7 @@ import {
   getRosterFilter, saveRosterFilter,
   getTodaysPractice, toggleAttendance, getAttendance,
   exportAll, importAll, exportAttendance,
+  gradeToCategory, categoryToGrade,
 } from './storage.js';
 import { SKILL_IDS } from './rubric.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
@@ -21,7 +22,7 @@ import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
   viewRoster, viewCard, viewRubric,
-  modalAddPerson, modalAddAthlete, modalSettings,
+  modalAddPerson, modalAddAthlete, modalEditPerson, modalSettings,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
 } from './views.js';
 
@@ -236,6 +237,12 @@ function onAppClick(e) {
     const defaultRole = s.roster_filter === 'coaches' ? 'coach' : 'athlete';
     return openModal(modalAddPerson(defaultRole));
   }
+  if (action === 'edit-person') {
+    const person = getPeople().find(p => p.id === id);
+    if (!person) return;
+    log.info('person.edit.open', { person_id: id });
+    return openModal(modalEditPerson(person));
+  }
   if (action === 'open-settings') return openModal(modalSettings());
 
   if (action === 'go-rubric-skill') {
@@ -275,6 +282,15 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'set-coach-level') {
+    const coach = getPeople().find(p => p.id === id);
+    if (!coach) return;
+    savePerson({ ...coach, level: +n });
+    log.info('coach.level.set', { person_id: id, level: +n });
+    draw();
+    return;
+  }
+
   if (action === 'export-attendance') {
     if (!s.today_practice) return;
     const json = exportAttendance(s.today_practice.id);
@@ -298,6 +314,20 @@ function openModal(html) {
   document.getElementById('modal').classList.remove('hidden');
   const imp = document.getElementById('imp-file');
   if (imp) imp.addEventListener('change', onImport);
+
+  const gradeInp = document.getElementById('inp-grade');
+  const catSel   = document.getElementById('inp-category');
+  if (gradeInp && catSel) {
+    gradeInp.addEventListener('input', () => {
+      const cat = gradeToCategory(parseInt(gradeInp.value, 10));
+      if (cat) catSel.value = cat;
+    });
+    catSel.addEventListener('change', () => {
+      const g = categoryToGrade(catSel.value);
+      gradeInp.value = (g !== null && g !== undefined) ? g : '';
+    });
+  }
+
   setTimeout(() => document.querySelector('#modal-content .fi')?.focus(), 60);
 }
 
@@ -338,13 +368,19 @@ function onModalClick(e) {
   if (action === 'save-person') {
     const name = document.getElementById('inp-name')?.value?.trim();
     if (!name) { document.getElementById('inp-name')?.focus(); return; }
-    const role = document.getElementById('inp-role')?.value || 'athlete';
+    const role     = document.getElementById('inp-role')?.value || 'athlete';
+    const personId = document.getElementById('inp-person-id')?.value || null;
+    const isEdit   = !!personId;
 
     let personData = { name, role };
+    if (personId) personData.id = personId;
+
     if (role === 'athlete') {
       const category = document.getElementById('inp-category')?.value || null;
+      const gradeRaw = document.getElementById('inp-grade')?.value;
+      const grade    = gradeRaw ? +gradeRaw : null;
       const plate    = document.getElementById('inp-plate')?.value;
-      personData = { ...personData, category: category || null, plate: plate ? +plate : null };
+      personData = { ...personData, category: category || null, grade, plate: plate ? +plate : null };
     } else {
       const level = document.getElementById('inp-coach-level')?.value;
       if (!level) {
@@ -355,11 +391,11 @@ function onModalClick(e) {
     }
 
     const p = savePerson(personData);
-    if (role === 'athlete') {
+    if (role === 'athlete' && !isEdit) {
       ensureDraft(p.id);
       s.expandedId = p.id;
     }
-    log.info('person.add', { person_id: p.id, role });
+    log.info(isEdit ? 'person.update' : 'person.add', { person_id: p.id, role });
     closeModal();
     draw();
     return;

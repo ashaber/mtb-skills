@@ -35,6 +35,12 @@ export function categoryToGrade(category) {
   return CATEGORY_GRADE[category];
 }
 
+const GRADE_CATEGORY = { 5: '5th', 6: '6th', 7: '7th', 8: '8th', 9: 'Freshman', 10: 'JV2', 11: 'JV1', 12: 'Varsity' };
+
+export function gradeToCategory(grade) {
+  return GRADE_CATEGORY[grade] ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -107,7 +113,13 @@ export function getTeamId() {
  */
 export function getPeople(filter = {}) {
   const all = load(KEYS.athletes);
-  if (filter.role) return all.filter(p => p.role === filter.role);
+  if (filter.role === 'athlete') {
+    // Records without a role field are legacy athletes — treat as 'athlete'
+    return all.filter(p => !p.role || p.role === 'athlete');
+  }
+  if (filter.role === 'coach') {
+    return all.filter(p => p.role === 'coach');
+  }
   return all;
 }
 
