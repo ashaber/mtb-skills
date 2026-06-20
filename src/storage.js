@@ -401,9 +401,15 @@ export function getPhoto(athleteId) {
   catch { return null; }
 }
 export function savePhoto(athleteId, dataUrl) {
-  const photos = JSON.parse(localStorage.getItem(PHOTO_KEY) || '{}');
-  photos[athleteId] = dataUrl;
-  localStorage.setItem(PHOTO_KEY, JSON.stringify(photos));
+  try {
+    const photos = JSON.parse(localStorage.getItem(PHOTO_KEY) || '{}');
+    photos[athleteId] = dataUrl;
+    localStorage.setItem(PHOTO_KEY, JSON.stringify(photos));
+    return true;
+  } catch (e) {
+    log.error('photo.save.failed', { athlete_id: athleteId, error: String(e) });
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------

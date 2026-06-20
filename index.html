@@ -56,10 +56,10 @@
     .row-card--open { border-color: rgba(28,27,24,.13); }
     .row-main { display: flex; align-items: center; gap: 11px; padding: 11px 12px; }
 
-    .mono-btn { width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; cursor: pointer; background: var(--ink); color: var(--bg); font: 800 20px/1 var(--font-disp); display: flex; align-items: center; justify-content: center; position: relative; }
+    .mono-btn { width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; padding: 0; cursor: pointer; background: var(--ink); color: var(--bg); font: 800 20px/1 var(--font-disp); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
     .mono { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 12px; font: 800 20px/1 var(--font-disp); }
     .mono-cam { position: absolute; bottom: -3px; right: -3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 1.5px solid var(--ink); display: flex; align-items: center; justify-content: center; font-size: 9px; }
-    .mono-photo { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    .mono-photo { display: block; width: 50px; height: 50px; object-fit: cover; border-radius: 0; }
 
     .row-body { flex: 1; min-width: 0; background: none; border: none; cursor: pointer; text-align: left; padding: 0; }
     .row-name { font: 700 19px/1.1 var(--font-disp); text-transform: uppercase; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

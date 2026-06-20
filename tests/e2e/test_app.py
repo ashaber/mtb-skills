@@ -77,11 +77,14 @@ def test_inline_expand_shows_level_selector(page: Page) -> None:
 
 
 def test_log_observation_from_inline(page: Page) -> None:
+    """Single-click: tapping a level pill in the expanded row records immediately."""
     add_athlete(page, 'Casey Storm')
     expand_row(page, 'Casey Storm')
-    page.click('[data-a="log-session"]')
-    expand_row(page, 'Casey Storm')
-    expect(page.locator('[data-a="log-session"]').first).to_be_visible()
+    row = page.locator('.row-card').filter(has_text='Casey Storm').first
+    row.locator('.lv-seg[data-sk="body_position"][data-n="2"]').click()
+    expect(page.locator('#toast')).to_contain_text('Lv 2 recorded')
+    # Level selector remains accessible for further recording
+    expect(row.locator('.lv-selector').first).to_be_visible()
 
 
 # ── Confirmed levels ──────────────────────────────────────────────────────────
@@ -98,8 +101,8 @@ def test_confirm_skill_from_card(page: Page) -> None:
 def test_score_chips_update_after_confirm(page: Page) -> None:
     add_athlete(page, 'Priya Singh')
     expand_row(page, 'Priya Singh')
-    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="2"]')
-    page.click('[data-a="log-session"]')
+    row = page.locator('.row-card').filter(has_text='Priya Singh').first
+    row.locator('.lv-seg[data-sk="body_position"][data-n="2"]').click()
     bp_chip = page.locator('.score-chip').first
     expect(bp_chip).to_have_text('2')
 
@@ -213,7 +216,8 @@ def test_field_guide_accessible_from_empty_roster(page: Page) -> None:
 def test_persist_across_reload(page: Page, base_url: str) -> None:
     add_athlete(page, 'Phoenix Dunn')
     expand_row(page, 'Phoenix Dunn')
-    page.click('[data-a="log-session"]')
+    row = page.locator('.row-card').filter(has_text='Phoenix Dunn').first
+    row.locator('.lv-seg[data-sk="body_position"][data-n="1"]').click()
     page.reload()
     expect(page.get_by_text('Phoenix Dunn')).to_be_visible()
 
@@ -234,7 +238,7 @@ def test_offline_roster_and_rubric(page: Page) -> None:
 def test_json_export_structure(page: Page) -> None:
     add_athlete(page, 'Taylor West')
     expand_row(page, 'Taylor West')
-    page.click('[data-a="log-session"]')
+    page.locator('.row-card').filter(has_text='Taylor West').locator('.lv-seg[data-sk="body_position"][data-n="1"]').click()
     page.click('[data-a="open-settings"]')
     with page.expect_download() as dl_info:
         page.click('[data-m="export"]')
@@ -256,8 +260,7 @@ def test_json_export_structure(page: Page) -> None:
 def test_import_round_trip(page: Page, base_url: str, tmp_path) -> None:
     add_athlete(page, 'Import Test')
     expand_row(page, 'Import Test')
-    page.click('[data-a="draft-level"][data-sk="braking"][data-n="3"]')
-    page.click('[data-a="log-session"]')
+    page.locator('.row-card').filter(has_text='Import Test').locator('.lv-seg[data-sk="braking"][data-n="3"]').click()
     page.click('[data-a="open-settings"]')
     with page.expect_download() as dl_info:
         page.click('[data-m="export"]')
@@ -279,10 +282,10 @@ def test_trail_ready_band_shows_check_when_ready(page: Page) -> None:
     add_athlete(page, 'Green Rider')
     expand_row(page, 'Green Rider')
     # BP=2, BRK=1, CRN=1 → green unlocked (min: BP≥2, BRK≥1, CRN≥1)
-    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="2"]')
-    page.click('[data-a="draft-level"][data-sk="braking"][data-n="1"]')
-    page.click('[data-a="draft-level"][data-sk="cornering"][data-n="1"]')
-    page.click('[data-a="log-session"]')
+    row = page.locator('.row-card').filter(has_text='Green Rider').first
+    row.locator('.lv-seg[data-sk="body_position"][data-n="2"]').click()
+    row.locator('.lv-seg[data-sk="braking"][data-n="1"]').click()
+    row.locator('.lv-seg[data-sk="cornering"][data-n="1"]').click()
     open_card(page, 'Green Rider')
     band = page.locator('.ready-detail-row')
     expect(band).to_be_visible()
@@ -293,10 +296,10 @@ def test_trail_ready_band_shows_blockers_when_not_ready(page: Page) -> None:
     """A rider with BP=1 shows BP as blocker for green tier."""
     add_athlete(page, 'Bad Rider')
     expand_row(page, 'Bad Rider')
-    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="1"]')
-    page.click('[data-a="draft-level"][data-sk="braking"][data-n="1"]')
-    page.click('[data-a="draft-level"][data-sk="cornering"][data-n="1"]')
-    page.click('[data-a="log-session"]')
+    row = page.locator('.row-card').filter(has_text='Bad Rider').first
+    row.locator('.lv-seg[data-sk="body_position"][data-n="1"]').click()
+    row.locator('.lv-seg[data-sk="braking"][data-n="1"]').click()
+    row.locator('.lv-seg[data-sk="cornering"][data-n="1"]').click()
     open_card(page, 'Bad Rider')
     band = page.locator('.ready-detail-row')
     expect(band).to_be_visible()
@@ -310,10 +313,10 @@ def test_trail_ready_band_all_check_when_all_ready(page: Page) -> None:
     """A rider at 5-4-5 shows ✓ for all 4 tiers."""
     add_athlete(page, 'Elite Rider')
     expand_row(page, 'Elite Rider')
-    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="5"]')
-    page.click('[data-a="draft-level"][data-sk="braking"][data-n="4"]')
-    page.click('[data-a="draft-level"][data-sk="cornering"][data-n="5"]')
-    page.click('[data-a="log-session"]')
+    row = page.locator('.row-card').filter(has_text='Elite Rider').first
+    row.locator('.lv-seg[data-sk="body_position"][data-n="5"]').click()
+    row.locator('.lv-seg[data-sk="braking"][data-n="4"]').click()
+    row.locator('.lv-seg[data-sk="cornering"][data-n="5"]').click()
     open_card(page, 'Elite Rider')
     band = page.locator('.ready-detail-row')
     expect(band.locator('.rdt-check')).to_have_count(4)
@@ -410,8 +413,7 @@ def test_share_card_modal_opens_with_qr(page: Page) -> None:
 def test_share_card_modal_shows_skill_levels(page: Page) -> None:
     add_athlete(page, 'Level Rider')
     expand_row(page, 'Level Rider')
-    page.click('[data-a="draft-level"][data-sk="body_position"][data-n="3"]')
-    page.click('[data-a="log-session"]')
+    page.locator('.row-card').filter(has_text='Level Rider').locator('.lv-seg[data-sk="body_position"][data-n="3"]').click()
     open_card(page, 'Level Rider')
     page.click('[data-a="share-card"]')
     expect(page.locator('.share-qr')).to_be_visible(timeout=5000)

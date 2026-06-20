@@ -67,17 +67,28 @@ Short sections can be speed-managed or walked. Assess at the start of every seas
 - Feedback form deployed post-presentation
 - Climbing skill excluded from v1 — to be added as separate module
 
-## App Build & Roadmap
+## App — Coach Tool
 
-A coach-facing assessment tool. Source in `src/`, built with [Vite](https://vitejs.dev/).
+**Live:** https://ashaber.github.io/mtb-skills/ | Works offline — no login, no server.
 
-**Current status:** Phase 1 ✅ Complete. Live at https://ashaber.github.io/mtb-skills/
+### Features (Phase 1)
 
-For the full phased build plan, see [ROADMAP.md](ROADMAP.md):
-- **Phase 1:** ✅ Local HTML app, localStorage, no login, fully offline
+- **Roster** — add athletes and coaches; filter by role; add photos
+- **Instant observation** — tap a level (1–5) on any roster row to record immediately
+- **Full rider card** — observation history, trend graph, confirmed level, trail readiness detail
+- **Trail readiness** — computed from confirmed levels against rubric minimums; shows which trails each rider is ready for and what's blocking the next tier
+- **Practice attendance** — daily attendance log; attending riders sort to top; exportable JSON
+- **Athlete trading card** — QR-encoded card for sharing skill data between coaches (scan from card to import)
+- **Field Guide** — full rubric reference, browsable offline; failure modes and level descriptions per skill
+- **JSON export / import** — full data backup; re-import on any device
+
+### Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full phased plan:
+- **Phase 1:** ✅ Local HTML app, localStorage, fully offline
 - **Phase 2:** PWA + Google Sheets backend, offline-first sync, Google OAuth
 - **Phase 3:** Native mobile (iOS/Android)
-- **Phase 4:** Multi-tenant backend (optional, league-level)
+- **Phase 4:** Multi-tenant backend (league-level visibility)
 
 ## Development
 

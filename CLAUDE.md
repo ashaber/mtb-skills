@@ -87,7 +87,30 @@ mtb-skills/
 
 ---
 
-## Sprint 1d — People & Practice Roster (current branch: phase1/practice-roster)
+## Sprint 1e — Deferred UX (current branch: phase1/deferred-ux)
+
+**Scope:** Single-click level recording, app QR sharing in Settings, About section. Fixes rider photo thumbnail display bug.
+
+### Single-click level recording
+- Tapping any level pill in the roster row expand panel immediately records an observation for that skill
+- If the skill has no confirmed level yet, also auto-confirms at that level (first-observation shortcut)
+- Flash toast confirms: "body position Lv 3 recorded"
+- "Log Observation" / "Set Initial Levels" button removed from inline expand panel
+- "Open full rider card →" button retained for history, trail readiness, and explicit confirm flow
+- Full card view unchanged: draft → explicit "Update Confirmed" button
+
+### Settings enhancements
+- **QR code**: opens on Settings; QR encodes `https://ashaber.github.io/mtb-skills/` for easy app sharing to other devices
+- **About section**: brief explanation of observe → confirm → trail ready flow; attribution to Tim Curry; offline note
+
+### Bug fix: rider photo thumbnail
+- `img.mono-photo` was invisible on roster due to `height:100%` not resolving in a `flex; align-items:center` button on iOS Safari
+- Fix: added `overflow:hidden; padding:0` to `.mono-btn`; changed `.mono-photo` to explicit `50px×50px`
+- `savePhoto` now catches `QuotaExceededError` and returns `false`; caller flashes "Photo too large"
+
+---
+
+## Sprint 1d — People & Practice Roster (merged: phase1/practice-roster)
 
 **Scope (this PR):** Schema migration + roster filter + practice attendance.
 **Deferred to next PR:** QR sharing, kill switch, swipe UX, single-click observation.
@@ -137,7 +160,7 @@ New `Practice` and `PracticeAttendance` entities stored in localStorage.
 ```json
 { "id": "uuid", "practice_id": "uuid", "person_id": "uuid", "status": "attending | absent", "ts": "ISO8601" }
 ```
-
+### Additional small features
 - Today's practice auto-created on app open (keyed by date — only one per day)
 - **"Start Attendance" global button** enters attendance mode; tapping a person row toggles attending/absent
 - Clicking "Start Attendance" again on same date resumes (supports late arrivals)
@@ -152,12 +175,12 @@ New `Practice` and `PracticeAttendance` entities stored in localStorage.
 - Confirmed level is separate — coach judgment, not auto-promoted
 - Trail readiness computed client-side from confirmed levels + `TRAIL_MINIMUMS`
 
-### Deferred to next PR
-- App sharing: QR code in Settings pointing to GitHub Pages URL
-- About section in Settings (how the app works, roadmap teaser)
-- Kill switch consideration
-- Swipe left to open full athlete card; swipe right to return to roster
-- Single-click level recording (remove "Record Observation" button)
+### Deferred to phase1/deferred-ux
+- App sharing: QR code in Settings ✅ shipped
+- About section in Settings ✅ shipped
+- Single-click level recording ✅ shipped
+- Swipe left to open full athlete card; swipe right to return to roster (deferred — complex gesture, deprioritized)
+- Kill switch (dropped — no clear use case defined)
 
 ## Build Guidelines
 

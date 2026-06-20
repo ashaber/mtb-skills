@@ -89,8 +89,12 @@ function draw() {
       const reader = new FileReader();
       reader.onload = ev => {
         const aid = photoInput.dataset.aid;
-        savePhoto(aid, ev.target.result);
-        log.info('photo.save', { athlete_id: aid });
+        const ok = savePhoto(aid, ev.target.result);
+        if (ok) {
+          log.info('photo.save', { athlete_id: aid });
+        } else {
+          flash('Photo too large to save. Try a smaller image.');
+        }
         draw();
       };
       reader.readAsDataURL(file);
@@ -101,8 +105,8 @@ function draw() {
   if (notesArea) {
     notesArea.addEventListener('blur', e => {
       const aid = e.target.dataset.id;
-      const a = getAthletes().find(x => x.id === aid);
-      if (a) { saveAthlete({ ...a, notes: e.target.value }); }
+      const a = getPeople().find(x => x.id === aid);
+      if (a) { savePerson({ ...a, notes: e.target.value }); }
     });
   }
 }
@@ -190,6 +194,14 @@ function onAppClick(e) {
   if (action === 'draft-level') {
     s.draft[aid] = s.draft[aid] || {};
     s.draft[aid][sk] = +n;
+    if (s.view === 'roster') {
+      const lv = +n;
+      saveObservation({ athlete_id: aid, skill: sk, level_observed: lv, session_date: today() });
+      const conf = getAthleteConfirmedLevels(aid);
+      if (!conf[sk]) setConfirmedLevel({ athlete_id: aid, skill: sk, level: lv });
+      log.info('obs.quick', { athlete_id: aid, skill: sk, level: lv });
+      flash(`${sk.replace(/_/g, ' ')} Lv ${lv} recorded`);
+    }
     draw();
     return;
   }
@@ -199,13 +211,13 @@ function onAppClick(e) {
   if (action === 'confirm-skill')   return confirmOneSkill(id, sk, +n);
 
   if (action === 'edit-safety') {
-    const a = getAthletes().find(x => x.id === id);
+    const a = getPeople().find(x => x.id === id);
     if (a) openModal(modalSafetyInfo(a));
     return;
   }
 
   if (action === 'share-card') {
-    const a = getAthletes().find(x => x.id === id);
+    const a = getPeople().find(x => x.id === id);
     if (!a) return;
     const conf = getAthleteConfirmedLevels(id);
     const payload = encodeCard(a, conf);
@@ -223,7 +235,7 @@ function onAppClick(e) {
   }
 
   if (action === 'del-athlete') {
-    const a = getAthletes().find(x => x.id === id);
+    const a = getPeople().find(x => x.id === id);
     if (a && confirm(`Delete ${a.name}? All observations will be removed.`)) {
       deleteAthlete(id);
       delete s.draft[id];
@@ -243,7 +255,13 @@ function onAppClick(e) {
     log.info('person.edit.open', { person_id: id });
     return openModal(modalEditPerson(person));
   }
-  if (action === 'open-settings') return openModal(modalSettings());
+  if (action === 'open-settings') {
+    const APP_URL = 'https://ashaber.github.io/mtb-skills/';
+    QRCode.toDataURL(APP_URL, { width: 200, margin: 2 })
+      .then(qr => openModal(modalSettings(qr)))
+      .catch(() => openModal(modalSettings(null)));
+    return;
+  }
 
   if (action === 'go-rubric-skill') {
     s.rubricSkill = sk;
@@ -428,7 +446,7 @@ function onModalClick(e) {
   }
 
   if (action === 'save-safety') {
-    const athlete = getAthletes().find(x => x.id === el.dataset.id);
+    const athlete = getPeople().find(x => x.id === el.dataset.id);
     if (!athlete) return;
     const medical = document.getElementById('inp-medical')?.value.trim() || null;
     const ecName  = document.getElementById('inp-ec-name')?.value.trim()  || null;
