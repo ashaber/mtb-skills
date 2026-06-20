@@ -7,8 +7,10 @@
 import log from './log.js';
 import { SKILLS, SKILL_IDS, TRAIL_GUIDE, COACH_NOTES, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
 import {
-  getAthletes, getAthleteConfirmedLevels, getObservations,
+  getPeople, getAthletes, getAthleteConfirmedLevels, getObservations,
   getCoach, getPhoto, getTeamSettings, exportAll,
+  getAttendance, getAttendanceStatus,
+  CATEGORIES,
 } from './storage.js';
 import {
   LV, pName, initials, readyRowHTML, readyRowDetailHTML, trendSVG, postureSVG,
@@ -25,75 +27,79 @@ const BOOK  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColo
 const SHARE = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 101.061-1.757l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/></svg>`;
 const SCAN  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 010 2H5v2a1 1 0 01-2 0V4zm9-1a1 1 0 000 2h2v2a1 1 0 002 0V4a1 1 0 00-1-1h-3zM3 13a1 1 0 011 1v2h2a1 1 0 010 2H4a1 1 0 01-1-1v-3a1 1 0 011-1zm13 1a1 1 0 10-2 0v2h-2a1 1 0 000 2h3a1 1 0 001-1v-3z" clip-rule="evenodd"/><path d="M3 9a1 1 0 000 2h14a1 1 0 000-2H3z"/></svg>`;
 const WARN  = `<svg width="13" height="13" viewBox="0 0 20 20" fill="#d97706"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
+const CLIPBOARD = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/></svg>`;
+const CHECK_CIRCLE = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>`;
+const EMPTY_CIRCLE = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/></svg>`;
 
 // ── Roster view ─────────────────────────────────────────────────────────────
 export function viewRoster(s) {
-  const athletes = getAthletes().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const filter = s.roster_filter || 'all';
+  const attendanceMode = s.attendance_mode || false;
+  const practice = s.today_practice;
+
+  // Determine people to show based on filter
+  let people;
+  if (filter === 'athletes') people = getPeople({ role: 'athlete' });
+  else if (filter === 'coaches') people = getPeople({ role: 'coach' });
+  else people = getPeople();
+
   const { name: teamName = 'Idaho League' } = getTeamSettings();
 
-  if (!athletes.length) return viewEmpty();
+  if (!people.length && !getPeople().length) return viewEmpty(s);
 
-  const rows = athletes.map(a => {
-    const conf = getAthleteConfirmedLevels(a.id);
-    const open = s.expandedId === a.id;
-    const draft = s.draft[a.id] || { body_position: conf.body_position || 1, braking: conf.braking || 1, cornering: conf.cornering || 1 };
-    const isNew = !conf.body_position && !conf.braking && !conf.cornering;
+  // Sort: attending to top (based on today's attendance records), then alpha
+  const attendingIds = practice ? new Set(
+    getAttendance(practice.id).filter(a => a.status === 'attending').map(a => a.person_id)
+  ) : new Set();
 
-    const chips = SKILL_IDS.map(sk => {
-      const short = {body_position:'BP', braking:'BRK', cornering:'CRN'}[sk];
-      return scoreChip(short, conf[sk]);
-    }).join('');
+  const sorted = [...people].sort((a, b) => {
+    const aAtt = attendingIds.has(a.id) ? 0 : 1;
+    const bAtt = attendingIds.has(b.id) ? 0 : 1;
+    if (aAtt !== bAtt) return aAtt - bAtt;
+    return (a.name || '').localeCompare(b.name || '');
+  });
 
-    const expandPanel = open ? `
-      <div class="row-expand">
-        ${SKILL_IDS.map(sk => {
-          const lv = draft[sk] || 1;
-          return `<div class="skill-compact-row">
-            <div class="posture-box-sm">${postureSVG(sk, lv, LV[lv], 80)}</div>
-            <div class="skill-compact-right">
-              <div class="skill-compact-head">
-                <span class="skill-compact-name">${SKILLS[sk].name.toUpperCase()}</span>
-                <span class="skill-compact-lv" style="color:${LV[lv]}">LV ${lv}</span>
-              </div>
-              ${levelSelectorHTML(sk, lv, a.id, 'compact')}
-            </div>
-          </div>`;
-        }).join('')}
-        <div class="expand-actions">
-          <button class="btn btn-primary" data-a="log-session" data-id="${a.id}">
-            ${isNew ? 'Set Initial Levels' : 'Log Observation'}
-          </button>
-          <button class="btn btn-ghost" data-a="go-card" data-id="${a.id}">Open full rider card →</button>
-        </div>
-      </div>` : '';
-
-    const photo = getPhoto(a.id);
-    const mono = photo
-      ? `<img src="${photo}" class="mono-photo" alt="${esc(a.name)}">`
-      : `<div class="mono">${esc(initials(a.name))}<span class="mono-cam">📷</span></div>`;
-
-    return `<div class="row-card${open ? ' row-card--open' : ''}">
-      <div class="row-main">
-        <button class="mono-btn" data-a="go-card" data-id="${a.id}" aria-label="Open ${esc(a.name)}'s card">${mono}</button>
-        <button class="row-body" data-a="toggle-expand" data-id="${a.id}">
-          <div class="row-name">
-            ${esc(pName(a.name))}
-            ${(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `<span class="safety-flag" title="Has safety info">${WARN}</span>` : ''}
-          </div>
-          <div class="row-meta">
-            <span class="row-grade">GR ${esc(String(a.grade || '—'))}</span>
-            <span class="sep">·</span>
-            <span class="ready-row">${readyRowHTML(conf, 14)}</span>
-          </div>
-        </button>
-        <button class="chips-caret" data-a="toggle-expand" data-id="${a.id}">
-          ${chips}
-          <svg class="caret${open?' caret--open':''}" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--dim)" stroke-width="2.4" stroke-linecap="round"><path d="M5 8l5 5 5-5"/></svg>
-        </button>
-      </div>
-      ${expandPanel}
-    </div>`;
+  const rows = sorted.map(person => {
+    if (person.role === 'coach') {
+      return coachRowHTML(person, s, practice, attendingIds, attendanceMode);
+    }
+    return athleteRowHTML(person, s, practice, attendingIds, attendanceMode);
   }).join('');
+
+  // Attendance mode header
+  const attendingCount = attendingIds.size;
+  const dateLabel = practice ? fmt(practice.date + 'T00:00:00') : '';
+
+  const filterChips = ['all', 'athletes', 'coaches'].map(f => {
+    const labels = { all: 'All', athletes: 'Athletes', coaches: 'Coaches' };
+    return `<button class="filter-chip${filter === f ? ' filter-chip--active' : ''}" data-a="filter-roster" data-f="${f}">${labels[f]}</button>`;
+  }).join('');
+
+  const rosterCount = people.length;
+  const countLabel = `${rosterCount} ${filter === 'coaches' ? 'coaches' : filter === 'athletes' ? 'athletes' : 'people'}`;
+
+  if (attendanceMode) {
+    return `
+      <div class="hdr" id="hdr">
+        <div class="hdr-top">
+          <span class="hdr-kicker attendance-kicker">📋 ${dateLabel}</span>
+          <div class="hdr-actions">
+            <button class="ico-btn" data-a="export-attendance" aria-label="Export attendance">
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            </button>
+            <button class="ico-btn" data-a="exit-attendance" aria-label="Done">✕</button>
+          </div>
+        </div>
+        <div class="hdr-title-row">
+          <h1 class="hdr-title">Attendance</h1>
+          <span class="hdr-count attend-count">${attendingCount} attending</span>
+        </div>
+        <div class="roster-filters">${filterChips}</div>
+      </div>
+      <div class="list" id="list">${rows}</div>
+      <div class="ph"></div>
+      <button class="fab" data-a="open-add">+ Add Person</button>`;
+  }
 
   return `
     <div class="hdr" id="hdr">
@@ -109,17 +115,152 @@ export function viewRoster(s) {
       </div>
       <div class="hdr-title-row">
         <h1 class="hdr-title">Team Roster</h1>
-        <span class="hdr-count">${athletes.length} riders</span>
+        <div class="hdr-title-right">
+          <span class="hdr-count">${countLabel}</span>
+          <button class="attendance-btn" data-a="start-attendance" aria-label="Take attendance">${CLIPBOARD}</button>
+        </div>
       </div>
+      <div class="roster-filters">${filterChips}</div>
     </div>
     <div class="list" id="list">${rows}</div>
     <div class="ph"></div>
-    <button class="fab" data-a="open-add">+ Rider</button>`;
+    <button class="fab" data-a="open-add">+ ${filter === 'coaches' ? 'Coach' : 'Rider'}</button>`;
 }
 
-// ── Rider card view (replaces athlete + skill views) ─────────────────────────
+function athleteRowHTML(a, s, practice, attendingIds, attendanceMode) {
+  const conf = getAthleteConfirmedLevels(a.id);
+  const open = s.expandedId === a.id;
+  const draft = s.draft[a.id] || { body_position: conf.body_position || 1, braking: conf.braking || 1, cornering: conf.cornering || 1 };
+  const isNew = !conf.body_position && !conf.braking && !conf.cornering;
+
+  const chips = SKILL_IDS.map(sk => {
+    const short = {body_position:'BP', braking:'BRK', cornering:'CRN'}[sk];
+    return scoreChip(short, conf[sk]);
+  }).join('');
+
+  const expandPanel = open ? `
+    <div class="row-expand">
+      ${SKILL_IDS.map(sk => {
+        const lv = draft[sk] || 1;
+        return `<div class="skill-compact-row">
+          <div class="posture-box-sm">${postureSVG(sk, lv, LV[lv], 80)}</div>
+          <div class="skill-compact-right">
+            <div class="skill-compact-head">
+              <span class="skill-compact-name">${SKILLS[sk].name.toUpperCase()}</span>
+              <span class="skill-compact-lv" style="color:${LV[lv]}">LV ${lv}</span>
+            </div>
+            ${levelSelectorHTML(sk, lv, a.id, 'compact')}
+          </div>
+        </div>`;
+      }).join('')}
+      <div class="expand-actions">
+        <button class="btn btn-primary" data-a="log-session" data-id="${a.id}">
+          ${isNew ? 'Set Initial Levels' : 'Log Observation'}
+        </button>
+        <button class="btn btn-outline" data-a="go-card" data-id="${a.id}">Open full rider card →</button>
+      </div>
+    </div>` : '';
+
+  const photo = getPhoto(a.id);
+  const mono = photo
+    ? `<img src="${photo}" class="mono-photo" alt="${esc(a.name)}">`
+    : `<div class="mono">${esc(initials(a.name))}<span class="mono-cam">📷</span></div>`;
+
+  const metaLabel = a.category ? esc(a.category) : (a.grade ? `GR ${esc(String(a.grade))}` : '—');
+
+  const isAttending = practice && attendingIds.has(a.id);
+  const attendBtn = attendanceMode ? `
+    <button class="attend-toggle${isAttending ? ' attend-toggle--on' : ''}" data-a="toggle-attendance" data-id="${a.id}" aria-label="${isAttending ? 'Mark absent' : 'Mark attending'}">
+      ${isAttending ? CHECK_CIRCLE : EMPTY_CIRCLE}
+    </button>` : '';
+
+  return `<div class="row-card${open ? ' row-card--open' : ''}${isAttending && !attendanceMode ? ' row-card--attending' : ''}">
+    <div class="row-main">
+      ${attendBtn}
+      <button class="mono-btn" data-a="go-card" data-id="${a.id}" aria-label="Open ${esc(a.name)}'s card">${mono}</button>
+      <button class="row-body${attendanceMode ? ' row-body--attendance' : ''}" data-a="${attendanceMode ? 'toggle-attendance' : 'toggle-expand'}" data-id="${a.id}">
+        <div class="row-name">
+          ${esc(pName(a.name))}
+          ${(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `<span class="safety-flag" title="Has safety info">${WARN}</span>` : ''}
+        </div>
+        <div class="row-meta">
+          <span class="row-grade">${metaLabel}</span>
+          ${!attendanceMode ? `<span class="sep">·</span><span class="ready-row">${readyRowHTML(conf, 14)}</span>` : ''}
+        </div>
+      </button>
+      ${!attendanceMode ? `<button class="chips-caret" data-a="toggle-expand" data-id="${a.id}">
+        ${chips}
+        <svg class="caret${open?' caret--open':''}" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--dim)" stroke-width="2.4" stroke-linecap="round"><path d="M5 8l5 5 5-5"/></svg>
+      </button>` : ''}
+    </div>
+    ${expandPanel}
+  </div>`;
+}
+
+function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
+  const levelLabel = coach.level ? `L${coach.level}` : '—';
+  const isAttending = practice && attendingIds.has(coach.id);
+  const open = !attendanceMode && s.expandedId === coach.id;
+  const conf = getAthleteConfirmedLevels(coach.id);
+  const draft = s.draft[coach.id] || { body_position: conf.body_position || 1, braking: conf.braking || 1, cornering: conf.cornering || 1 };
+  const isNew = !conf.body_position && !conf.braking && !conf.cornering;
+
+  const chips = SKILL_IDS.map(sk => {
+    const short = {body_position:'BP', braking:'BRK', cornering:'CRN'}[sk];
+    return scoreChip(short, conf[sk]);
+  }).join('');
+
+  const attendBtn = attendanceMode ? `
+    <button class="attend-toggle${isAttending ? ' attend-toggle--on' : ''}" data-a="toggle-attendance" data-id="${coach.id}" aria-label="${isAttending ? 'Mark absent' : 'Mark attending'}">
+      ${isAttending ? CHECK_CIRCLE : EMPTY_CIRCLE}
+    </button>` : '';
+
+  const expandPanel = open ? `
+    <div class="row-expand">
+      ${SKILL_IDS.map(sk => {
+        const lv = draft[sk] || 1;
+        return `<div class="skill-compact-row">
+          <div class="posture-box-sm">${postureSVG(sk, lv, LV[lv], 80)}</div>
+          <div class="skill-compact-right">
+            <div class="skill-compact-head">
+              <span class="skill-compact-name">${SKILLS[sk].name.toUpperCase()}</span>
+              <span class="skill-compact-lv" style="color:${LV[lv]}">LV ${lv}</span>
+            </div>
+            ${levelSelectorHTML(sk, lv, coach.id, 'compact')}
+          </div>
+        </div>`;
+      }).join('')}
+      <div class="expand-actions">
+        <button class="btn btn-primary" data-a="log-session" data-id="${coach.id}">
+          ${isNew ? 'Set Initial Levels' : 'Log Observation'}
+        </button>
+        <button class="btn btn-outline" data-a="go-card" data-id="${coach.id}">Open full card →</button>
+      </div>
+    </div>` : '';
+
+  return `<div class="row-card row-card--coach${isAttending && !attendanceMode ? ' row-card--attending' : ''}">
+    <div class="row-main">
+      ${attendBtn}
+      <div class="mono mono--coach">${esc(initials(coach.name))}</div>
+      <button class="row-body${attendanceMode ? ' row-body--attendance' : ''}" data-a="${attendanceMode ? 'toggle-attendance' : 'toggle-expand'}" data-id="${coach.id}">
+        <div class="row-name">${esc(pName(coach.name))}</div>
+        <div class="row-meta">
+          <span class="row-grade">${esc(levelLabel)}</span>
+          ${!attendanceMode ? `<span class="sep">·</span><span class="ready-row">${readyRowHTML(conf, 14)}</span>` : ''}
+        </div>
+      </button>
+      ${!attendanceMode ? `<button class="chips-caret" data-a="toggle-expand" data-id="${coach.id}">
+        ${chips}
+        <svg class="caret${open?' caret--open':''}" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--dim)" stroke-width="2.4" stroke-linecap="round"><path d="M5 8l5 5 5-5"/></svg>
+      </button>` : ''}
+    </div>
+    ${expandPanel}
+  </div>`;
+}
+
+// ── Rider/Coach card view ─────────────────────────────────────────────────────
 export function viewCard(s) {
-  const a = getAthletes().find(x => x.id === s.athleteId);
+  const a = getPeople().find(x => x.id === s.athleteId);
   if (!a) return viewRoster(s);
 
   const conf  = getAthleteConfirmedLevels(a.id);
@@ -137,7 +278,6 @@ export function viewCard(s) {
        </label>
        <input id="photo-upload" type="file" accept="image/*" style="display:none" data-aid="${a.id}">`;
 
-  // Skill blocks
   const skillBlocks = SKILL_IDS.map(sk => {
     const lv      = draft[sk] || 1;
     const confirmedLv = conf[sk] || 0;
@@ -182,7 +322,6 @@ export function viewCard(s) {
     </div>`;
   }).join('');
 
-  // Observation timeline (all skills merged, reverse-chron)
   const allObs = getObservations({ athlete_id: a.id })
     .sort((a, b) => b.session_date.localeCompare(a.session_date))
     .slice(0, 12);
@@ -196,11 +335,16 @@ export function viewCard(s) {
         </div>`).join('')
     : `<p class="empty-micro">No observations logged yet.</p>`;
 
+  const metaLabel = a.role === 'coach'
+    ? (a.level ? `NICA L${a.level}` : 'Coach')
+    : (a.category ? `${esc(a.category)}` : (a.grade ? `GRADE ${esc(String(a.grade))}` : ''));
+
   return `
     <div class="card-view" id="card-view">
       <div class="card-topbar">
         <button class="ico-btn" data-a="go-roster">${BACK} ROSTER</button>
         <span class="card-obs-count">${totalObs} obs</span>
+        <button class="ico-btn" data-a="edit-person" data-id="${a.id}" aria-label="Edit profile">✏️</button>
         <button class="ico-btn" data-a="share-card" data-id="${a.id}" aria-label="Share card">${SHARE}</button>
         <button class="ico-btn" data-a="del-athlete" data-id="${a.id}" aria-label="Delete">${TRASH}</button>
       </div>
@@ -211,7 +355,7 @@ export function viewCard(s) {
             <h2 class="card-name">${esc(a.name)}</h2>
             <div class="card-hero-meta">
               ${a.plate ? `<span class="plate-pill">#${esc(String(a.plate))}</span>` : ''}
-              <span class="card-grade">GRADE ${esc(String(a.grade || '—'))}</span>
+              ${metaLabel ? `<span class="card-grade">${metaLabel}</span>` : ''}
             </div>
           </div>
         </div>
@@ -261,9 +405,16 @@ export function viewCard(s) {
 }
 
 // ── Empty state ──────────────────────────────────────────────────────────────
-function viewEmpty() {
+function viewEmpty(s) {
+  const filter = s?.roster_filter || 'all';
   const { name: teamName = 'Idaho League' } = getTeamSettings();
   const marks = Object.values(TRAIL_META).map(t => trailMarkSVG(t.kind, 26, t.color)).join('');
+
+  const filterChips = ['all', 'athletes', 'coaches'].map(f => {
+    const labels = { all: 'All', athletes: 'Athletes', coaches: 'Coaches' };
+    return `<button class="filter-chip${filter === f ? ' filter-chip--active' : ''}" data-a="filter-roster" data-f="${f}">${labels[f]}</button>`;
+  }).join('');
+
   return `
     <div class="hdr">
       <div class="hdr-top">
@@ -275,13 +426,14 @@ function viewEmpty() {
       </div>
       <div class="hdr-title-row">
         <h1 class="hdr-title">Team Roster</h1>
-        <span class="hdr-count">0 riders</span>
+        <span class="hdr-count">0 people</span>
       </div>
+      <div class="roster-filters">${filterChips}</div>
     </div>
     <div class="empty-state">
       <div class="empty-marks">${marks}</div>
       <h2 class="empty-title">Build your roster</h2>
-      <p class="empty-desc">Add your athletes, then assess Body Position, Braking, and Cornering to see which trails each rider is ready for.</p>
+      <p class="empty-desc">Add athletes and coaches, then assess Body Position, Braking, and Cornering to see which trails each rider is ready for.</p>
       <div class="empty-steps">
         <div class="empty-step"><span class="step-n">1</span><div><b>Observe</b> — watch a rider and log what you see.</div></div>
         <div class="empty-step"><span class="step-n">2</span><div><b>Confirm</b> — set their level when it's consistent.</div></div>
@@ -291,30 +443,130 @@ function viewEmpty() {
     </div>`;
 }
 
-// ── Modal: add athlete ────────────────────────────────────────────────────────
-export function modalAddAthlete() {
+// ── Modal: add person ─────────────────────────────────────────────────────────
+export function modalAddPerson(defaultRole = 'athlete') {
+  const categoryOptions = CATEGORIES.map(c =>
+    `<option value="${esc(c)}">${esc(c)}</option>`
+  ).join('');
+
+  const athleteActive = defaultRole === 'athlete';
+
   return `
     <div class="modal-head">
-      <span>Add Rider</span>
+      <span>Add Person</span>
       <button class="ico-btn" data-m="close">✕</button>
     </div>
     <div class="fg">
       <label class="fl" for="inp-name">Name</label>
-      <input class="fi" id="inp-name" type="text" placeholder="Rider name" autocapitalize="words">
-      <div style="display:flex;gap:12px;margin-top:4px">
-        <div style="flex:1">
-          <label class="fl" for="inp-grade">Grade</label>
-          <input class="fi" id="inp-grade" type="number" min="6" max="12" placeholder="9">
-        </div>
-        <div style="flex:1">
-          <label class="fl" for="inp-plate">Plate #</label>
-          <input class="fi" id="inp-plate" type="number" placeholder="00">
-        </div>
+      <input class="fi" id="inp-name" type="text" placeholder="Full name" autocapitalize="words">
+
+      <div class="role-tabs" style="margin-top:12px">
+        <button class="role-tab${athleteActive ? ' role-tab--active' : ''}" data-m="role-tab" data-role="athlete">Athlete</button>
+        <button class="role-tab${!athleteActive ? ' role-tab--active' : ''}" data-m="role-tab" data-role="coach">Coach</button>
       </div>
-      <p class="modal-hint">Skill levels set on first assessment.</p>
+      <input type="hidden" id="inp-role" value="${defaultRole}">
+
+      <div id="athlete-fields" style="display:${athleteActive ? 'block' : 'none'};margin-top:8px">
+        <label class="fl" for="inp-grade">Grade (5–12, auto-fills category)</label>
+        <input class="fi" id="inp-grade" type="number" min="5" max="12" placeholder="e.g. 7">
+        <label class="fl" for="inp-category" style="margin-top:8px">Category</label>
+        <select class="fi" id="inp-category">
+          <option value="">— select —</option>
+          ${categoryOptions}
+        </select>
+        <label class="fl" for="inp-plate" style="margin-top:8px">Plate # (optional)</label>
+        <input class="fi" id="inp-plate" type="number" placeholder="00">
+      </div>
+
+      <div id="coach-fields" style="display:${!athleteActive ? 'block' : 'none'};margin-top:8px">
+        <label class="fl">NICA Level</label>
+        <div class="coach-level-selector">
+          <button class="coach-lv-btn${defaultRole === 'coach' ? '' : ''}" data-m="coach-level-btn" data-n="1">
+            <span class="clv-n">L1</span>
+            <span class="clv-label">Sweep</span>
+          </button>
+          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="2">
+            <span class="clv-n">L2</span>
+            <span class="clv-label">Coach</span>
+          </button>
+          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="3">
+            <span class="clv-n">L3</span>
+            <span class="clv-label">Head Coach</span>
+          </button>
+        </div>
+        <input type="hidden" id="inp-coach-level" value="">
+        <p class="modal-hint">NICA L1 = sweep / front of group. L2 = can lead a pod. L3 = runs practice.</p>
+      </div>
     </div>
     <div class="fg" style="padding-top:0">
-      <button class="btn btn-primary" data-m="save-athlete">Add Rider</button>
+      <button class="btn btn-primary" data-m="save-person">Add</button>
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+// Backward-compat alias used by existing event handlers
+export function modalAddAthlete() {
+  return modalAddPerson('athlete');
+}
+
+export function modalEditPerson(person) {
+  const categoryOptions = CATEGORIES.map(c =>
+    `<option value="${esc(c)}"${person.category === c ? ' selected' : ''}>${esc(c)}</option>`
+  ).join('');
+
+  const isAthlete = !person.role || person.role === 'athlete';
+  const coachLevel = person.level ? String(person.level) : '';
+
+  return `
+    <div class="modal-head">
+      <span>Edit ${isAthlete ? 'Athlete' : 'Coach'}</span>
+      <button class="ico-btn" data-m="close">✕</button>
+    </div>
+    <div class="fg">
+      <input type="hidden" id="inp-person-id" value="${esc(person.id)}">
+      <label class="fl" for="inp-name">Name</label>
+      <input class="fi" id="inp-name" type="text" value="${esc(person.name || '')}" autocapitalize="words">
+
+      <div class="role-tabs" style="margin-top:12px">
+        <button class="role-tab${isAthlete ? ' role-tab--active' : ''}" data-m="role-tab" data-role="athlete">Athlete</button>
+        <button class="role-tab${!isAthlete ? ' role-tab--active' : ''}" data-m="role-tab" data-role="coach">Coach</button>
+      </div>
+      <input type="hidden" id="inp-role" value="${isAthlete ? 'athlete' : 'coach'}">
+
+      <div id="athlete-fields" style="display:${isAthlete ? 'block' : 'none'};margin-top:8px">
+        <label class="fl" for="inp-grade">Grade (5–12, auto-fills category)</label>
+        <input class="fi" id="inp-grade" type="number" min="5" max="12" placeholder="e.g. 7" value="${esc(String(person.grade ?? ''))}">
+        <label class="fl" for="inp-category" style="margin-top:8px">Category</label>
+        <select class="fi" id="inp-category">
+          <option value="">— select —</option>
+          ${categoryOptions}
+        </select>
+        <label class="fl" for="inp-plate" style="margin-top:8px">Plate # (optional)</label>
+        <input class="fi" id="inp-plate" type="number" placeholder="00" value="${esc(person.plate ?? '')}">
+      </div>
+
+      <div id="coach-fields" style="display:${!isAthlete ? 'block' : 'none'};margin-top:8px">
+        <label class="fl">NICA Level</label>
+        <div class="coach-level-selector">
+          <button class="coach-lv-btn${coachLevel === '1' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="1">
+            <span class="clv-n">L1</span>
+            <span class="clv-label">Sweep</span>
+          </button>
+          <button class="coach-lv-btn${coachLevel === '2' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="2">
+            <span class="clv-n">L2</span>
+            <span class="clv-label">Coach</span>
+          </button>
+          <button class="coach-lv-btn${coachLevel === '3' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="3">
+            <span class="clv-n">L3</span>
+            <span class="clv-label">Head Coach</span>
+          </button>
+        </div>
+        <input type="hidden" id="inp-coach-level" value="${esc(coachLevel)}">
+        <p class="modal-hint">NICA L1 = sweep / front of group. L2 = can lead a pod. L3 = runs practice.</p>
+      </div>
+    </div>
+    <div class="fg" style="padding-top:0">
+      <button class="btn btn-primary" data-m="save-person">Save</button>
     </div>
     <div style="height:12px"></div>`;
 }
@@ -509,7 +761,7 @@ export function modalShareCard(a, conf, qrDataUrl) {
       <img class="share-qr" src="${qrDataUrl}" alt="Athlete QR code">
       <div class="share-card-summary">
         <div class="share-card-name">${esc(a.name)}</div>
-        ${a.grade ? `<div class="share-card-meta">Grade ${esc(String(a.grade))}</div>` : ''}
+        ${a.category ? `<div class="share-card-meta">${esc(a.category)}</div>` : a.grade ? `<div class="share-card-meta">Grade ${esc(String(a.grade))}</div>` : ''}
         <div class="share-card-levels">${esc(lvLine)}</div>
         ${hasSafety ? `<div class="share-card-safety">⚕ Safety info included</div>` : ''}
       </div>
@@ -557,7 +809,7 @@ export function modalImportPreview(payload, existingAthlete) {
       ${mergeWarning}
       <div class="import-preview">
         <div class="import-preview-name">${esc(payload.name)}</div>
-        ${payload.grade ? `<div class="import-preview-meta">Grade ${esc(String(payload.grade))}</div>` : ''}
+        ${payload.category ? `<div class="import-preview-meta">${esc(payload.category)}</div>` : payload.grade ? `<div class="import-preview-meta">Grade ${esc(String(payload.grade))}</div>` : ''}
         <div class="import-preview-levels">${esc(lvLine)}</div>
         ${hasSafety ? `<div class="import-preview-safety">
           ${payload.medical_notes ? `<div class="safety-row"><span class="safety-lbl">Medical</span><span class="safety-val">${esc(payload.medical_notes)}</span></div>` : ''}

@@ -35,16 +35,16 @@ Phased build plan for a coach-facing skill assessment tool. Each phase is indepe
 Fully offline by design — no network calls.
 
 ### Definition of Done
-- [ ] `index.html` at repo root, served by GitHub Pages via `dist/`
-- [ ] Live and accessible at https://ashaber.github.io/mtb-skills/
-- [ ] Opens and functions on Android (Chrome)
+- [ x ] `index.html` at repo root, served by GitHub Pages via `dist/`
+- [ x] Live and accessible at https://ashaber.github.io/mtb-skills/
+- [ x] Opens and functions on Android (Chrome)
 - [ ] Opens and functions on iOS (Safari)
-- [ ] Athlete roster: add and manage athletes
-- [ ] Session assessment: log observation (athlete → skill → level 1–5 → date)
-- [ ] Observation history: chronological log per athlete per skill
-- [ ] Confirm skill level: coach explicitly sets confirmed level
-- [ ] Trail readiness: computed from confirmed levels, matches rubric minimums
-- [ ] JSON export: full data download including log
+- [ x] Athlete roster: add and manage athletes
+- [ x] Session assessment: log observation (athlete → skill → level 1–5 → date)
+- [ x] Observation history: chronological log per athlete per skill
+- [ x] Confirm skill level: coach explicitly sets confirmed level
+- [ x] Trail readiness: computed from confirmed levels, matches rubric minimums
+- [ x] JSON export: full data download including log
 - [ ] JSON export verified: re-imports cleanly with no data loss
 - [ ] Data persists across page reloads (localStorage)
 - [ ] Works with no network connection
@@ -101,7 +101,7 @@ Team data lives in that team's Google Sheet — not a shared database. This is i
 - **Supabase** — managed PostgreSQL (do not self-host Postgres)
 - **Frontend** — same Vite build, deploy target changes from GitHub Pages to GCS bucket or Firebase Hosting
 
-### CI/CD at Phase 4 (GitHub Actions)
+### CI/CD at Phase 1 (GitHub Actions)
 ```
 push to main →
   test job: npm run test + pytest tests/e2e/

@@ -14,7 +14,7 @@ from playwright.sync_api import Page, expect
 def add_athlete(page: Page, name: str) -> None:
     page.click('[data-a="open-add"]')
     page.fill('#inp-name', name)
-    page.click('[data-m="save-athlete"]')
+    page.click('[data-m="save-person"]')
 
 
 def open_card(page: Page, name: str) -> None:
@@ -243,9 +243,10 @@ def test_json_export_structure(page: Page) -> None:
     assert dl.suggested_filename.endswith('.json')
     with open(dl.path()) as f:
         data = json.load(f)
-    for key in ('athletes', 'observations', 'confirmed_levels', 'log', 'exported_at', 'schema_version'):
+    for key in ('people', 'athletes', 'observations', 'confirmed_levels', 'log', 'exported_at', 'schema_version'):
         assert key in data, f'Export missing key: {key}'
-    assert any(a['name'] == 'Taylor West' for a in data['athletes'])
+    assert data['schema_version'] == 2
+    assert any(a['name'] == 'Taylor West' for a in data['people'])
     athlete = next(a for a in data['athletes'] if a['name'] == 'Taylor West')
     assert 'team_id' in athlete
     assert 'id' in athlete

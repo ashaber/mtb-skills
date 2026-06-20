@@ -1,17 +1,20 @@
 /**
  * src/main.js — state machine, event handlers, boot.
- * Two views: 'roster' | 'card'. Card replaces the old athlete + skill views.
+ * Views: 'roster' | 'card' | 'rubric'
  */
 
 import log from './log.js';
 import {
-  getAthletes, saveAthlete, deleteAthlete,
+  getPeople, getAthletes, savePerson, saveAthlete, deleteAthlete,
   saveObservation, getObservations,
   setConfirmedLevel, getAthleteConfirmedLevels,
   getCoach, saveCoach,
   getPhoto, savePhoto,
   getTeamSettings, saveTeamSettings,
-  exportAll, importAll,
+  getRosterFilter, saveRosterFilter,
+  getTodaysPractice, toggleAttendance, getAttendance,
+  exportAll, importAll, exportAttendance,
+  gradeToCategory, categoryToGrade,
 } from './storage.js';
 import { SKILL_IDS } from './rubric.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
@@ -19,23 +22,26 @@ import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
   viewRoster, viewCard, viewRubric,
-  modalAddAthlete, modalSettings,
+  modalAddPerson, modalAddAthlete, modalEditPerson, modalSettings,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
 } from './views.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const s = {
-  view:           'roster',        // 'roster' | 'card' | 'rubric'
-  athleteId:      null,
-  expandedId:     null,            // which roster row has inline accordion open
-  draft:          {},              // { [athleteId]: { body_position, braking, cornering } }
-  rubricSkill:    SKILL_IDS[0],    // active tab in education screen
+  view:            'roster',       // 'roster' | 'card' | 'rubric'
+  athleteId:       null,
+  expandedId:      null,           // which roster row has inline accordion open
+  draft:           {},             // { [athleteId]: { body_position, braking, cornering } }
+  rubricSkill:     SKILL_IDS[0],   // active tab in education screen
+  roster_filter:   getRosterFilter(),
+  attendance_mode: false,
+  today_practice:  null,           // set on boot, passed to views
 };
 
 // ── Camera / import state ─────────────────────────────────────────────────────
 let _cameraStream = null;
 let _scanFrame    = null;
-let _pendingImport = null; // { payload, existingAthlete }
+let _pendingImport = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -75,7 +81,6 @@ function draw() {
     s.view === 'rubric' ? viewRubric(s) :
     viewRoster(s);
 
-  // Wire photo upload (can't use event delegation for file inputs)
   const photoInput = document.getElementById('photo-upload');
   if (photoInput) {
     photoInput.addEventListener('change', e => {
@@ -92,7 +97,6 @@ function draw() {
     });
   }
 
-  // Wire notes textarea (auto-save on blur)
   const notesArea = document.querySelector('.notes-area');
   if (notesArea) {
     notesArea.addEventListener('blur', e => {
@@ -113,7 +117,6 @@ function logSession(athleteId) {
   SKILL_IDS.forEach(sk => {
     const lv = d[sk];
     saveObservation({ athlete_id: athleteId, skill: sk, level_observed: lv, session_date: sessionDate });
-    // Initial level: if no confirmed level yet, this first observation sets it.
     if (!conf[sk]) setConfirmedLevel({ athlete_id: athleteId, skill: sk, level: lv });
   });
 
@@ -160,7 +163,7 @@ function flash(msg) {
 function onAppClick(e) {
   const el = e.target.closest('[data-a]');
   if (!el) return;
-  const { a: action, id, sk, n, aid, lv } = el.dataset;
+  const { a: action, id, sk, n, aid, lv, f } = el.dataset;
 
   if (action === 'go-roster') return goRoster();
   if (action === 'go-card')   return goCard(id);
@@ -230,7 +233,16 @@ function onAppClick(e) {
     return;
   }
 
-  if (action === 'open-add')      return openModal(modalAddAthlete());
+  if (action === 'open-add') {
+    const defaultRole = s.roster_filter === 'coaches' ? 'coach' : 'athlete';
+    return openModal(modalAddPerson(defaultRole));
+  }
+  if (action === 'edit-person') {
+    const person = getPeople().find(p => p.id === id);
+    if (!person) return;
+    log.info('person.edit.open', { person_id: id });
+    return openModal(modalEditPerson(person));
+  }
   if (action === 'open-settings') return openModal(modalSettings());
 
   if (action === 'go-rubric-skill') {
@@ -240,7 +252,60 @@ function onAppClick(e) {
     return;
   }
 
-  if (action === 'save-notes') return; // handled via blur on textarea
+  if (action === 'filter-roster') {
+    s.roster_filter = f;
+    saveRosterFilter(f);
+    log.info('roster.filter', { filter: f });
+    draw();
+    return;
+  }
+
+  if (action === 'start-attendance') {
+    s.attendance_mode = true;
+    s.today_practice = getTodaysPractice();
+    log.info('attendance.start', { practice_id: s.today_practice.id });
+    draw();
+    return;
+  }
+
+  if (action === 'exit-attendance') {
+    s.attendance_mode = false;
+    draw();
+    return;
+  }
+
+  if (action === 'toggle-attendance') {
+    if (!s.today_practice) return;
+    toggleAttendance(s.today_practice.id, id);
+    log.info('attendance.toggle', { person_id: id, practice_id: s.today_practice.id });
+    draw();
+    return;
+  }
+
+  if (action === 'set-coach-level') {
+    const coach = getPeople().find(p => p.id === id);
+    if (!coach) return;
+    savePerson({ ...coach, level: +n });
+    log.info('coach.level.set', { person_id: id, level: +n });
+    draw();
+    return;
+  }
+
+  if (action === 'export-attendance') {
+    if (!s.today_practice) return;
+    const json = exportAttendance(s.today_practice.id);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `attendance-${today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    log.info('attendance.export', { practice_id: s.today_practice.id });
+    return;
+  }
+
+  if (action === 'save-notes') return;
 }
 
 // ── Modal events ──────────────────────────────────────────────────────────────
@@ -249,6 +314,20 @@ function openModal(html) {
   document.getElementById('modal').classList.remove('hidden');
   const imp = document.getElementById('imp-file');
   if (imp) imp.addEventListener('change', onImport);
+
+  const gradeInp = document.getElementById('inp-grade');
+  const catSel   = document.getElementById('inp-category');
+  if (gradeInp && catSel) {
+    gradeInp.addEventListener('input', () => {
+      const cat = gradeToCategory(parseInt(gradeInp.value, 10));
+      if (cat) catSel.value = cat;
+    });
+    catSel.addEventListener('change', () => {
+      const g = categoryToGrade(catSel.value);
+      gradeInp.value = (g !== null && g !== undefined) ? g : '';
+    });
+  }
+
   setTimeout(() => document.querySelector('#modal-content .fi')?.focus(), 60);
 }
 
@@ -264,6 +343,65 @@ function onModalClick(e) {
 
   if (action === 'close') { stopCamera(); return closeModal(); }
 
+  // Role tab switching (add person modal)
+  if (action === 'role-tab') {
+    const role = el.dataset.role;
+    document.getElementById('inp-role').value = role;
+    document.querySelectorAll('.role-tab').forEach(btn => {
+      btn.classList.toggle('role-tab--active', btn.dataset.role === role);
+    });
+    document.getElementById('athlete-fields').style.display = role === 'athlete' ? 'block' : 'none';
+    document.getElementById('coach-fields').style.display   = role === 'coach'   ? 'block' : 'none';
+    return;
+  }
+
+  // Coach level buttons
+  if (action === 'coach-level-btn') {
+    const n = el.dataset.n;
+    document.getElementById('inp-coach-level').value = n;
+    document.querySelectorAll('.coach-lv-btn').forEach(btn => {
+      btn.classList.toggle('coach-lv-btn--active', btn.dataset.n === n);
+    });
+    return;
+  }
+
+  if (action === 'save-person') {
+    const name = document.getElementById('inp-name')?.value?.trim();
+    if (!name) { document.getElementById('inp-name')?.focus(); return; }
+    const role     = document.getElementById('inp-role')?.value || 'athlete';
+    const personId = document.getElementById('inp-person-id')?.value || null;
+    const isEdit   = !!personId;
+
+    let personData = { name, role };
+    if (personId) personData.id = personId;
+
+    if (role === 'athlete') {
+      const category = document.getElementById('inp-category')?.value || null;
+      const gradeRaw = document.getElementById('inp-grade')?.value;
+      const grade    = gradeRaw ? +gradeRaw : null;
+      const plate    = document.getElementById('inp-plate')?.value;
+      personData = { ...personData, category: category || null, grade, plate: plate ? +plate : null };
+    } else {
+      const level = document.getElementById('inp-coach-level')?.value;
+      if (!level) {
+        flash('Select a NICA level');
+        return;
+      }
+      personData = { ...personData, level: +level };
+    }
+
+    const p = savePerson(personData);
+    if (role === 'athlete' && !isEdit) {
+      ensureDraft(p.id);
+      s.expandedId = p.id;
+    }
+    log.info(isEdit ? 'person.update' : 'person.add', { person_id: p.id, role });
+    closeModal();
+    draw();
+    return;
+  }
+
+  // Backward-compat: old save-athlete action (may appear from cached modal HTML)
   if (action === 'save-athlete') {
     const name  = document.getElementById('inp-name')?.value?.trim();
     if (!name) { document.getElementById('inp-name')?.focus(); return; }
@@ -463,8 +601,10 @@ document.getElementById('app').addEventListener('click', onAppClick);
 document.getElementById('modal').addEventListener('click', onModalClick);
 document.getElementById('modal').addEventListener('keydown', onModalKeydown);
 
-// Playwright test hook — exposes QR-detected handler without camera dependency
 window.__test_onQRDetected = onQRDetected;
 
-log.info('app.init', { athletes: getAthletes().length, observations: getObservations().length });
+// Auto-create today's practice on app open
+s.today_practice = getTodaysPractice();
+
+log.info('app.init', { people: getPeople().length, observations: getObservations().length });
 draw();
