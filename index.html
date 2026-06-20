@@ -302,6 +302,47 @@
     .import-preview-meta { font: 400 13px/1 var(--font-body); color: var(--dim); margin-top: 4px; }
     .import-preview-levels { font: 600 14px/1 var(--font-body); color: var(--text); margin-top: 8px; }
     .import-preview-safety { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+
+    /* ── Roster filter chips ─────────────────────────────────────────────── */
+    .roster-filters { display: flex; gap: 6px; margin-top: 8px; }
+    .filter-chip { padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--surface); font: 700 11px/1 var(--font-disp); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); cursor: pointer; white-space: nowrap; }
+    .filter-chip:active { opacity: .75; }
+    .filter-chip--active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+    /* ── Header title right side ─────────────────────────────────────────── */
+    .hdr-title-right { display: flex; align-items: flex-end; gap: 8px; padding-bottom: 3px; }
+    .attendance-btn { background: none; border: none; cursor: pointer; padding: 5px 7px; border-radius: 8px; display: inline-flex; align-items: center; color: var(--dim); }
+    .attendance-btn:active { background: rgba(0,0,0,.07); }
+    .attendance-kicker { color: #16a34a; }
+    .attend-count { color: #16a34a; font-weight: 800; }
+
+    /* ── Attendance toggle per row ───────────────────────────────────────── */
+    .attend-toggle { width: 36px; height: 36px; flex-shrink: 0; background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--border); border-radius: 10px; padding: 0; }
+    .attend-toggle:active { opacity: .7; }
+    .attend-toggle--on { color: #16a34a; }
+    .row-card--attending { border-color: rgba(22, 163, 74, 0.3); }
+    .row-body--attendance { cursor: pointer; }
+
+    /* ── Coach rows ──────────────────────────────────────────────────────── */
+    .row-card--coach { background: #f8f7f4; }
+    .mono--coach { background: #5b6072; color: #fff; width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font: 800 18px/1 var(--font-disp); flex-shrink: 0; }
+    .coach-level-badge { font: 800 14px/1 var(--font-disp); color: var(--dim); flex-shrink: 0; padding: 0 6px; }
+    .coach-level-pill { font: 700 10px/1 var(--font-disp); letter-spacing: .05em; text-transform: uppercase; color: #5b6072; background: rgba(91,96,114,.1); border-radius: 5px; padding: 3px 6px; }
+
+    /* ── Add person modal: role tabs ─────────────────────────────────────── */
+    .role-tabs { display: flex; gap: 0; border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .role-tab { flex: 1; padding: 11px 8px; border: none; background: var(--surface); font: 700 12px/1 var(--font-disp); letter-spacing: .05em; text-transform: uppercase; color: var(--dim); cursor: pointer; transition: background .12s, color .12s; }
+    .role-tab + .role-tab { border-left: 1.5px solid var(--border); }
+    .role-tab--active { background: var(--ink); color: #fff; }
+
+    /* ── Coach level selector (3 buttons) ───────────────────────────────── */
+    .coach-level-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+    .coach-lv-btn { padding: 12px 6px 10px; border-radius: 10px; border: 2px solid var(--border); background: var(--surface); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+    .coach-lv-btn:active { opacity: .75; }
+    .coach-lv-btn--active { border-color: var(--ink); background: var(--ink); color: #fff; }
+    .clv-n { font: 800 20px/1 var(--font-disp); }
+    .clv-label { font: 600 10px/1 var(--font-body); color: var(--dim); }
+    .coach-lv-btn--active .clv-label { color: rgba(255,255,255,.75); }
   </style>
 </head>
 <body>
