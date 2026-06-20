@@ -154,9 +154,6 @@ function athleteRowHTML(a, s, practice, attendingIds, attendanceMode) {
         </div>`;
       }).join('')}
       <div class="expand-actions">
-        <button class="btn btn-primary" data-a="log-session" data-id="${a.id}">
-          ${isNew ? 'Set Initial Levels' : 'Log Observation'}
-        </button>
         <button class="btn btn-outline" data-a="go-card" data-id="${a.id}">Open full rider card →</button>
       </div>
     </div>` : '';
@@ -231,9 +228,6 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
         </div>`;
       }).join('')}
       <div class="expand-actions">
-        <button class="btn btn-primary" data-a="log-session" data-id="${coach.id}">
-          ${isNew ? 'Set Initial Levels' : 'Log Observation'}
-        </button>
         <button class="btn btn-outline" data-a="go-card" data-id="${coach.id}">Open full card →</button>
       </div>
     </div>` : '';
@@ -829,9 +823,20 @@ export function modalImportPreview(payload, existingAthlete) {
 }
 
 // ── Modal: settings ───────────────────────────────────────────────────────────
-export function modalSettings() {
+export function modalSettings(qrDataUrl = null) {
   const { name: teamName = 'Idaho League', coachName = '' } = getTeamSettings();
   const coach = getCoach();
+  const shareSection = qrDataUrl ? `
+    <div class="modal-divider"></div>
+    <div class="fg">
+      <span class="fl">Share App</span>
+      <p class="modal-hint" style="margin-bottom:10px">Scan to open on another device — works offline after first load.</p>
+      <div style="display:flex;justify-content:center">
+        <img src="${qrDataUrl}" alt="App QR code" style="width:160px;height:160px;border-radius:8px">
+      </div>
+      <p class="modal-hint" style="text-align:center;margin-top:6px">ashaber.github.io/mtb-skills</p>
+    </div>` : '';
+
   return `
     <div class="modal-head">
       <span>Settings</span>
@@ -854,6 +859,13 @@ export function modalSettings() {
         Import JSON backup
         <input id="imp-file" type="file" accept=".json" style="display:none">
       </label>
+    </div>
+    ${shareSection}
+    <div class="modal-divider"></div>
+    <div class="fg">
+      <span class="fl">About</span>
+      <p class="modal-hint">Tap a level on any rider's row to record an observation instantly. Open the full card for confirmed levels, observation history, and trail readiness.</p>
+      <p class="modal-hint" style="margin-top:6px">Built for Idaho NICA coaches. Rubric authored with Tim Curry. Works offline — no login required.</p>
     </div>
     <div style="height:16px"></div>`;
 }

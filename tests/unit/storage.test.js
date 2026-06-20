@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   generateId,
   getAthletes, saveAthlete, deleteAthlete,
   saveObservation, getObservations,
   setConfirmedLevel, getConfirmedLevels, getAthleteConfirmedLevels,
   getCoach, saveCoach, getTeamId,
+  getPhoto, savePhoto,
   exportAll, importAll,
 } from '../../src/storage.js';
 
@@ -222,5 +223,46 @@ describe('exportAll / importAll', () => {
     expect(getObservations({ athlete_id: a.id })).toHaveLength(1);
     const c = getAthleteConfirmedLevels(a.id);
     expect(c.cornering).toBe(2);
+  });
+});
+
+describe('photos', () => {
+  it('getPhoto returns null for unknown id', () => {
+    expect(getPhoto('nonexistent-id')).toBeNull();
+  });
+
+  it('savePhoto / getPhoto round-trip', () => {
+    const id = generateId();
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const ok = savePhoto(id, dataUrl);
+    expect(ok).toBe(true);
+    expect(getPhoto(id)).toBe(dataUrl);
+  });
+
+  it('savePhoto stores photos for multiple athletes independently', () => {
+    const id1 = generateId();
+    const id2 = generateId();
+    const url1 = 'data:image/png;base64,AAA=';
+    const url2 = 'data:image/png;base64,BBB=';
+    savePhoto(id1, url1);
+    savePhoto(id2, url2);
+    expect(getPhoto(id1)).toBe(url1);
+    expect(getPhoto(id2)).toBe(url2);
+  });
+
+  it('savePhoto overwrites existing photo for same athlete', () => {
+    const id = generateId();
+    savePhoto(id, 'data:image/png;base64,OLD=');
+    savePhoto(id, 'data:image/png;base64,NEW=');
+    expect(getPhoto(id)).toBe('data:image/png;base64,NEW=');
+  });
+
+  it('savePhoto returns false when localStorage is full', () => {
+    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key) => {
+      if (key === 'mtb_photos') throw new DOMException('QuotaExceededError');
+    });
+    const ok = savePhoto(generateId(), 'data:image/png;base64,LARGE=');
+    expect(ok).toBe(false);
+    spy.mockRestore();
   });
 });
