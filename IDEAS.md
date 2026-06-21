@@ -61,3 +61,25 @@ YouTube-linked clips per skill/level on rubric cards. Tim's existing video asset
 - BICP (for-profit skills org) as alternative to NICA if app becomes commercializable.  
 - Better plan, make practice app sellable to teams and leagues
 
+
+### Practice tracking feature set.  
+Use case:  The ride group uses app to track practice. Once connected to the google doc backend, 
+head coach can enter practice plan.  The practice plan includes practice venue (a trailhead or a park).
+Each ride group lead may be assigned a set of trails to ride and even a specific route.  Each venue
+should have an emergency action plan listing where to exit, if cell service is available, hazards to 
+avoid. Nearest shelter.  Bathroom location.  Ride plan can also include practice focus - skills, etiquette etc.
+Practice process:
+1. HC loads practice plan to google doc
+2. ride group lead's app sync's the practice plan
+3. before practice, ride group lead checks plan, ready to ask questions
+3.5 if ride route contains sections above groups trail readiness, lead can request change or can plan for safe handling like walking a section or coaching skills required for that section
+3.7 review feedback from prior practice and be ready to adapt - e.g., SA ask to work on a specific skill
+4. at practice, ride group lead's group joins up.  Lead opens attendance mode and records attendees
+4.5 if any swaps are required (rider moves up or down), trade rider cards between ride group leads
+5. during practice, ride group lead coaches skills, observes riding and records skill levels
+6. at end of practice when reflecting on the experience with student athletes, record notes.
+7. record attendance in google docs backend where HC/TD can access it
+
+
+### Later in roadmap: record SOAP notes, incidents and other details
+

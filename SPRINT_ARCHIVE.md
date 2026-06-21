@@ -55,7 +55,40 @@ Built the foundational single-page app: Vite + Vitest build pipeline, vanilla JS
 
 ---
 
-## Current Sprint — Athlete Trading Card + Trail Readiness Matrix (Phase 1c)
+## Phase 1e — Deferred UX (merged: phase1/deferred-ux)
+
+**Branch:** `phase1/deferred-ux`
+**Verified:** Android Chrome (real device). iOS deferred — no test device available.
+
+### What was built
+
+**Single-click level recording:**
+- Tapping any level pill in the roster row expand panel immediately records an observation for that skill
+- If the skill has no confirmed level yet, auto-confirms at that level (first-observation shortcut)
+- Flash toast confirms: "body position Lv 3 recorded"
+- "Log Observation" / "Set Initial Levels" button removed from inline expand panel
+- "Open full rider card →" retained for history, trail readiness, and explicit confirm flow
+- Full card view unchanged: draft → explicit "Update Confirmed" button
+
+**Settings enhancements:**
+- QR code on Settings page encodes `https://ashaber.github.io/mtb-skills/` for easy app sharing to other devices
+- About section: observe → confirm → trail ready flow explanation, Tim Curry attribution, offline note
+
+**Bug fix: rider photo thumbnail (iOS Safari):**
+- `img.mono-photo` was invisible on roster — `height:100%` did not resolve in a `flex; align-items:center` button on iOS Safari
+- Fix: added `overflow:hidden; padding:0` to `.mono-btn`; changed `.mono-photo` to explicit `50px×50px`
+- `savePhoto` now catches `QuotaExceededError` and returns `false`; caller flashes "Photo too large"
+
+**Coach card fixes:**
+- Multiple UX fixes to the coach view: edit modal, coach skill scoring, grade + category sync
+
+### What was deferred
+- iOS Safari real device verification (no test device)
+- Swipe left to open full athlete card / swipe right to return to roster (complex gesture, deprioritized)
+
+---
+
+## Phase 1c — Athlete Trading Card + Trail Readiness Matrix (merged: phase1/trading-and-readiness)
 
 **Branch:** `phase1/trading-and-readiness`
 **Goal:** Let coaches hand off athletes to another riding group without paper. Surface which specific skill is blocking each trail tier.
