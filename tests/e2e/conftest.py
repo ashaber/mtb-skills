@@ -6,8 +6,6 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 # Repo root = directory containing pytest.ini; pytest sets config.rootpath to it automatically.
-PORT = 8765
-
 BROWSERS = [
     pytest.param({'name': 'chromium', 'vp': {'width': 412, 'height': 915}}, id='chromium'),
     pytest.param({'name': 'webkit',   'vp': {'width': 390, 'height': 844}}, id='webkit'),
@@ -35,9 +33,10 @@ def base_url(pytestconfig: pytest.Config) -> str:
     def handler_factory(*args, **kwargs):
         return _Handler(*args, root=root, **kwargs)
 
-    httpd = http.server.HTTPServer(('127.0.0.1', PORT), handler_factory)
+    httpd = http.server.HTTPServer(('127.0.0.1', 0), handler_factory)
+    port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    yield f'http://127.0.0.1:{PORT}'
+    yield f'http://127.0.0.1:{port}'
     httpd.shutdown()
 
 

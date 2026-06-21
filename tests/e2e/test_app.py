@@ -29,10 +29,25 @@ def expand_row(page: Page, name: str) -> None:
         page.get_by_text(name, exact=True).click()
 
 
+def open_guide(page: Page) -> None:
+    """Switch to the Guide tab."""
+    page.click('[data-a="switch-tab"][data-tab="guide"]')
+
+
+def open_settings(page: Page) -> None:
+    """Switch to the Settings tab."""
+    page.click('[data-a="switch-tab"][data-tab="settings"]')
+
+
+def open_overflow(page: Page) -> None:
+    """Open the ⋯ overflow menu on the card topbar."""
+    page.click('[data-a="toggle-overflow"]')
+
+
 # ── Load ──────────────────────────────────────────────────────────────────────
 
 def test_app_loads(page: Page) -> None:
-    expect(page.locator('.hdr-title')).to_have_text('Team Roster')
+    expect(page.locator('.hdr-title')).to_have_text('Roster')
 
 
 def test_roster_empty_state(page: Page) -> None:
@@ -49,9 +64,10 @@ def test_add_athlete(page: Page) -> None:
 def test_athlete_card_shows_skills(page: Page) -> None:
     add_athlete(page, 'Jordan Lee')
     open_card(page, 'Jordan Lee')
-    expect(page.locator('.card-name')).to_have_text('Jordan Lee')
+    card = page.locator('.card-scroll')
+    expect(card.locator('.card-name')).to_have_text('Jordan Lee')
     for skill in ('BODY POSITION', 'BRAKING', 'CORNERING'):
-        expect(page.get_by_text(skill, exact=True)).to_be_visible()
+        expect(card.get_by_text(skill, exact=True)).to_be_visible()
 
 
 def test_athlete_card_shows_trail_ready(page: Page) -> None:
@@ -64,6 +80,7 @@ def test_delete_athlete(page: Page) -> None:
     add_athlete(page, 'To Delete')
     open_card(page, 'To Delete')
     page.on('dialog', lambda d: d.accept())
+    open_overflow(page)
     page.click('[data-a="del-athlete"]')
     expect(page.get_by_text('To Delete')).not_to_be_visible()
 
@@ -92,10 +109,10 @@ def test_log_observation_from_inline(page: Page) -> None:
 def test_confirm_skill_from_card(page: Page) -> None:
     add_athlete(page, 'Alex Chen')
     open_card(page, 'Alex Chen')
-    page.click('[data-a="draft-level"][data-sk="braking"][data-n="3"]')
-    page.click('[data-a="confirm-session"]')
-    score = page.locator('.score-chip').nth(1)
-    expect(page.locator('.card-scroll')).to_be_visible()
+    card = page.locator('.card-scroll')
+    card.locator('[data-a="draft-level"][data-sk="braking"][data-n="3"]').click()
+    card.locator('[data-a="confirm-session"]').click()
+    expect(card).to_be_visible()
 
 
 def test_score_chips_update_after_confirm(page: Page) -> None:
@@ -118,17 +135,17 @@ def test_trail_readiness_starts_empty(page: Page) -> None:
 # ── Education screen (Field Guide) ────────────────────────────────────────────
 
 def test_field_guide_button_visible_on_roster(page: Page) -> None:
-    expect(page.locator('[data-a="go-rubric"]')).to_be_visible()
+    expect(page.locator('[data-a="switch-tab"][data-tab="guide"]')).to_be_visible()
 
 
 def test_field_guide_opens(page: Page) -> None:
-    page.click('[data-a="go-rubric"]')
-    expect(page.locator('#rubric-view')).to_be_visible()
-    expect(page.locator('.rubric-view-title')).to_have_text('FIELD GUIDE')
+    open_guide(page)
+    expect(page.locator('.hdr-title')).to_have_text('Field Guide')
+    expect(page.locator('.rubric-cards')).to_be_visible()
 
 
 def test_field_guide_shows_four_tabs(page: Page) -> None:
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     tabs = page.locator('.rubric-tab')
     expect(tabs).to_have_count(4)
     expect(tabs.nth(0)).to_have_text('Body Position')
@@ -138,19 +155,19 @@ def test_field_guide_shows_four_tabs(page: Page) -> None:
 
 
 def test_field_guide_shows_five_level_cards(page: Page) -> None:
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     expect(page.locator('.rubric-card')).to_have_count(5)
 
 
 def test_field_guide_tab_switch_braking(page: Page) -> None:
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     page.click('[data-a="rubric-tab"][data-id="braking"]')
     expect(page.locator('.rubric-tab--active')).to_have_text('Braking')
     expect(page.locator('.rubric-card')).to_have_count(5)
 
 
 def test_field_guide_tab_switch_cornering(page: Page) -> None:
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     page.click('[data-a="rubric-tab"][data-id="cornering"]')
     expect(page.locator('.rubric-tab--active')).to_have_text('Cornering')
     expect(page.locator('.rubric-card')).to_have_count(5)
@@ -158,7 +175,7 @@ def test_field_guide_tab_switch_cornering(page: Page) -> None:
 
 def test_field_guide_dimension_rows_present(page: Page) -> None:
     """Dimension table rows are shown in each level card."""
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     expect(page.locator('.rc-dim').first).to_be_visible()
     # At least one dimension row per level card (5 cards × ≥1 dimension each)
     assert page.locator('.rc-dim').count() >= 5
@@ -166,7 +183,7 @@ def test_field_guide_dimension_rows_present(page: Page) -> None:
 
 def test_field_guide_guide_tab_content(page: Page) -> None:
     """Guide tab shows trail selection and coach notes sections."""
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     page.click('[data-a="rubric-tab"][data-id="guide"]')
     expect(page.locator('.rubric-tab--active')).to_have_text('Guide')
     expect(page.get_by_text('Trail Selection', exact=True)).to_be_visible()
@@ -174,7 +191,7 @@ def test_field_guide_guide_tab_content(page: Page) -> None:
 
 
 def test_field_guide_level_badges_present(page: Page) -> None:
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     badges = page.locator('.rc-badge')
     expect(badges).to_have_count(5)
     for i, lv in enumerate(['1', '2', '3', '4', '5']):
@@ -183,32 +200,32 @@ def test_field_guide_level_badges_present(page: Page) -> None:
 
 def test_field_guide_dimension_text_present(page: Page) -> None:
     """Dimension text cells are visible in the field guide."""
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     expect(page.locator('.rc-dim-text').first).to_be_visible()
 
 
 def test_field_guide_back_to_roster(page: Page) -> None:
-    page.click('[data-a="go-rubric"]')
-    expect(page.locator('#rubric-view')).to_be_visible()
-    page.click('[data-a="go-roster"]')
-    expect(page.locator('.hdr-title')).to_be_visible()
-    expect(page.locator('#rubric-view')).to_have_count(0)
+    open_guide(page)
+    expect(page.locator('.hdr-title')).to_have_text('Field Guide')
+    page.click('[data-a="switch-tab"][data-tab="roster"]')
+    expect(page.locator('.hdr-title')).to_have_text('Roster')
+    expect(page.locator('.rubric-cards')).to_have_count(0)
 
 
 def test_field_guide_tab_state_preserved_on_return(page: Page) -> None:
-    """Active tab survives leaving and re-entering the field guide."""
-    page.click('[data-a="go-rubric"]')
+    """Active rubric sub-tab survives leaving and re-entering the field guide."""
+    open_guide(page)
     page.click('[data-a="rubric-tab"][data-id="cornering"]')
-    page.click('[data-a="go-roster"]')
-    page.click('[data-a="go-rubric"]')
+    page.click('[data-a="switch-tab"][data-tab="roster"]')
+    open_guide(page)
     expect(page.locator('.rubric-tab--active')).to_have_text('Cornering')
 
 
 def test_field_guide_accessible_from_empty_roster(page: Page) -> None:
-    # No athletes added — empty state header should also have the button
-    expect(page.locator('[data-a="go-rubric"]')).to_be_visible()
-    page.click('[data-a="go-rubric"]')
-    expect(page.locator('#rubric-view')).to_be_visible()
+    # No athletes added — Guide tab in nav bar should be present
+    expect(page.locator('[data-a="switch-tab"][data-tab="guide"]')).to_be_visible()
+    open_guide(page)
+    expect(page.locator('.rubric-cards')).to_be_visible()
 
 
 # ── Persistence ───────────────────────────────────────────────────────────────
@@ -228,7 +245,7 @@ def test_offline_roster_and_rubric(page: Page) -> None:
     add_athlete(page, 'Sage Okafor')
     page.context.set_offline(True)
     expect(page.get_by_text('Sage Okafor')).to_be_visible()
-    page.click('[data-a="go-rubric"]')
+    open_guide(page)
     expect(page.locator('.rubric-card')).to_have_count(5)
     page.context.set_offline(False)
 
@@ -239,9 +256,9 @@ def test_json_export_structure(page: Page) -> None:
     add_athlete(page, 'Taylor West')
     expand_row(page, 'Taylor West')
     page.locator('.row-card').filter(has_text='Taylor West').locator('.lv-seg[data-sk="body_position"][data-n="1"]').click()
-    page.click('[data-a="open-settings"]')
+    open_settings(page)
     with page.expect_download() as dl_info:
-        page.click('[data-m="export"]')
+        page.click('[data-a="export-data"]')
     dl = dl_info.value
     assert dl.suggested_filename.startswith('mtb-skills-')
     assert dl.suggested_filename.endswith('.json')
@@ -261,17 +278,17 @@ def test_import_round_trip(page: Page, base_url: str, tmp_path) -> None:
     add_athlete(page, 'Import Test')
     expand_row(page, 'Import Test')
     page.locator('.row-card').filter(has_text='Import Test').locator('.lv-seg[data-sk="braking"][data-n="3"]').click()
-    page.click('[data-a="open-settings"]')
+    open_settings(page)
     with page.expect_download() as dl_info:
-        page.click('[data-m="export"]')
+        page.click('[data-a="export-data"]')
     export_path = tmp_path / 'backup.json'
     shutil.copy(dl_info.value.path(), export_path)
-    page.locator('[data-m="close"]').click()
     page.evaluate('localStorage.clear()')
     page.reload()
     expect(page.locator('.empty-title')).to_be_visible()
-    page.click('[data-a="open-settings"]')
+    open_settings(page)
     page.set_input_files('#imp-file', str(export_path))
+    page.click('[data-a="switch-tab"][data-tab="roster"]')
     expect(page.get_by_text('Import Test')).to_be_visible()
 
 
@@ -398,12 +415,14 @@ def test_safety_flag_absent_when_no_info(page: Page) -> None:
 def test_share_card_button_visible_on_card(page: Page) -> None:
     add_athlete(page, 'Share Test')
     open_card(page, 'Share Test')
+    open_overflow(page)
     expect(page.locator('[data-a="share-card"]')).to_be_visible()
 
 
 def test_share_card_modal_opens_with_qr(page: Page) -> None:
     add_athlete(page, 'QR Rider')
     open_card(page, 'QR Rider')
+    open_overflow(page)
     page.click('[data-a="share-card"]')
     # QR generation is async — wait for the image to appear
     expect(page.locator('.share-qr')).to_be_visible(timeout=5000)
@@ -415,6 +434,7 @@ def test_share_card_modal_shows_skill_levels(page: Page) -> None:
     expand_row(page, 'Level Rider')
     page.locator('.row-card').filter(has_text='Level Rider').locator('.lv-seg[data-sk="body_position"][data-n="3"]').click()
     open_card(page, 'Level Rider')
+    open_overflow(page)
     page.click('[data-a="share-card"]')
     expect(page.locator('.share-qr')).to_be_visible(timeout=5000)
     expect(page.locator('.share-card-levels')).to_contain_text('BP 3')
@@ -439,7 +459,7 @@ def test_scan_card_modal_closes(page: Page) -> None:
     page.click('[data-a="scan-card"]')
     expect(page.locator('#scan-video')).to_be_visible()
     page.click('[data-m="close"]')
-    # closeModal hides the overlay; content stays in DOM but is not visible
+    # pop() removes the sheet from DOM — scan-video is no longer present
     expect(page.locator('#scan-video')).to_be_hidden()
 
 

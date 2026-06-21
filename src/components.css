@@ -1,0 +1,150 @@
+/* ============================================================================
+   MTB Skills — Navigation & Flow components
+   Paste into index.html <style> (or import). Uses the app's existing tokens:
+   --bg --surface --border --ink --dim --accent --font-disp --font-body
+   Three navigation tiers:
+     Tier 1  TAB BAR     persistent bottom nav (Roster · Practice · Guide · Settings)
+     Tier 2  DRILL-IN    full-screen layer that slides in from the right (rider card)
+     Tier 3  SHEET       bottom sheet that slides up (rubric-over-card, modals)
+   ============================================================================ */
+
+/* ── App shell: leave room for the tab bar ───────────────────────────────── */
+#app { padding-bottom: 76px; }            /* tab bar height + safe area */
+
+/* ════════════════════════════════════════════════════════════════════════
+   TIER 1 — BOTTOM TAB BAR  (replaces scattered header icons)
+   ════════════════════════════════════════════════════════════════════════ */
+.tabbar {
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: 100%; max-width: 412px;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: rgba(255,255,255,.92);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-top: 1px solid var(--border);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  z-index: 40;
+}
+.tab {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 7px 0 5px; background: none; border: none; cursor: pointer;
+  color: var(--dim); position: relative;
+}
+.tab svg { width: 23px; height: 23px; }
+.tab-label { font: 700 9.5px/1 var(--font-disp); letter-spacing: .07em; text-transform: uppercase; }
+.tab--active { color: var(--accent); }
+.tab:active { opacity: .6; }
+/* small badge for live counts (e.g. attending today) */
+.tab-badge {
+  position: absolute; top: 2px; left: calc(50% + 8px);
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  background: var(--accent); color: #fff;
+  font: 700 10px/16px var(--font-body); text-align: center;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   TIER 2 — DRILL-IN LAYER  (rider card slides in from the right)
+   Render the card into its own #stack container ABOVE #app so the roster
+   stays mounted underneath and parallaxes — that is what makes the slide
+   feel native and lets the back-swipe reveal the list.
+   ════════════════════════════════════════════════════════════════════════ */
+.layer {
+  position: fixed; inset: 0; max-width: 412px; margin: 0 auto;
+  background: var(--bg); z-index: 30;
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .28s cubic-bezier(.32,.72,0,1);
+  will-change: transform;
+}
+.layer--in  { transform: translateX(0); }
+.layer--out { transform: translateX(100%); }           /* closing */
+/* the tab screen beneath slides 18% left while a layer is open (parallax) */
+#app.is-pushed { transform: translateX(-18%); transition: transform .28s cubic-bezier(.32,.72,0,1); }
+/* card-scroll scrolls within the layer; padding clears tab bar */
+.card-scroll { flex: 1; overflow-y: auto; padding-bottom: 76px; }
+
+/* ── Consistent topbar for every drill-in layer ──────────────────────────
+   LEFT  = back   ·   CENTER = context label   ·   RIGHT = overflow (max 1) */
+.topbar {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  padding: 10px 8px; background: var(--surface);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.topbar-back {
+  justify-self: start; display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: none; cursor: pointer; padding: 6px 8px; border-radius: 8px;
+  color: var(--ink); font: 700 13px/1 var(--font-disp); letter-spacing: .05em; text-transform: uppercase;
+}
+.topbar-back:active { background: rgba(0,0,0,.06); }
+.topbar-title { justify-self: center; font: 800 13px/1 var(--font-disp); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.topbar-actions { justify-self: end; display: flex; align-items: center; }
+.topbar-ico { background: none; border: none; cursor: pointer; padding: 7px; border-radius: 8px; color: var(--ink); display: inline-flex; }
+.topbar-ico:active { background: rgba(0,0,0,.06); }
+
+/* ── Overflow menu — collapses edit / share / trade / delete into one ⋯ ──── */
+.overflow-wrap { position: relative; }
+.overflow-menu {
+  position: absolute; top: 42px; right: 4px; min-width: 184px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18); overflow: hidden; z-index: 50;
+  transform-origin: top right; animation: pop .14s ease;
+}
+@keyframes pop { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: scale(1); } }
+.overflow-item {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 13px 15px; background: none; border: none; cursor: pointer; text-align: left;
+  font: 600 14.5px/1 var(--font-body); color: var(--ink);
+  border-top: 1px solid var(--border);
+}
+.overflow-item:first-child { border-top: none; }
+.overflow-item:active { background: var(--bg); }
+.overflow-item svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--dim); }
+.overflow-item--danger { color: var(--l1); }
+.overflow-item--danger svg { color: var(--l1); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TIER 3 — BOTTOM SHEET  (rubric-over-card, add/edit, settings, share, scan)
+   One scrim + one sheet element. The rubric opened from a skill block uses
+   this so the rider card stays mounted underneath — context is preserved.
+   ════════════════════════════════════════════════════════════════════════ */
+.scrim {
+  position: fixed; inset: 0; background: rgba(0,0,0,.42);
+  z-index: 60; opacity: 0; transition: opacity .3s ease; pointer-events: none;
+}
+.scrim--in { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed; left: 50%; bottom: 0; transform: translateX(-50%) translateY(100%);
+  width: 100%; max-width: 412px; max-height: 92dvh;
+  background: var(--surface); border-radius: 22px 22px 0 0;
+  z-index: 61; display: flex; flex-direction: column;
+  transition: transform .3s cubic-bezier(.32,.72,0,1); will-change: transform;
+}
+.sheet--in { transform: translateX(-50%) translateY(0); }
+.sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: #d9d4c8; margin: 9px auto 2px; flex-shrink: 0; pointer-events: none; }
+/* scrollable wrapper inside sheet (wraps modal / rubric content) */
+.sheet-scroll { overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sheet-head {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  padding: 8px 12px 12px; flex-shrink: 0;
+}
+.sheet-title { grid-column: 2; font: 800 16px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; }
+.sheet-x { grid-column: 3; justify-self: end; background: none; border: none; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--dim); font-size: 18px; line-height: 1; }
+.sheet-body { overflow-y: auto; padding: 0 16px 20px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ATTENDANCE — lightweight in-place toggle on the roster (no separate mode)
+   Tapping Attendance reveals a check column + a sticky bar; ticking marks a
+   rider present; Done hides the column. Present riders keep a left accent.
+   ════════════════════════════════════════════════════════════════════════ */
+.attend-bar {
+  position: sticky; top: 0; z-index: 12;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 11px 16px; background: var(--ink); color: #fff;
+}
+.attend-bar-label { font: 700 13px/1 var(--font-disp); letter-spacing: .06em; text-transform: uppercase; }
+.attend-bar-count { color: #9fd9b0; }
+.attend-done { background: #fff; color: var(--ink); border: none; border-radius: 9px; padding: 8px 16px; font: 700 13px/1 var(--font-disp); letter-spacing: .05em; text-transform: uppercase; cursor: pointer; }
+
+/* the check column only exists while taking attendance */
+.attend-check { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; color: transparent; cursor: pointer; }
+.attend-check--on { background: var(--l4); border-color: var(--l4); color: #fff; }
+.row-card--present { box-shadow: inset 3px 0 0 var(--l4), 0 1px 2px rgba(0,0,0,.05); }

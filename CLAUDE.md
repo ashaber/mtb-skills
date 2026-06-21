@@ -78,12 +78,39 @@ mtb-skills/
 - `app/schema.md` — data model documentation
 - `vite.config.js` — Vite configuration
 - `package.json` — npm scripts: `dev`, `build`, `test`, `test:e2e`, `test:all`
-
+- `src/nav.js`         — history-aware nav stack; pushLayer / pushSheet / pop
+- `src/components.css` — ship-ready CSS for tab bar, drill-in, sheet, attendance
 **Documentation strategy:**
 - All rubric content (`detail`, `failure_modes`, `when_breaks`) is bundled in `src/rubric.js` — fully offline, no network needed on trail
 - Long-form supplemental docs (RUBRIC.md, changelog, release notes) live on GitHub Pages — linked from app Settings, not required for core use
 - Video clips (Phase 1+) link to YouTube — acceptable network dependency since video requires connectivity anyway
 - Never link to external docs for content a coach needs during a ride
+
+---
+
+## Navigation & flow system
+
+The navigation, routing, and all view-transition code follows a three-tier model.
+**Before touching any of it, read the spec:**
+
+- `docs/NAV_FLOW_SPEC.md` — model, control map, motion CSS, `nav.js` skeleton, 7-step build order
+- `src/components.css` — ready-to-ship CSS (tab bar, topbar, drill-in layer, sheet, attendance bar)
+
+### The three tiers
+
+| Tier | What | Renders into | Enter animation |
+|---|---|---|---|
+| **1 · Tabs** | Roster · Practice · Guide · Settings | `#app` | fade 180ms |
+| **2 · Drill-in** | Rider / coach card | `#stack` via `nav.js pushLayer()` | slide from right 280ms |
+| **3 · Sheet** | Rubric-from-card, all modals | `#scrim` + `#sheet` via `nav.js pushSheet()` | slide up 300ms |
+
+### Hard rules
+
+- `history.pushState` is managed exclusively by `src/nav.js` — never call it elsewhere
+- The card topbar is always: `← back · context label · single ⋯ overflow` — no exceptions
+- Rubric opened from a skill block → `pushSheet(() => viewRubric(s, { sheet: true }))`, opens at `s.rubricSkill`; the card stays mounted beneath
+- Attendance is an in-place toggle on the roster (`s.taking_attendance`), not a separate view — enter it from the Practice tab
+- Follow the 7-step implementation order in the spec; the app must stay runnable after each step
 
 ---
 

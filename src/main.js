@@ -1,8 +1,9 @@
 /**
  * src/main.js — state machine, event handlers, boot.
- * Views: 'roster' | 'card' | 'rubric'
+ * Navigation: Tier 1 tabs in #app · Tier 2 layers in #stack · Tier 3 sheets in #sheet
  */
 
+import './components.css';
 import log from './log.js';
 import {
   getPeople, getAthletes, savePerson, saveAthlete, deleteAthlete,
@@ -21,21 +22,25 @@ import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
-  viewRoster, viewCard, viewRubric,
-  modalAddPerson, modalAddAthlete, modalEditPerson, modalSettings,
+  viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
+  modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
 } from './views.js';
+import {
+  pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
+} from './nav.js';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const s = {
-  view:            'roster',       // 'roster' | 'card' | 'rubric'
+  tab:             'roster',     // 'roster' | 'practice' | 'guide' | 'settings'
   athleteId:       null,
-  expandedId:      null,           // which roster row has inline accordion open
-  draft:           {},             // { [athleteId]: { body_position, braking, cornering } }
-  rubricSkill:     SKILL_IDS[0],   // active tab in education screen
+  expandedId:      null,
+  draft:           {},
+  rubricSkill:     SKILL_IDS[0],
   roster_filter:   getRosterFilter(),
-  attendance_mode: false,
-  today_practice:  null,           // set on boot, passed to views
+  taking_attendance: false,
+  today_practice:  null,
+  settingsQR:      null,
 };
 
 // ── Camera / import state ─────────────────────────────────────────────────────
@@ -57,58 +62,69 @@ function ensureDraft(athleteId) {
   }
 }
 
-// ── Navigation ────────────────────────────────────────────────────────────────
-function go(view, patch = {}) {
-  s.view = view;
-  Object.assign(s, patch);
-  draw();
-  window.scrollTo(0, 0);
-}
+// ── Tab bar ───────────────────────────────────────────────────────────────────
+const TAB_ICONS = {
+  roster: `<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>`,
+  practice: `<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6M9 16h4"/></svg>`,
+  guide: `<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>`,
+  settings: `<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>`,
+};
 
-function goCard(athleteId) {
-  ensureDraft(athleteId);
-  go('card', { athleteId });
-}
+function drawTabBar() {
+  const practice  = s.today_practice;
+  const attending = practice
+    ? getAttendance(practice.id).filter(a => a.status === 'attending').length
+    : 0;
 
-function goRoster() {
-  go('roster');
+  const tabs = ['roster', 'practice', 'guide', 'settings'].map(tab => {
+    const active = s.tab === tab;
+    const labels = { roster: 'ROSTER', practice: 'PRACTICE', guide: 'GUIDE', settings: 'SETTINGS' };
+    const badge = (tab === 'practice' && attending > 0)
+      ? `<span class="tab-badge">${attending}</span>` : '';
+    return `<button class="tab${active ? ' tab--active' : ''}" data-a="switch-tab" data-tab="${tab}" role="tab" aria-selected="${active}">
+      ${TAB_ICONS[tab]}${badge}
+      <span class="tab-label">${labels[tab]}</span>
+    </button>`;
+  }).join('');
+
+  document.getElementById('tabbar').innerHTML = tabs;
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function draw() {
-  document.getElementById('app').innerHTML =
-    s.view === 'card'   ? viewCard(s)   :
-    s.view === 'rubric' ? viewRubric(s) :
+  const tabContent =
+    s.tab === 'practice' ? viewPractice(s) :
+    s.tab === 'guide'    ? viewRubric(s)   :
+    s.tab === 'settings' ? viewSettings(s) :
     viewRoster(s);
 
-  const photoInput = document.getElementById('photo-upload');
-  if (photoInput) {
-    photoInput.addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const aid = photoInput.dataset.aid;
-        const ok = savePhoto(aid, ev.target.result);
-        if (ok) {
-          log.info('photo.save', { athlete_id: aid });
-        } else {
-          flash('Photo too large to save. Try a smaller image.');
-        }
-        draw();
-      };
-      reader.readAsDataURL(file);
-    });
-  }
+  document.getElementById('app').innerHTML = tabContent;
+  drawTabBar();
+  window.scrollTo(0, 0);
+}
 
-  const notesArea = document.querySelector('.notes-area');
-  if (notesArea) {
-    notesArea.addEventListener('blur', e => {
-      const aid = e.target.dataset.id;
-      const a = getPeople().find(x => x.id === aid);
-      if (a) { savePerson({ ...a, notes: e.target.value }); }
-    });
-  }
+// ── Navigation ────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  clearStack();
+  s.tab = tab;
+  if (tab === 'settings' && !s.settingsQR) _generateSettingsQR();
+  draw();
+}
+
+function goCard(athleteId) {
+  ensureDraft(athleteId);
+  s.athleteId = athleteId;
+  pushLayer(() => viewCard(s));
+}
+
+function refreshCard() {
+  refreshTopLayer(() => viewCard(s));
+}
+
+function _generateSettingsQR() {
+  QRCode.toDataURL('https://ashaber.github.io/mtb-skills/', { width: 200, margin: 2 })
+    .then(qr => { s.settingsQR = qr; if (s.tab === 'settings') draw(); })
+    .catch(() => {});
 }
 
 // ── Log / Confirm helpers ─────────────────────────────────────────────────────
@@ -126,7 +142,7 @@ function logSession(athleteId) {
 
   log.info('session.log', { athlete_id: athleteId, bp: d.body_position, brk: d.braking, crn: d.cornering });
   flash(`${conf.body_position ? 'Observation' : 'Initial levels'} saved`);
-  draw();
+  refreshCard();
 }
 
 function confirmSession(athleteId) {
@@ -137,7 +153,7 @@ function confirmSession(athleteId) {
   });
   log.info('session.confirm', { athlete_id: athleteId });
   flash('Confirmed levels updated');
-  draw();
+  refreshCard();
 }
 
 function confirmOneSkill(athleteId, skill, level) {
@@ -145,7 +161,7 @@ function confirmOneSkill(athleteId, skill, level) {
   s.draft[athleteId] = { ...s.draft[athleteId], [skill]: level };
   log.info('skill.confirm', { athlete_id: athleteId, skill, level });
   flash(`${skill.replace('_', ' ')} confirmed at Lv ${level}`);
-  draw();
+  refreshCard();
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -163,24 +179,59 @@ function flash(msg) {
   _toastTimer = setTimeout(() => t.classList.remove('toast--show'), 2000);
 }
 
-// ── App events ────────────────────────────────────────────────────────────────
+// ── Sheet (modal) helpers ─────────────────────────────────────────────────────
+function openModal(html) {
+  pushSheet(() => html);
+  setTimeout(() => document.getElementById('sheet')?.querySelector('.fi')?.focus(), 80);
+}
+
+function closeModal() {
+  stopCamera();
+  pop();
+}
+
+// ── App click handler (delegated from document.body) ─────────────────────────
 function onAppClick(e) {
+  // Close overflow menu when clicking outside it
+  const menu = document.getElementById('overflow-menu');
+  if (menu && menu.style.display !== 'none') {
+    const el = e.target.closest('[data-a]');
+    if (!el || el.dataset.a !== 'toggle-overflow') {
+      menu.style.display = 'none';
+    }
+  }
+
   const el = e.target.closest('[data-a]');
   if (!el) return;
-  const { a: action, id, sk, n, aid, lv, f } = el.dataset;
+  const { a: action, id, sk, n, aid, lv, f, tab, role } = el.dataset;
 
-  if (action === 'go-roster') return goRoster();
-  if (action === 'go-card')   return goCard(id);
+  if (action === 'switch-tab') {
+    if (tab !== s.tab) switchTab(tab);
+    return;
+  }
 
-  if (action === 'go-rubric') {
-    log.info('nav.rubric', {});
-    go('rubric');
+  if (action === 'go-roster') { pop(); draw(); return; }
+
+  if (action === 'go-card') {
+    goCard(id);
+    return;
+  }
+
+  if (action === 'toggle-overflow') {
+    const m = document.getElementById('overflow-menu');
+    if (m) m.style.display = m.style.display === 'none' ? 'block' : 'none';
     return;
   }
 
   if (action === 'rubric-tab') {
     s.rubricSkill = el.dataset.id;
-    draw();
+    if (s.tab === 'guide') {
+      draw();
+    } else {
+      // rubric is in a sheet — re-render the sheet content
+      const sheetScroll = document.querySelector('#sheet .sheet-scroll');
+      if (sheetScroll) sheetScroll.innerHTML = viewRubric(s, { sheet: true });
+    }
     return;
   }
 
@@ -194,21 +245,21 @@ function onAppClick(e) {
   if (action === 'draft-level') {
     s.draft[aid] = s.draft[aid] || {};
     s.draft[aid][sk] = +n;
-    if (s.view === 'roster') {
-      const lv = +n;
-      saveObservation({ athlete_id: aid, skill: sk, level_observed: lv, session_date: today() });
+    if (s.tab === 'roster') {
+      const level = +n;
+      saveObservation({ athlete_id: aid, skill: sk, level_observed: level, session_date: today() });
       const conf = getAthleteConfirmedLevels(aid);
-      if (!conf[sk]) setConfirmedLevel({ athlete_id: aid, skill: sk, level: lv });
-      log.info('obs.quick', { athlete_id: aid, skill: sk, level: lv });
-      flash(`${sk.replace(/_/g, ' ')} Lv ${lv} recorded`);
+      if (!conf[sk]) setConfirmedLevel({ athlete_id: aid, skill: sk, level });
+      log.info('obs.quick', { athlete_id: aid, skill: sk, level });
+      flash(`${sk.replace(/_/g, ' ')} Lv ${level} recorded`);
     }
     draw();
     return;
   }
 
-  if (action === 'log-session')     return logSession(id);
-  if (action === 'confirm-session') return confirmSession(id);
-  if (action === 'confirm-skill')   return confirmOneSkill(id, sk, +n);
+  if (action === 'log-session')     { logSession(id); return; }
+  if (action === 'confirm-session') { confirmSession(id); return; }
+  if (action === 'confirm-skill')   { confirmOneSkill(id, sk, +n); return; }
 
   if (action === 'edit-safety') {
     const a = getPeople().find(x => x.id === id);
@@ -240,33 +291,30 @@ function onAppClick(e) {
       deleteAthlete(id);
       delete s.draft[id];
       log.info('athlete.delete', { athlete_id: id });
-      goRoster();
+      pop(); // close card layer
+      draw();
     }
     return;
   }
 
   if (action === 'open-add') {
-    const defaultRole = s.roster_filter === 'coaches' ? 'coach' : 'athlete';
-    return openModal(modalAddPerson(defaultRole));
+    const defaultRole = (role === 'coach') || (s.roster_filter === 'coaches') ? 'coach' : 'athlete';
+    openModal(modalAddPerson(defaultRole));
+    return;
   }
+
   if (action === 'edit-person') {
     const person = getPeople().find(p => p.id === id);
     if (!person) return;
     log.info('person.edit.open', { person_id: id });
-    return openModal(modalEditPerson(person));
-  }
-  if (action === 'open-settings') {
-    const APP_URL = 'https://ashaber.github.io/mtb-skills/';
-    QRCode.toDataURL(APP_URL, { width: 200, margin: 2 })
-      .then(qr => openModal(modalSettings(qr)))
-      .catch(() => openModal(modalSettings(null)));
+    openModal(modalEditPerson(person));
     return;
   }
 
   if (action === 'go-rubric-skill') {
     s.rubricSkill = sk;
     log.info('nav.rubric', { skill: sk });
-    go('rubric');
+    pushSheet(() => viewRubric(s, { sheet: true }));
     return;
   }
 
@@ -279,15 +327,20 @@ function onAppClick(e) {
   }
 
   if (action === 'start-attendance') {
-    s.attendance_mode = true;
+    s.taking_attendance = true;
     s.today_practice = getTodaysPractice();
     log.info('attendance.start', { practice_id: s.today_practice.id });
-    draw();
+    switchTab('roster');
+    return;
+  }
+
+  if (action === 'resume-attendance') {
+    switchTab('roster');
     return;
   }
 
   if (action === 'exit-attendance') {
-    s.attendance_mode = false;
+    s.taking_attendance = false;
     draw();
     return;
   }
@@ -323,45 +376,39 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'export-data') {
+    log.info('data.export');
+    const blob = new Blob([exportAll()], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `mtb-skills-${today()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  if (action === 'save-settings') {
+    const teamName  = document.getElementById('inp-team')?.value?.trim();
+    const coachName = document.getElementById('inp-coach')?.value?.trim();
+    if (teamName)  saveTeamSettings({ name: teamName });
+    if (coachName) { saveCoach({ name: coachName }); saveTeamSettings({ coachName }); }
+    log.info('settings.save', {});
+    flash('Settings saved');
+    return;
+  }
+
   if (action === 'save-notes') return;
 }
 
-// ── Modal events ──────────────────────────────────────────────────────────────
-function openModal(html) {
-  document.getElementById('modal-content').innerHTML = html;
-  document.getElementById('modal').classList.remove('hidden');
-  const imp = document.getElementById('imp-file');
-  if (imp) imp.addEventListener('change', onImport);
-
-  const gradeInp = document.getElementById('inp-grade');
-  const catSel   = document.getElementById('inp-category');
-  if (gradeInp && catSel) {
-    gradeInp.addEventListener('input', () => {
-      const cat = gradeToCategory(parseInt(gradeInp.value, 10));
-      if (cat) catSel.value = cat;
-    });
-    catSel.addEventListener('change', () => {
-      const g = categoryToGrade(catSel.value);
-      gradeInp.value = (g !== null && g !== undefined) ? g : '';
-    });
-  }
-
-  setTimeout(() => document.querySelector('#modal-content .fi')?.focus(), 60);
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.add('hidden');
-}
-
-function onModalClick(e) {
-  if (e.target === document.getElementById('modal')) return closeModal();
+// ── Sheet (modal) click handler ───────────────────────────────────────────────
+function onSheetClick(e) {
   const el = e.target.closest('[data-m]');
   if (!el) return;
   const action = el.dataset.m;
 
-  if (action === 'close') { stopCamera(); return closeModal(); }
+  if (action === 'close') { closeModal(); return; }
 
-  // Role tab switching (add person modal)
   if (action === 'role-tab') {
     const role = el.dataset.role;
     document.getElementById('inp-role').value = role;
@@ -373,7 +420,6 @@ function onModalClick(e) {
     return;
   }
 
-  // Coach level buttons
   if (action === 'coach-level-btn') {
     const n = el.dataset.n;
     document.getElementById('inp-coach-level').value = n;
@@ -401,10 +447,7 @@ function onModalClick(e) {
       personData = { ...personData, category: category || null, grade, plate: plate ? +plate : null };
     } else {
       const level = document.getElementById('inp-coach-level')?.value;
-      if (!level) {
-        flash('Select a NICA level');
-        return;
-      }
+      if (!level) { flash('Select a NICA level'); return; }
       personData = { ...personData, level: +level };
     }
 
@@ -415,33 +458,7 @@ function onModalClick(e) {
     }
     log.info(isEdit ? 'person.update' : 'person.add', { person_id: p.id, role });
     closeModal();
-    draw();
-    return;
-  }
-
-  // Backward-compat: old save-athlete action (may appear from cached modal HTML)
-  if (action === 'save-athlete') {
-    const name  = document.getElementById('inp-name')?.value?.trim();
-    if (!name) { document.getElementById('inp-name')?.focus(); return; }
-    const grade = document.getElementById('inp-grade')?.value;
-    const plate = document.getElementById('inp-plate')?.value;
-    const a = saveAthlete({ name, grade: grade ? +grade : null, plate: plate ? +plate : null });
-    ensureDraft(a.id);
-    s.expandedId = a.id;
-    log.info('athlete.add', { athlete_id: a.id });
-    closeModal();
-    draw();
-    return;
-  }
-
-  if (action === 'save-settings') {
-    const teamName  = document.getElementById('inp-team')?.value?.trim();
-    const coachName = document.getElementById('inp-coach')?.value?.trim();
-    if (teamName)  saveTeamSettings({ name: teamName });
-    if (coachName) { saveCoach({ name: coachName }); saveTeamSettings({ coachName }); }
-    log.info('settings.save', {});
-    closeModal();
-    draw();
+    if (stackDepth() > 0) refreshCard(); else draw();
     return;
   }
 
@@ -454,7 +471,7 @@ function onModalClick(e) {
     saveAthlete({ ...athlete, medical_notes: medical, emergency_contact_name: ecName, emergency_contact_phone: ecPhone });
     log.info('safety.save', { athlete_id: athlete.id });
     closeModal();
-    draw();
+    if (stackDepth() > 0) refreshCard(); else draw();
     return;
   }
 
@@ -502,26 +519,60 @@ function onModalClick(e) {
     draw();
     return;
   }
+}
 
-  if (action === 'export') {
-    log.info('data.export');
-    const blob = new Blob([exportAll()], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `mtb-skills-${today()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    return;
+// ── Delegated input listeners ─────────────────────────────────────────────────
+document.body.addEventListener('change', e => {
+  if (e.target.id === 'photo-upload') {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const aid = e.target.dataset.aid;
+      const ok = savePhoto(aid, ev.target.result);
+      if (ok) log.info('photo.save', { athlete_id: aid });
+      else flash('Photo too large to save. Try a smaller image.');
+      refreshCard();
+    };
+    reader.readAsDataURL(file);
+  } else if (e.target.id === 'imp-file') {
+    onImport(e);
+  } else if (e.target.id === 'inp-category') {
+    const gradeInp = document.getElementById('inp-grade');
+    if (gradeInp) {
+      const g = categoryToGrade(e.target.value);
+      gradeInp.value = (g !== null && g !== undefined) ? g : '';
+    }
   }
-}
+});
 
-function onModalKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey)
-    document.querySelector('#modal-content button[data-m^="save"]')?.click();
-  if (e.key === 'Escape') closeModal();
-}
+document.body.addEventListener('input', e => {
+  if (e.target.id === 'inp-grade') {
+    const catSel = document.getElementById('inp-category');
+    if (catSel) {
+      const cat = gradeToCategory(parseInt(e.target.value, 10));
+      if (cat) catSel.value = cat;
+    }
+  }
+});
 
+document.body.addEventListener('focusout', e => {
+  if (e.target.classList.contains('notes-area')) {
+    const aid = e.target.dataset.id;
+    const a = getPeople().find(x => x.id === aid);
+    if (a) savePerson({ ...a, notes: e.target.value });
+  }
+});
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && stackDepth() > 0) { stopCamera(); pop(); }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    document.getElementById('sheet')?.querySelector('button[data-m^="save"]')?.click();
+  }
+});
+
+// ── Import handler ────────────────────────────────────────────────────────────
 function onImport(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -531,7 +582,7 @@ function onImport(e) {
       importAll(ev.target.result);
       log.info('data.import.success', { athletes: getAthletes().length });
       closeModal();
-      goRoster();
+      draw();
     } catch (err) {
       log.error('data.import.failed', { error: err.message });
       alert('Could not import — check that this is a valid MTB Skills backup file.');
@@ -614,15 +665,15 @@ function onQRDetected(rawData) {
   openModal(modalImportPreview(payload, existing));
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
-document.getElementById('app').addEventListener('click', onAppClick);
-document.getElementById('modal').addEventListener('click', onModalClick);
-document.getElementById('modal').addEventListener('keydown', onModalKeydown);
+// ── Wire up listeners ─────────────────────────────────────────────────────────
+document.body.addEventListener('click', onAppClick);
+document.getElementById('sheet').addEventListener('click', onSheetClick);
+document.getElementById('scrim').addEventListener('click', () => { stopCamera(); pop(); });
 
 window.__test_onQRDetected = onQRDetected;
 
-// Auto-create today's practice on app open
+// ── Boot ──────────────────────────────────────────────────────────────────────
 s.today_practice = getTodaysPractice();
-
+_generateSettingsQR();
 log.info('app.init', { people: getPeople().length, observations: getObservations().length });
 draw();
