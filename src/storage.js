@@ -289,21 +289,50 @@ export function getAthleteConfirmedLevels(athleteId) {
 // Practice attendance
 // ---------------------------------------------------------------------------
 
-export function getTodaysPractice() {
+export function findTodaysPractice() {
+  const dateStr = today();
+  const all = load(KEYS.practices).filter(p => p.date === dateStr);
+  if (!all.length) return null;
+  const active = all.slice().reverse().find(p => p.status !== 'ended');
+  return active ?? all[all.length - 1];
+}
+
+export function createPractice({ force = false } = {}) {
   const dateStr = today();
   const all = load(KEYS.practices);
-  const existing = all.find(p => p.date === dateStr);
-  if (existing) return existing;
+  if (!force) {
+    const existing = all.find(p => p.date === dateStr);
+    if (existing) return existing;
+  }
   const coach = getCoach();
   const practice = {
     id:       generateId(),
     team_id:  getTeamId(),
     coach_id: coach?.id ?? null,
     date:     dateStr,
+    status:   'active',
   };
   all.push(practice);
   save(KEYS.practices, all);
   return practice;
+}
+
+export function endPractice(id) {
+  const all = load(KEYS.practices);
+  const idx = all.findIndex(p => p.id === id);
+  if (idx === -1) return null;
+  all[idx] = { ...all[idx], status: 'ended' };
+  save(KEYS.practices, all);
+  return all[idx];
+}
+
+export function reopenPractice(id) {
+  const all = load(KEYS.practices);
+  const idx = all.findIndex(p => p.id === id);
+  if (idx === -1) return null;
+  all[idx] = { ...all[idx], status: 'active' };
+  save(KEYS.practices, all);
+  return all[idx];
 }
 
 export function getPractices() {

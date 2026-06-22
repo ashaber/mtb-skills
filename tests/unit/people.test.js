@@ -3,7 +3,8 @@ import {
   savePerson, getPeople, deletePerson,
   saveAthlete, getAthletes,
   getRosterFilter, saveRosterFilter,
-  getTodaysPractice, toggleAttendance, getAttendance, getAttendanceStatus,
+  createPractice, findTodaysPractice, endPractice,
+  toggleAttendance, getAttendance, getAttendanceStatus,
   exportAll, importAll,
   generateId,
 } from '../../src/storage.js';
@@ -154,30 +155,56 @@ describe('roster filter', () => {
 
 // ── Practice attendance ───────────────────────────────────────────────────────
 
-describe('getTodaysPractice', () => {
-  it('creates a practice on first call', () => {
-    const p = getTodaysPractice();
+describe('createPractice', () => {
+  it('creates a practice for today', () => {
+    const p = createPractice();
     expect(p.id).toBeTruthy();
     expect(p.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(p.status).toBe('active');
   });
 
   it('returns same practice on second call (idempotent)', () => {
-    const p1 = getTodaysPractice();
-    const p2 = getTodaysPractice();
+    const p1 = createPractice();
+    const p2 = createPractice();
     expect(p1.id).toBe(p2.id);
+  });
+});
+
+describe('findTodaysPractice', () => {
+  it('returns null when no practice exists', () => {
+    expect(findTodaysPractice()).toBeNull();
+  });
+
+  it('returns the practice after createPractice', () => {
+    const created = createPractice();
+    const found = findTodaysPractice();
+    expect(found).not.toBeNull();
+    expect(found.id).toBe(created.id);
+  });
+});
+
+describe('endPractice', () => {
+  it('sets status to ended', () => {
+    const p = createPractice();
+    const ended = endPractice(p.id);
+    expect(ended.status).toBe('ended');
+  });
+
+  it('returns null for unknown id', () => {
+    expect(endPractice('nonexistent-id')).toBeNull();
   });
 });
 
 describe('toggleAttendance', () => {
   it('marks person as attending on first toggle', () => {
-    const practice = getTodaysPractice();
+    const practice = createPractice();
     const person = savePerson({ name: 'Rider' });
     toggleAttendance(practice.id, person.id);
     expect(getAttendanceStatus(practice.id, person.id)).toBe('attending');
   });
 
   it('toggles back to absent on second toggle', () => {
-    const practice = getTodaysPractice();
+    const practice = createPractice();
     const person = savePerson({ name: 'Rider' });
     toggleAttendance(practice.id, person.id);
     toggleAttendance(practice.id, person.id);
@@ -185,7 +212,7 @@ describe('toggleAttendance', () => {
   });
 
   it('toggling again marks attending again', () => {
-    const practice = getTodaysPractice();
+    const practice = createPractice();
     const person = savePerson({ name: 'Rider' });
     toggleAttendance(practice.id, person.id);
     toggleAttendance(practice.id, person.id);
@@ -196,12 +223,12 @@ describe('toggleAttendance', () => {
 
 describe('getAttendance', () => {
   it('returns empty array for new practice', () => {
-    const practice = getTodaysPractice();
+    const practice = createPractice();
     expect(getAttendance(practice.id)).toHaveLength(0);
   });
 
   it('returns records for attended people', () => {
-    const practice = getTodaysPractice();
+    const practice = createPractice();
     const p1 = savePerson({ name: 'A' });
     const p2 = savePerson({ name: 'B' });
     toggleAttendance(practice.id, p1.id);
@@ -212,7 +239,7 @@ describe('getAttendance', () => {
   });
 
   it('filters by practice_id', () => {
-    const p1 = getTodaysPractice();
+    const p1 = createPractice();
     const person = savePerson({ name: 'Rider' });
     toggleAttendance(p1.id, person.id);
     const fakePracticeId = generateId();
@@ -222,7 +249,7 @@ describe('getAttendance', () => {
 
 describe('getAttendanceStatus', () => {
   it('returns null for person not in practice', () => {
-    const practice = getTodaysPractice();
+    const practice = createPractice();
     expect(getAttendanceStatus(practice.id, 'nonexistent-id')).toBeNull();
   });
 });
@@ -244,7 +271,7 @@ describe('exportAll v2', () => {
   });
 
   it('includes practices and attendance', () => {
-    const practice = getTodaysPractice();
+    const practice = createPractice();
     const person = savePerson({ name: 'Rider' });
     toggleAttendance(practice.id, person.id);
     const data = JSON.parse(exportAll());

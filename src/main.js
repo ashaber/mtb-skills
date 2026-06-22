@@ -13,7 +13,8 @@ import {
   getPhoto, savePhoto,
   getTeamSettings, saveTeamSettings,
   getRosterFilter, saveRosterFilter,
-  getTodaysPractice, toggleAttendance, getAttendance,
+  findTodaysPractice, createPractice, endPractice, reopenPractice,
+  getPractices, toggleAttendance, getAttendance,
   exportAll, importAll, exportAttendance,
   gradeToCategory, categoryToGrade,
 } from './storage.js';
@@ -333,9 +334,34 @@ function onAppClick(e) {
   }
 
   if (action === 'start-attendance') {
+    s.today_practice = s.today_practice || createPractice();
     s.taking_attendance = true;
-    s.today_practice = getTodaysPractice();
     log.info('attendance.start', { practice_id: s.today_practice.id });
+    switchTab('roster');
+    return;
+  }
+
+  if (action === 'end-practice') {
+    if (!s.today_practice) return;
+    s.today_practice = endPractice(s.today_practice.id);
+    s.taking_attendance = false;
+    log.info('practice.end', { practice_id: s.today_practice.id });
+    draw();
+    return;
+  }
+
+  if (action === 'reopen-practice') {
+    if (!s.today_practice) return;
+    s.today_practice = reopenPractice(s.today_practice.id);
+    log.info('practice.reopen', { practice_id: s.today_practice.id });
+    draw();
+    return;
+  }
+
+  if (action === 'start-new-practice') {
+    s.today_practice = createPractice({ force: true });
+    s.taking_attendance = true;
+    log.info('practice.new', { practice_id: s.today_practice.id });
     switchTab('roster');
     return;
   }
@@ -369,16 +395,18 @@ function onAppClick(e) {
   }
 
   if (action === 'export-attendance') {
-    if (!s.today_practice) return;
-    const json = exportAttendance(s.today_practice.id);
+    const practiceId = el.dataset.pid || s.today_practice?.id;
+    if (!practiceId) return;
+    const practiceDate = el.dataset.date || today();
+    const json = exportAttendance(practiceId);
     const blob = new Blob([json], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `attendance-${today()}.json`;
+    a.download = `attendance-${practiceDate}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    log.info('attendance.export', { practice_id: s.today_practice.id });
+    log.info('attendance.export', { practice_id: practiceId });
     return;
   }
 
@@ -395,10 +423,12 @@ function onAppClick(e) {
   }
 
   if (action === 'save-settings') {
-    const teamName  = document.getElementById('inp-team')?.value?.trim();
-    const coachName = document.getElementById('inp-coach')?.value?.trim();
+    const teamName   = document.getElementById('inp-team')?.value?.trim();
+    const coachName  = document.getElementById('inp-coach')?.value?.trim();
+    const multiPrac  = document.getElementById('inp-multi-practice')?.checked ?? false;
     if (teamName)  saveTeamSettings({ name: teamName });
     if (coachName) { saveCoach({ name: coachName }); saveTeamSettings({ coachName }); }
+    saveTeamSettings({ allow_multi_practice: multiPrac });
     log.info('settings.save', {});
     flash('Settings saved');
     return;
@@ -427,10 +457,12 @@ function onSheetClick(e) {
   }
 
   if (action === 'save-settings') {
-    const teamName  = document.getElementById('inp-team')?.value?.trim();
-    const coachName = document.getElementById('inp-coach')?.value?.trim();
+    const teamName   = document.getElementById('inp-team')?.value?.trim();
+    const coachName  = document.getElementById('inp-coach')?.value?.trim();
+    const multiPrac  = document.getElementById('inp-multi-practice')?.checked ?? false;
     if (teamName)  saveTeamSettings({ name: teamName });
     if (coachName) { saveCoach({ name: coachName }); saveTeamSettings({ coachName }); }
+    saveTeamSettings({ allow_multi_practice: multiPrac });
     log.info('settings.save', {});
     flash('Settings saved');
     closeModal();
@@ -695,10 +727,28 @@ document.body.addEventListener('click', onAppClick);
 document.getElementById('sheet').addEventListener('click', onSheetClick);
 document.getElementById('scrim').addEventListener('click', () => { stopCamera(); pop(); });
 
+// ── Swipe gestures ────────────────────────────────────────────────────────────
+// Swipe right on a drill-in card layer → pop back to roster.
+(function () {
+  let _tx = 0, _ty = 0;
+  document.body.addEventListener('touchstart', e => {
+    _tx = e.touches[0].clientX;
+    _ty = e.touches[0].clientY;
+  }, { passive: true });
+  document.body.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - _tx;
+    const dy = e.changedTouches[0].clientY - _ty;
+    if (dx > 60 && Math.abs(dy) < Math.abs(dx) * 0.6 && stackDepth() > 0) {
+      pop();
+      draw();
+    }
+  }, { passive: true });
+}());
+
 window.__test_onQRDetected = onQRDetected;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-s.today_practice = getTodaysPractice();
+s.today_practice = findTodaysPractice();
 _generateSettingsQR();
 log.info('app.init', { people: getPeople().length, observations: getObservations().length });
 draw();
