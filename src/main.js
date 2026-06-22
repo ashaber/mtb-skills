@@ -434,6 +434,7 @@ function onSheetClick(e) {
     log.info('settings.save', {});
     flash('Settings saved');
     closeModal();
+    draw();
     return;
   }
 

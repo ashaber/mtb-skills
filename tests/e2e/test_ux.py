@@ -85,6 +85,7 @@ def test_coach_share_card_opens_qr(page: Page) -> None:
     # Coaches have no mono-btn; expand row then open full card
     expand_row(page, 'Coach Dan')
     page.locator('.row-card').filter(has_text='Coach Dan').locator('[data-a="go-card"]').click()
+    page.click('[data-a="toggle-overflow"]')
     page.click('[data-a="share-card"]')
     expect(page.locator('.share-qr')).to_be_visible(timeout=5000)
 
@@ -102,7 +103,7 @@ def test_settings_shows_qr_code(page: Page) -> None:
 def test_settings_shows_about_section(page: Page) -> None:
     page.click('[data-a="open-settings"]')
     expect(page.locator('.modal-sheet')).to_contain_text('About')
-    expect(page.locator('.modal-sheet')).to_contain_text('Works offline')
+    expect(page.locator('.modal-sheet')).to_contain_text('Works fully offline')
 
 
 def test_settings_save_still_works(page: Page) -> None:
