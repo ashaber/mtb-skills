@@ -256,7 +256,7 @@ New `Practice` and `PracticeAttendance` entities stored in localStorage.
 
 ### PR checklist (every PR)
 - [ ] Vitest unit tests written and passing (`npm run test`)
-- [ ] Playwright e2e tests passing on Chromium + WebKit (`pytest tests/e2e/`)
+- [ ] Playwright e2e tests passing on Chromium + WebKit (`npm run test:e2e` — runs all of `tests/e2e/`, same as CI)
 - [ ] No dead code or commented-out code
 - [ ] `src/log.js` used for all logging — no bare `console.*` in app code
 - [ ] DOD items addressed are noted in PR description
