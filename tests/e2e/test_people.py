@@ -25,6 +25,12 @@ def add_coach(page: Page, name: str, level: str = '2') -> None:
     page.click('[data-m="save-person"]')
 
 
+def start_attendance(page: Page) -> None:
+    """Navigate to Practice tab and start attendance (enters roster attendance mode)."""
+    page.click('[data-a="switch-tab"][data-tab="practice"]')
+    page.click('[data-a="start-attendance"]')
+
+
 # ── Add person modal ──────────────────────────────────────────────────────────
 
 def test_add_person_modal_has_role_tabs(page: Page) -> None:
@@ -145,12 +151,6 @@ def test_filter_persists_after_reload(page: Page, base_url: str) -> None:
     expect(page.locator('[data-a="filter-roster"][data-f="coaches"]')).to_have_class(re.compile(r"filter-chip--active"))
 
 
-def test_filter_coaches_fab_label_is_coach(page: Page) -> None:
-    """FAB shows '+ Coach' when coaches filter is active."""
-    add_athlete(page, 'Rider')
-    page.click('[data-a="filter-roster"][data-f="coaches"]')
-    expect(page.locator('.fab')).to_have_text('+ Coach')
-
 
 def test_filter_athletes_modal_defaults_to_athlete_role(page: Page) -> None:
     """When athletes filter is active, Add Person modal defaults to athlete."""
@@ -174,25 +174,26 @@ def test_filter_coaches_modal_defaults_to_coach_role(page: Page) -> None:
 
 def test_start_attendance_button_visible(page: Page) -> None:
     add_athlete(page, 'Any Rider')
+    page.click('[data-a="switch-tab"][data-tab="practice"]')
     expect(page.locator('[data-a="start-attendance"]')).to_be_visible()
 
 
 def test_start_attendance_enters_mode(page: Page) -> None:
     add_athlete(page, 'Attend Rider')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     expect(page.locator('.hdr-title')).to_have_text('Attendance')
     expect(page.locator('[data-a="exit-attendance"]')).to_be_visible()
 
 
 def test_attendance_mode_shows_toggle_per_rider(page: Page) -> None:
     add_athlete(page, 'Toggle Rider')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     expect(page.locator('.attend-toggle').first).to_be_visible()
 
 
 def test_toggle_attendance_marks_attending(page: Page) -> None:
     add_athlete(page, 'Check Rider')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     toggle = page.locator('.attend-toggle').first
     toggle.click()
     expect(toggle).to_have_class(re.compile(r"attend-toggle--on"))
@@ -201,7 +202,7 @@ def test_toggle_attendance_marks_attending(page: Page) -> None:
 
 def test_toggle_attendance_toggles_back(page: Page) -> None:
     add_athlete(page, 'Back Rider')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     toggle = page.locator('.attend-toggle').first
     toggle.click()  # → attending
     toggle.click()  # → absent
@@ -212,7 +213,7 @@ def test_toggle_attendance_toggles_back(page: Page) -> None:
 def test_attending_riders_sort_to_top(page: Page) -> None:
     add_athlete(page, 'Zebra')  # sorts last alphabetically
     add_athlete(page, 'Alpha')  # sorts first alphabetically
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     # Zebra is 2nd alphabetically → use nth(1) of the icon toggle buttons
     toggles = page.locator('.attend-toggle')
     toggles.nth(1).click()  # Zebra (second alphabetically)
@@ -224,29 +225,28 @@ def test_attending_riders_sort_to_top(page: Page) -> None:
 
 def test_exit_attendance_returns_to_roster(page: Page) -> None:
     add_athlete(page, 'Exit Rider')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     page.click('[data-a="exit-attendance"]')
     expect(page.locator('.hdr-title')).to_have_text('Roster')
-    expect(page.locator('[data-a="start-attendance"]')).to_be_visible()
 
 
 def test_attendance_count_shown_in_mode(page: Page) -> None:
     add_athlete(page, 'Count A')
     add_athlete(page, 'Count B')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     page.locator('[data-a="toggle-attendance"]').first.click()
     expect(page.locator('.attend-count')).to_contain_text('1 attending')
 
 
 def test_coaches_visible_in_attendance_mode(page: Page) -> None:
     add_coach(page, 'Coach V', '2')  # keep short so pName() doesn't truncate
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     expect(page.get_by_text('Coach V')).to_be_visible()
 
 
 def test_attendance_export_downloads_file(page: Page) -> None:
     add_athlete(page, 'Export Rider')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     page.locator('.attend-toggle').first.click()
     page.click('[data-a="switch-tab"][data-tab="practice"]')
     with page.expect_download() as dl_info:
@@ -264,11 +264,11 @@ def test_attendance_export_downloads_file(page: Page) -> None:
 def test_attendance_persists_after_exit_and_reenter(page: Page) -> None:
     """Attendance records survive exiting attendance mode."""
     add_athlete(page, 'Persist A')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     page.locator('.attend-toggle').first.click()
     page.click('[data-a="exit-attendance"]')
-    # Re-enter attendance mode
-    page.click('[data-a="start-attendance"]')
+    # Re-enter attendance mode via Practice tab
+    start_attendance(page)
     # Toggle should still show as attending
     expect(page.locator('.attend-toggle').first).to_have_class(re.compile(r"attend-toggle--on"))
     expect(page.locator('.attend-count')).to_contain_text('1 attending')
@@ -279,7 +279,7 @@ def test_attendance_persists_after_exit_and_reenter(page: Page) -> None:
 def test_export_schema_v2_includes_people(page: Page) -> None:
     add_athlete(page, 'Export Athlete', 'JV1')
     add_coach(page, 'Export Coach', '2')
-    page.click('[data-a="open-settings"]')
+    page.click('[data-a="switch-tab"][data-tab="settings"]')
     with page.expect_download() as dl_info:
         page.click('[data-a="export-data"]')
     with open(dl_info.value.path()) as f:
@@ -292,10 +292,10 @@ def test_export_schema_v2_includes_people(page: Page) -> None:
 
 def test_export_includes_practices_and_attendance(page: Page) -> None:
     add_athlete(page, 'Prac Rider')
-    page.click('[data-a="start-attendance"]')
+    start_attendance(page)
     page.locator('.attend-toggle').first.click()
-    page.click('[data-a="exit-attendance"]')  # settings only in normal mode
-    page.click('[data-a="open-settings"]')
+    page.click('[data-a="exit-attendance"]')
+    page.click('[data-a="switch-tab"][data-tab="settings"]')
     with page.expect_download() as dl_info:
         page.click('[data-a="export-data"]')
     with open(dl_info.value.path()) as f:

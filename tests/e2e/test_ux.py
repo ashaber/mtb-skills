@@ -91,24 +91,24 @@ def test_coach_share_card_opens_qr(page: Page) -> None:
 
 
 def test_settings_modal_opens(page: Page) -> None:
-    page.click('[data-a="open-settings"]')
-    expect(page.locator('.modal-sheet')).to_contain_text('Settings')
+    page.click('[data-a="switch-tab"][data-tab="settings"]')
+    expect(page.locator('.hdr-title')).to_have_text('Settings')
 
 
 def test_settings_shows_qr_code(page: Page) -> None:
-    page.click('[data-a="open-settings"]')
-    expect(page.locator('.modal-sheet img[alt="App QR code"]')).to_be_visible(timeout=4000)
+    page.click('[data-a="switch-tab"][data-tab="settings"]')
+    expect(page.locator('img[alt="App QR code"]')).to_be_visible(timeout=4000)
 
 
 def test_settings_shows_about_section(page: Page) -> None:
-    page.click('[data-a="open-settings"]')
-    expect(page.locator('.modal-sheet')).to_contain_text('About')
-    expect(page.locator('.modal-sheet')).to_contain_text('Works fully offline')
+    page.click('[data-a="switch-tab"][data-tab="settings"]')
+    expect(page.locator('#app')).to_contain_text('About')
+    expect(page.locator('#app')).to_contain_text('Works fully offline')
 
 
 def test_settings_save_still_works(page: Page) -> None:
-    page.click('[data-a="open-settings"]')
+    page.click('[data-a="switch-tab"][data-tab="settings"]')
     page.fill('#inp-team', 'Test League')
-    page.click('[data-m="save-settings"]')
-    expect(page.locator('.modal-sheet')).to_be_hidden()
+    page.click('[data-a="save-settings"]')
+    page.click('[data-a="switch-tab"][data-tab="roster"]')
     expect(page.locator('.hdr-kicker')).to_contain_text('Test League')

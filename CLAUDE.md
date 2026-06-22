@@ -252,6 +252,7 @@ New `Practice` and `PracticeAttendance` entities stored in localStorage.
 - Merge to `main` via Pull Request only
 - PR description must list which DOD items are being checked off
 - Do not merge a PR with failing Playwright tests
+- Do not delete a branch until CI passes on `main` after the merge — the branch is the rollback point if CI catches a regression post-merge
 
 ### PR checklist (every PR)
 - [ ] Vitest unit tests written and passing (`npm run test`)
