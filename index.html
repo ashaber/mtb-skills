@@ -343,15 +343,46 @@
     .clv-n { font: 800 20px/1 var(--font-disp); }
     .clv-label { font: 600 10px/1 var(--font-body); color: var(--dim); }
     .coach-lv-btn--active .clv-label { color: rgba(255,255,255,.75); }
+
+    /* ── Practice tab ────────────────────────────────────────────────────── */
+    .practice-card { background: var(--surface); border-radius: 16px; padding: 20px 18px; box-shadow: 0 1px 2px rgba(0,0,0,.05); margin-bottom: 12px; }
+    .practice-date { font: 800 22px/1 var(--font-disp); text-transform: uppercase; letter-spacing: .02em; margin-bottom: 6px; }
+    .practice-meta { font: 500 13px/1 var(--font-body); color: var(--dim); margin-bottom: 16px; }
+    .practice-meta .attend-count { color: #16a34a; font-weight: 700; }
+    .practice-actions { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Settings tab ────────────────────────────────────────────────────── */
+    .settings-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .settings-section:last-child { border-bottom: none; }
+    .settings-section-label { font: 700 10.5px/1 var(--font-disp); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; display: block; }
+    .settings-qr-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 0; }
+    .settings-qr { width: 160px; height: 160px; border-radius: 8px; }
+    .settings-qr-url { font: 500 12px/1 var(--font-body); color: var(--dim); }
+    .settings-about { font: 400 13px/1.55 var(--font-body); color: var(--dim); }
+    .settings-about + .settings-about { margin-top: 8px; }
+
+    /* ── Guide tab (non-fixed variant) ──────────────────────────────────── */
+    .guide-sticky { position: sticky; top: 0; z-index: 10; background: var(--bg); }
+    .guide-scroll { padding: 14px 14px 20px; }
+
+    /* ── Rubric in sheet ─────────────────────────────────────────────────── */
+    .sheet-rubric-head { position: sticky; top: 0; background: var(--surface); z-index: 1; border-bottom: 1px solid var(--border); }
+    .sheet-rubric-body { padding: 14px 14px 20px; }
+
+    /* ── Toast — sits above tab bar ──────────────────────────────────────── */
+    #toast { bottom: calc(76px + 16px); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .layer, .scrim, .sheet { transition: none !important; }
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
-  <div id="modal" class="modal-bg hidden">
-    <div class="modal-sheet">
-      <div id="modal-content"></div>
-    </div>
-  </div>
+  <div id="stack"></div>
+  <div id="scrim" class="scrim"></div>
+  <div id="sheet" class="sheet"></div>
+  <nav id="tabbar" class="tabbar" role="tablist"></nav>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

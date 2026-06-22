@@ -226,7 +226,7 @@ def test_exit_attendance_returns_to_roster(page: Page) -> None:
     add_athlete(page, 'Exit Rider')
     page.click('[data-a="start-attendance"]')
     page.click('[data-a="exit-attendance"]')
-    expect(page.locator('.hdr-title')).to_have_text('Team Roster')
+    expect(page.locator('.hdr-title')).to_have_text('Roster')
     expect(page.locator('[data-a="start-attendance"]')).to_be_visible()
 
 
@@ -235,7 +235,7 @@ def test_attendance_count_shown_in_mode(page: Page) -> None:
     add_athlete(page, 'Count B')
     page.click('[data-a="start-attendance"]')
     page.locator('[data-a="toggle-attendance"]').first.click()
-    expect(page.locator('.attend-count')).to_have_text('1 attending')
+    expect(page.locator('.attend-count')).to_contain_text('1 attending')
 
 
 def test_coaches_visible_in_attendance_mode(page: Page) -> None:
@@ -248,6 +248,7 @@ def test_attendance_export_downloads_file(page: Page) -> None:
     add_athlete(page, 'Export Rider')
     page.click('[data-a="start-attendance"]')
     page.locator('.attend-toggle').first.click()
+    page.click('[data-a="switch-tab"][data-tab="practice"]')
     with page.expect_download() as dl_info:
         page.click('[data-a="export-attendance"]')
     dl = dl_info.value
@@ -280,7 +281,7 @@ def test_export_schema_v2_includes_people(page: Page) -> None:
     add_coach(page, 'Export Coach', '2')
     page.click('[data-a="open-settings"]')
     with page.expect_download() as dl_info:
-        page.click('[data-m="export"]')
+        page.click('[data-a="export-data"]')
     with open(dl_info.value.path()) as f:
         data = json.load(f)
     assert data['schema_version'] == 2
@@ -296,7 +297,7 @@ def test_export_includes_practices_and_attendance(page: Page) -> None:
     page.click('[data-a="exit-attendance"]')  # settings only in normal mode
     page.click('[data-a="open-settings"]')
     with page.expect_download() as dl_info:
-        page.click('[data-m="export"]')
+        page.click('[data-a="export-data"]')
     with open(dl_info.value.path()) as f:
         data = json.load(f)
     assert 'practices' in data

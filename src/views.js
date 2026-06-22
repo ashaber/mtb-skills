@@ -1,11 +1,16 @@
 /**
  * src/views.js — HTML-string view functions.
- * Every function returns a string set to #app.innerHTML (or a modal sheet).
- * Takes state object `s` as first argument.
+ * Tab views return strings set to #app.innerHTML.
+ * Layer content (viewCard) is set by nav.js into a .layer div.
+ * Sheet content (viewRubric sheet:true, modals) is set by nav.js into #sheet.
  */
 
-import log from './log.js';
+
+export function modalSettings(s) {
+  return `<div class="modal-sheet">${viewSettings(s)}</div>`;
+}
 import { SKILLS, SKILL_IDS, TRAIL_GUIDE, COACH_NOTES, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
+
 import {
   getPeople, getAthletes, getAthleteConfirmedLevels, getObservations,
   getCoach, getPhoto, getTeamSettings, exportAll,
@@ -21,23 +26,24 @@ const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
 
 // SVG icons
-const BACK  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 5l-6 6 6 6"/></svg>`;
+const BACK  = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 5l-6 6 6 6"/></svg>`;
 const TRASH = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
 const BOOK  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>`;
-const SHARE = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 101.061-1.757l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/></svg>`;
+const SHARE = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 101.061-1.757l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"/></svg>`;
 const SCAN  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h3a1 1 0 010 2H5v2a1 1 0 01-2 0V4zm9-1a1 1 0 000 2h2v2a1 1 0 002 0V4a1 1 0 00-1-1h-3zM3 13a1 1 0 011 1v2h2a1 1 0 010 2H4a1 1 0 01-1-1v-3a1 1 0 011-1zm13 1a1 1 0 10-2 0v2h-2a1 1 0 000 2h3a1 1 0 001-1v-3z" clip-rule="evenodd"/><path d="M3 9a1 1 0 000 2h14a1 1 0 000-2H3z"/></svg>`;
 const WARN  = `<svg width="13" height="13" viewBox="0 0 20 20" fill="#d97706"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`;
-const CLIPBOARD = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/></svg>`;
+const EDIT  = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>`;
+const MORE  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>`;
+const DOWNLOAD = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>`;
 const CHECK_CIRCLE = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>`;
 const EMPTY_CIRCLE = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/></svg>`;
 
-// ── Roster view ─────────────────────────────────────────────────────────────
+// ── Roster tab ───────────────────────────────────────────────────────────────
 export function viewRoster(s) {
   const filter = s.roster_filter || 'all';
-  const attendanceMode = s.attendance_mode || false;
+  const takingAttendance = s.taking_attendance || false;
   const practice = s.today_practice;
 
-  // Determine people to show based on filter
   let people;
   if (filter === 'athletes') people = getPeople({ role: 'athlete' });
   else if (filter === 'coaches') people = getPeople({ role: 'coach' });
@@ -47,7 +53,6 @@ export function viewRoster(s) {
 
   if (!people.length && !getPeople().length) return viewEmpty(s);
 
-  // Sort: attending to top (based on today's attendance records), then alpha
   const attendingIds = practice ? new Set(
     getAttendance(practice.id).filter(a => a.status === 'attending').map(a => a.person_id)
   ) : new Set();
@@ -60,15 +65,9 @@ export function viewRoster(s) {
   });
 
   const rows = sorted.map(person => {
-    if (person.role === 'coach') {
-      return coachRowHTML(person, s, practice, attendingIds, attendanceMode);
-    }
-    return athleteRowHTML(person, s, practice, attendingIds, attendanceMode);
+    if (person.role === 'coach') return coachRowHTML(person, s, practice, attendingIds, takingAttendance);
+    return athleteRowHTML(person, s, practice, attendingIds, takingAttendance);
   }).join('');
-
-  // Attendance mode header
-  const attendingCount = attendingIds.size;
-  const dateLabel = practice ? fmt(practice.date + 'T00:00:00') : '';
 
   const filterChips = ['all', 'athletes', 'coaches'].map(f => {
     const labels = { all: 'All', athletes: 'Athletes', coaches: 'Coaches' };
@@ -77,29 +76,18 @@ export function viewRoster(s) {
 
   const rosterCount = people.length;
   const countLabel = `${rosterCount} ${filter === 'coaches' ? 'coaches' : filter === 'athletes' ? 'athletes' : 'people'}`;
+  const defaultRole = filter === 'coaches' ? 'coach' : 'athlete';
 
-  if (attendanceMode) {
-    return `
-      <div class="hdr" id="hdr">
-        <div class="hdr-top">
-          <span class="hdr-kicker attendance-kicker">📋 ${dateLabel}</span>
-          <div class="hdr-actions">
-            <button class="ico-btn" data-a="export-attendance" aria-label="Export attendance">
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-            </button>
-            <button class="ico-btn" data-a="exit-attendance" aria-label="Done">✕</button>
-          </div>
-        </div>
-        <div class="hdr-title-row">
-          <h1 class="hdr-title">Attendance</h1>
-          <span class="hdr-count attend-count">${attendingCount} attending</span>
-        </div>
-        <div class="roster-filters">${filterChips}</div>
+  const attendBar = takingAttendance && practice ? `
+    <div class="attend-bar">
+      <div>
+        <span class="attend-bar-label">ATTENDANCE</span>
+        <span class="attend-count"> · ${attendingIds.size} attending</span>
       </div>
-      <div class="list" id="list">${rows}</div>
-      <div class="ph"></div>
-      <button class="fab" data-a="open-add">+ Add Person</button>`;
-  }
+      <button class="attend-done" data-a="exit-attendance">Done</button>
+    </div>` : '';
+
+  const headerTitle = takingAttendance ? 'Attendance' : 'Roster';
 
   return `
     <div class="hdr" id="hdr">
@@ -107,31 +95,30 @@ export function viewRoster(s) {
         <span class="hdr-kicker">${esc(teamName)}</span>
         <div class="hdr-actions">
           <button class="ico-btn" data-a="scan-card" aria-label="Scan athlete card">${SCAN}</button>
-          <button class="ico-btn" data-a="go-rubric" aria-label="Field Guide">${BOOK}</button>
-          <button class="ico-btn" data-a="open-settings" aria-label="Settings">
-            <svg width="22" height="22" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+          <button class="ico-btn" data-a="open-settings" aria-label="Open settings">${BOOK}</button>
+          <button class="ico-btn" data-a="open-add" data-role="${defaultRole}" aria-label="Add person">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+            Add
           </button>
+          <button class="attendance-btn" data-a="start-attendance">Start Attendance</button>
         </div>
       </div>
       <div class="hdr-title-row">
-        <h1 class="hdr-title">Team Roster</h1>
-        <div class="hdr-title-right">
-          <span class="hdr-count">${countLabel}</span>
-          <button class="attendance-btn" data-a="start-attendance" aria-label="Take attendance">${CLIPBOARD}</button>
-        </div>
+        <h1 class="hdr-title">${headerTitle}</h1>
+        <span class="hdr-count">${countLabel}</span>
       </div>
       <div class="roster-filters">${filterChips}</div>
     </div>
+    ${attendBar}
     <div class="list" id="list">${rows}</div>
     <div class="ph"></div>
-    <button class="fab" data-a="open-add">+ ${filter === 'coaches' ? 'Coach' : 'Rider'}</button>`;
+    <button class="fab" data-a="open-add" data-role="${defaultRole}">${filter === 'coaches' ? '+ Coach' : '+ Add'}</button>`;
 }
 
 function athleteRowHTML(a, s, practice, attendingIds, attendanceMode) {
   const conf = getAthleteConfirmedLevels(a.id);
   const open = s.expandedId === a.id;
   const draft = s.draft[a.id] || { body_position: conf.body_position || 1, braking: conf.braking || 1, cornering: conf.cornering || 1 };
-  const isNew = !conf.body_position && !conf.braking && !conf.cornering;
 
   const chips = SKILL_IDS.map(sk => {
     const short = {body_position:'BP', braking:'BRK', cornering:'CRN'}[sk];
@@ -164,14 +151,14 @@ function athleteRowHTML(a, s, practice, attendingIds, attendanceMode) {
     : `<div class="mono">${esc(initials(a.name))}<span class="mono-cam">📷</span></div>`;
 
   const metaLabel = a.category ? esc(a.category) : (a.grade ? `GR ${esc(String(a.grade))}` : '—');
-
   const isAttending = practice && attendingIds.has(a.id);
+
   const attendBtn = attendanceMode ? `
     <button class="attend-toggle${isAttending ? ' attend-toggle--on' : ''}" data-a="toggle-attendance" data-id="${a.id}" aria-label="${isAttending ? 'Mark absent' : 'Mark attending'}">
       ${isAttending ? CHECK_CIRCLE : EMPTY_CIRCLE}
     </button>` : '';
 
-  return `<div class="row-card${open ? ' row-card--open' : ''}${isAttending && !attendanceMode ? ' row-card--attending' : ''}">
+  return `<div class="row-card${open ? ' row-card--open' : ''}${isAttending && !attendanceMode ? ' row-card--attending' : ''}${isAttending && attendanceMode ? ' row-card--present' : ''}">
     <div class="row-main">
       ${attendBtn}
       <button class="mono-btn" data-a="go-card" data-id="${a.id}" aria-label="Open ${esc(a.name)}'s card">${mono}</button>
@@ -200,7 +187,6 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
   const open = !attendanceMode && s.expandedId === coach.id;
   const conf = getAthleteConfirmedLevels(coach.id);
   const draft = s.draft[coach.id] || { body_position: conf.body_position || 1, braking: conf.braking || 1, cornering: conf.cornering || 1 };
-  const isNew = !conf.body_position && !conf.braking && !conf.cornering;
 
   const chips = SKILL_IDS.map(sk => {
     const short = {body_position:'BP', braking:'BRK', cornering:'CRN'}[sk];
@@ -232,7 +218,7 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
       </div>
     </div>` : '';
 
-  return `<div class="row-card row-card--coach${isAttending && !attendanceMode ? ' row-card--attending' : ''}">
+  return `<div class="row-card row-card--coach${isAttending && !attendanceMode ? ' row-card--attending' : ''}${isAttending && attendanceMode ? ' row-card--present' : ''}">
     <div class="row-main">
       ${attendBtn}
       <div class="mono mono--coach">${esc(initials(coach.name))}</div>
@@ -252,10 +238,111 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
   </div>`;
 }
 
-// ── Rider/Coach card view ─────────────────────────────────────────────────────
+// ── Practice tab ─────────────────────────────────────────────────────────────
+export function viewPractice(s) {
+  const practice = s.today_practice;
+  const attendingIds = practice ? new Set(
+    getAttendance(practice.id).filter(a => a.status === 'attending').map(a => a.person_id)
+  ) : new Set();
+  const attendingCount = attendingIds.size;
+  const dateLabel = practice ? fmt(practice.date + 'T00:00:00') : fmt(new Date().toISOString());
+  const isActive = s.taking_attendance;
+
+  const attendStatus = attendingCount > 0
+    ? `<span class="practice-meta"><span class="attend-count">${attendingCount} present</span> today</span>`
+    : `<span class="practice-meta">No attendance recorded yet</span>`;
+
+  const resumeOrStart = isActive
+    ? `<button class="btn btn-primary" data-a="resume-attendance">Resume Attendance →</button>`
+    : `<button class="btn btn-primary" data-a="start-attendance">Start Attendance</button>`;
+
+  const exportBtn = attendingCount > 0
+    ? `<button class="btn btn-outline" data-a="export-attendance">${DOWNLOAD} Export Attendance</button>`
+    : '';
+
+  return `
+    <div class="hdr" id="hdr">
+      <div class="hdr-top">
+        <span class="hdr-kicker">${esc(dateLabel)}</span>
+      </div>
+      <div class="hdr-title-row">
+        <h1 class="hdr-title">Practice</h1>
+      </div>
+    </div>
+    <div style="padding:14px">
+      <div class="practice-card">
+        <div class="practice-date">${esc(dateLabel)}</div>
+        ${attendStatus}
+        <div class="practice-actions">
+          ${resumeOrStart}
+          ${exportBtn}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Settings tab ─────────────────────────────────────────────────────────────
+export function viewSettings(s) {
+  const { name: teamName = '', coachName = '' } = getTeamSettings();
+  const coach = getCoach();
+
+  const qrSection = s.settingsQR
+    ? `<div class="settings-qr-wrap">
+      <img class="settings-qr" src="${s.settingsQR}" alt="App QR code">
+      <span class="settings-qr-url">ashaber.github.io/mtb-skills</span>
+       </div>`
+    : `<p class="settings-about" style="text-align:center;color:var(--dim)">Generating QR…</p>`;
+
+  return `
+    <div class="hdr" id="hdr">
+      <div class="hdr-top">
+        <span class="hdr-kicker">Configuration</span>
+      </div>
+      <div class="hdr-title-row">
+        <h1 class="hdr-title">Settings</h1>
+      </div>
+    </div>
+    <div>
+      <div class="settings-section">
+        <span class="settings-section-label">Team</span>
+        <div class="fg" style="padding:0 0 8px">
+          <label class="fl" for="inp-team">League / Team name</label>
+          <input class="fi" id="inp-team" type="text" value="${esc(teamName)}" placeholder="Idaho League">
+          <label class="fl" for="inp-coach" style="margin-top:8px">Coach name</label>
+          <input class="fi" id="inp-coach" type="text" value="${esc(coach?.name ?? coachName)}" placeholder="Your name">
+        </div>
+        <button class="btn btn-primary" data-a="save-settings" data-m="save-settings">Save</button>
+      </div>
+
+      <div class="settings-section">
+        <span class="settings-section-label">Data</span>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-outline" data-a="export-data">${DOWNLOAD} Export JSON backup</button>
+          <label class="btn btn-outline" style="cursor:pointer;text-align:center">
+            Import JSON backup
+            <input id="imp-file" type="file" accept=".json" style="display:none">
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <span class="settings-section-label">Share App</span>
+        <p class="settings-about" style="margin-bottom:10px">Scan to open on another device — works offline after first load.</p>
+        ${qrSection}
+      </div>
+
+      <div class="settings-section">
+        <span class="settings-section-label">About</span>
+        <p class="settings-about">Tap a level on any rider's row to record an observation instantly. Open the full card for confirmed levels, observation history, and trail readiness.</p>
+        <p class="settings-about" style="margin-top:8px">Built for Idaho NICA coaches. Rubric authored with Tim Curry. Works fully offline — no login required.</p>
+      </div>
+    </div>`;
+}
+
+// ── Rider / Coach card (returned as layer content, not a fixed wrapper) ───────
 export function viewCard(s) {
   const a = getPeople().find(x => x.id === s.athleteId);
-  if (!a) return viewRoster(s);
+  if (!a) return `<div class="topbar"><button class="topbar-back" data-a="go-roster">${BACK} Roster</button><span class="topbar-title"></span><div></div></div>`;
 
   const conf  = getAthleteConfirmedLevels(a.id);
   const draft = s.draft[a.id] || { body_position: conf.body_position || 1, braking: conf.braking || 1, cornering: conf.cornering || 1 };
@@ -273,13 +360,13 @@ export function viewCard(s) {
        <input id="photo-upload" type="file" accept="image/*" style="display:none" data-aid="${a.id}">`;
 
   const skillBlocks = SKILL_IDS.map(sk => {
-    const lv      = draft[sk] || 1;
+    const lv         = draft[sk] || 1;
     const confirmedLv = conf[sk] || 0;
-    const history = getObservations({ athlete_id: a.id, skill: sk })
+    const history    = getObservations({ athlete_id: a.id, skill: sk })
       .sort((a, b) => b.session_date.localeCompare(a.session_date));
-    const sugg    = suggestLevel(history, confirmedLv);
-    const trend   = trendSVG(history, confirmedLv, 160, 44);
-    const hasObs  = history.length > 0;
+    const sugg       = suggestLevel(history, confirmedLv);
+    const trend      = trendSVG(history, confirmedLv, 160, 44);
+    const hasObs     = history.length > 0;
 
     const failureItems = SKILLS[sk].levels[lv].failure_modes
       .map(f => `<li class="sb-fail-item">${esc(f)}</li>`).join('');
@@ -319,7 +406,6 @@ export function viewCard(s) {
   const allObs = getObservations({ athlete_id: a.id })
     .sort((a, b) => b.session_date.localeCompare(a.session_date))
     .slice(0, 12);
-  const SHORT_SK = { body_position:'BP', braking:'BRK', cornering:'CRN' };
   const timelineRows = allObs.length
     ? allObs.map(o => `
         <div class="tl-row">
@@ -331,69 +417,78 @@ export function viewCard(s) {
 
   const metaLabel = a.role === 'coach'
     ? (a.level ? `NICA L${a.level}` : 'Coach')
-    : (a.category ? `${esc(a.category)}` : (a.grade ? `GRADE ${esc(String(a.grade))}` : ''));
+    : (a.category ? esc(a.category) : (a.grade ? `GRADE ${esc(String(a.grade))}` : ''));
+
+  const contextLabel = a.role === 'coach' ? 'COACH' : 'RIDER';
 
   return `
-    <div class="card-view" id="card-view">
-      <div class="card-topbar">
-        <button class="ico-btn" data-a="go-roster">${BACK} ROSTER</button>
-        <span class="card-obs-count">${totalObs} obs</span>
-        <button class="ico-btn" data-a="edit-person" data-id="${a.id}" aria-label="Edit profile">✏️</button>
-        <button class="ico-btn" data-a="share-card" data-id="${a.id}" aria-label="Share card">${SHARE}</button>
-        <button class="ico-btn" data-a="del-athlete" data-id="${a.id}" aria-label="Delete">${TRASH}</button>
+    <div class="card-view">
+      <div class="topbar">
+        <button class="topbar-back" data-a="go-roster">${BACK} Roster</button>
+        <span class="topbar-title">${contextLabel}</span>
+        <div class="topbar-actions">
+          <div class="overflow-wrap">
+            <button class="topbar-ico" data-a="toggle-overflow" aria-label="More options">${MORE}</button>
+            <div class="overflow-menu" id="overflow-menu" style="display:none">
+              <button class="overflow-item" data-a="edit-person" data-id="${a.id}">${EDIT} Edit profile</button>
+              <button class="overflow-item" data-a="share-card" data-id="${a.id}">${SHARE} Share card</button>
+              <button class="overflow-item overflow-item--danger" data-a="del-athlete" data-id="${a.id}">${TRASH} Delete</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="card-scroll">
-        <div class="card-hero">
-          <div class="card-hero-photo">${photoEl}</div>
-          <div class="card-hero-info">
-            <h2 class="card-name">${esc(a.name)}</h2>
-            <div class="card-hero-meta">
-              ${a.plate ? `<span class="plate-pill">#${esc(String(a.plate))}</span>` : ''}
-              ${metaLabel ? `<span class="card-grade">${metaLabel}</span>` : ''}
-            </div>
+      <div class="card-hero">
+        <div class="card-hero-photo">${photoEl}</div>
+        <div class="card-hero-info">
+          <h2 class="card-name">${esc(a.name)}</h2>
+          <div class="card-hero-meta">
+            ${a.plate ? `<span class="plate-pill">#${esc(String(a.plate))}</span>` : ''}
+            ${metaLabel ? `<span class="card-grade">${metaLabel}</span>` : ''}
+            <span class="card-grade" style="margin-left:auto;color:var(--dim)">${totalObs} obs</span>
           </div>
         </div>
-        ${(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `
-        <details class="safety-details" open>
-          <summary class="safety-summary-bar">
-            <span class="safety-summary-label">${WARN} SAFETY INFO</span>
-            <span class="safety-summary-hint">tap to collapse</span>
-          </summary>
-          <div class="safety-detail-body">
-            <div class="safety-card">
-              ${a.medical_notes ? `<div class="safety-row"><span class="safety-lbl">Medical</span><span class="safety-val">${esc(a.medical_notes)}</span></div>` : ''}
-              ${a.emergency_contact_name ? `<div class="safety-row"><span class="safety-lbl">Contact</span><span class="safety-val">${esc(a.emergency_contact_name)}</span></div>` : ''}
-              ${a.emergency_contact_phone ? `<div class="safety-row"><span class="safety-lbl">Phone</span><span class="safety-val"><a href="tel:${esc(a.emergency_contact_phone)}" class="safety-phone">${esc(a.emergency_contact_phone)}</a></span></div>` : ''}
-            </div>
-            <button class="safety-edit-link" data-a="edit-safety" data-id="${a.id}">Edit safety info</button>
+      </div>
+      ${(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `
+      <details class="safety-details" open>
+        <summary class="safety-summary-bar">
+          <span class="safety-summary-label">${WARN} SAFETY INFO</span>
+          <span class="safety-summary-hint">tap to collapse</span>
+        </summary>
+        <div class="safety-detail-body">
+          <div class="safety-card">
+            ${a.medical_notes ? `<div class="safety-row"><span class="safety-lbl">Medical</span><span class="safety-val">${esc(a.medical_notes)}</span></div>` : ''}
+            ${a.emergency_contact_name ? `<div class="safety-row"><span class="safety-lbl">Contact</span><span class="safety-val">${esc(a.emergency_contact_name)}</span></div>` : ''}
+            ${a.emergency_contact_phone ? `<div class="safety-row"><span class="safety-lbl">Phone</span><span class="safety-val"><a href="tel:${esc(a.emergency_contact_phone)}" class="safety-phone">${esc(a.emergency_contact_phone)}</a></span></div>` : ''}
           </div>
-        </details>` : ''}
-        <div class="trail-ready-band">
-          <span class="trail-ready-label">TRAIL READY</span>
-          <div class="ready-detail-row">${readyRowDetailHTML(conf, 20)}</div>
+          <button class="safety-edit-link" data-a="edit-safety" data-id="${a.id}">Edit safety info</button>
         </div>
+      </details>` : ''}
+      <div class="trail-ready-band">
+        <span class="trail-ready-label">TRAIL READY</span>
+        <div class="ready-detail-row">${readyRowDetailHTML(conf, 20)}</div>
+      </div>
 
-        <div class="card-section">
-          <h3 class="card-section-label">SKILL ASSESSMENT</h3>
-          ${skillBlocks}
-          <div class="session-actions">
-            <button class="btn btn-outline" data-a="log-session" data-id="${a.id}">${isNew ? 'Set Initial Levels' : 'Log Observation'}</button>
-            <button class="btn btn-primary${draftChanged ? '' : ' btn-disabled'}" data-a="confirm-session" data-id="${a.id}" ${draftChanged ? '' : 'disabled'}>Update Confirmed</button>
-          </div>
+      <div class="card-section">
+        <h3 class="card-section-label">SKILL ASSESSMENT</h3>
+        ${skillBlocks}
+        <div class="session-actions">
+          <button class="btn btn-outline" data-a="log-session" data-id="${a.id}">${isNew ? 'Set Initial Levels' : 'Log Observation'}</button>
+          <button class="btn btn-primary${draftChanged ? '' : ' btn-disabled'}" data-a="confirm-session" data-id="${a.id}" ${draftChanged ? '' : 'disabled'}>Update Confirmed</button>
         </div>
+      </div>
 
-        <div class="card-section">
-          <h3 class="card-section-label">OBSERVATION TIMELINE</h3>
-          <div class="tl-list">${timelineRows}</div>
-        </div>
+      <div class="card-section">
+        <h3 class="card-section-label">OBSERVATION TIMELINE</h3>
+        <div class="tl-list">${timelineRows}</div>
+      </div>
 
-        <div class="card-section">
-          <h3 class="card-section-label">COACH NOTES</h3>
-          <textarea class="notes-area" data-a="save-notes" data-id="${a.id}" placeholder="Coaching observations, cues, goals…">${esc(a.notes || '')}</textarea>
-          ${!(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `
-          <button class="safety-edit-link" data-a="edit-safety" data-id="${a.id}">+ Add safety info</button>` : ''}
-        </div>
-        <div class="ph"></div>
+      <div class="card-section">
+        <h3 class="card-section-label">COACH NOTES</h3>
+        <textarea class="notes-area" data-a="save-notes" data-id="${a.id}" placeholder="Coaching observations, cues, goals…">${esc(a.notes || '')}</textarea>
+        ${!(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `
+        <button class="safety-edit-link" data-a="edit-safety" data-id="${a.id}">+ Add safety info</button>` : ''}
+      </div>
       </div>
     </div>`;
 }
@@ -414,12 +509,15 @@ function viewEmpty(s) {
       <div class="hdr-top">
         <span class="hdr-kicker">${esc(teamName)}</span>
         <div class="hdr-actions">
-          <button class="ico-btn" data-a="go-rubric" aria-label="Field Guide">${BOOK}</button>
-          <button class="ico-btn" data-a="open-settings" aria-label="Settings">⚙</button>
+          <button class="ico-btn" data-a="open-settings" aria-label="Open settings">${BOOK}</button>
+          <button class="ico-btn" data-a="open-add" aria-label="Add person">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+            Add
+          </button>
         </div>
       </div>
       <div class="hdr-title-row">
-        <h1 class="hdr-title">Team Roster</h1>
+        <h1 class="hdr-title">Roster</h1>
         <span class="hdr-count">0 people</span>
       </div>
       <div class="roster-filters">${filterChips}</div>
@@ -434,6 +532,173 @@ function viewEmpty(s) {
         <div class="empty-step"><span class="step-n">3</span><div><b>Ride ready</b> — trail readiness computes automatically.</div></div>
       </div>
       <button class="btn btn-primary btn-lg" data-a="open-add">+ Add your first rider</button>
+    </div>`;
+}
+
+// ── Field Guide / Rubric ─────────────────────────────────────────────────────
+// sheet:false → Guide tab content (inline in #app)
+// sheet:true  → sheet body content (opened from skill block on card)
+export function viewRubric(s, { sheet = false } = {}) {
+  const activeTab = s.rubricSkill || SKILL_IDS[0];
+  const allTabs = [...SKILL_IDS, 'guide'];
+  const tabLabels = { body_position: 'Body Position', braking: 'Braking', cornering: 'Cornering', guide: 'Guide' };
+
+  const tabs = allTabs.map(id => {
+    const active = id === activeTab;
+    return `<button class="rubric-tab${active ? ' rubric-tab--active' : ''}" data-a="rubric-tab" data-id="${id}">${tabLabels[id]}</button>`;
+  }).join('');
+
+  const tabBar = `<div class="rubric-tabs" role="tablist">${tabs}</div>`;
+  const body   = activeTab === 'guide' ? rubricGuideBody() : rubricSkillBody(activeTab);
+
+  if (sheet) {
+    return `
+      <div class="sheet-rubric-head">
+        <div class="sheet-head" style="border-bottom:none;padding-bottom:4px">
+          <div></div>
+          <div class="sheet-title">FIELD GUIDE</div>
+          <button class="sheet-x" data-m="close">✕</button>
+        </div>
+        ${tabBar}
+      </div>
+      <div class="sheet-rubric-body">
+        ${body}
+        <div style="height:20px"></div>
+      </div>`;
+  }
+
+  // Guide tab — non-fixed, scrolls within #app
+  return `
+    <div class="guide-sticky">
+      <div class="hdr" style="position:static">
+        <div class="hdr-top">
+          <span class="hdr-kicker">SKILLS REFERENCE</span>
+        </div>
+        <div class="hdr-title-row">
+          <h1 class="hdr-title">Field Guide</h1>
+        </div>
+      </div>
+      ${tabBar}
+    </div>
+    <div class="guide-scroll">
+      ${body}
+      <div class="ph"></div>
+    </div>`;
+}
+
+function rubricSkillBody(skillId) {
+  const skill = SKILLS[skillId];
+
+  const notes = (skill.notes || [])
+    .map(n => `<p class="rc-note">${esc(n)}</p>`)
+    .join('');
+
+  const cards = [1, 2, 3, 4, 5].map(lv => {
+    const lvData = skill.levels[lv];
+    const color  = LV[lv];
+
+    const dimRows = skill.dimensions.map(dim => {
+      const label = dim.sublabel
+        ? `${esc(dim.label)} <span class="rc-dim-sub">${esc(dim.sublabel)}</span>`
+        : esc(dim.label);
+      return `<div class="rc-dim">
+        <span class="rc-dim-label">${label}</span>
+        <span class="rc-dim-text">${esc(dim.levels[lv])}</span>
+      </div>`;
+    }).join('');
+
+    const videoLink = lvData.video_url
+      ? `<a class="rc-video-link" href="${esc(lvData.video_url)}" target="_blank" rel="noopener">▶ Video</a>`
+      : '';
+
+    return `<div class="rubric-card" data-lv="${lv}">
+      <div class="rc-head">
+        <div class="rc-badge" style="background:${color}">${lv}</div>
+        <div class="rc-head-info">
+          <div class="rc-gate">${esc(lvData.when_breaks)}</div>
+        </div>
+      </div>
+      <div class="rc-dims">${dimRows}</div>
+      ${videoLink}
+    </div>`;
+  }).join('');
+
+  return `
+    <p class="rubric-skill-desc">${esc(skill.description)}</p>
+    <p class="rc-calibration">${esc(skill.calibration_note)}</p>
+    ${notes}
+    <div class="rubric-cards">${cards}</div>`;
+}
+
+function rubricGuideBody() {
+  const g = TRAIL_GUIDE;
+  const cn = COACH_NOTES;
+
+  const minimumRows = Object.entries(TRAIL_MINIMUMS).map(([key, mins]) => {
+    const label = TRAIL_LABELS[key];
+    return `<tr class="rc-trail-row">
+      <td class="rc-trail-name">${esc(label)}</td>
+      <td class="rc-trail-cell">${mins.body_position}</td>
+      <td class="rc-trail-cell">${mins.braking}</td>
+      <td class="rc-trail-cell">${mins.cornering}</td>
+    </tr>`;
+  }).join('');
+
+  const assessRules = g.assessment_rules.map(r => `<li class="rc-guide-li">${esc(r)}</li>`).join('');
+  const scoreExamples = g.score_examples.map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
+  const commonErrors = cn.common_errors.map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
+  const interdeps = cn.interdependencies.map(i => `<li class="rc-guide-li">${esc(i)}</li>`).join('');
+  const essentials = cn.key_essentials.map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
+
+  return `
+    <div class="rc-section">
+      <h2 class="rc-section-title">Trail Selection</h2>
+      <p class="rc-body">${esc(g.intro)}</p>
+
+      <h3 class="rc-sub-title">Minimum skill levels</h3>
+      <p class="rc-body-sm">${esc(g.minimums_note)}</p>
+      <table class="rc-trail-mins">
+        <thead><tr>
+          <th class="rc-trail-name"></th>
+          <th class="rc-trail-cell">BP</th>
+          <th class="rc-trail-cell">BRK</th>
+          <th class="rc-trail-cell">CRN</th>
+        </tr></thead>
+        <tbody>${minimumRows}</tbody>
+      </table>
+
+      <h3 class="rc-sub-title">Trail ratings reflect the hardest feature</h3>
+      <p class="rc-body">${esc(g.trail_ratings_note)}</p>
+
+      <h3 class="rc-sub-title">How to assess</h3>
+      <ul class="rc-guide-list">${assessRules}</ul>
+
+      <h3 class="rc-sub-title">A real example</h3>
+      <p class="rc-body rc-example">${esc(g.real_example)}</p>
+
+      <h3 class="rc-sub-title">Score notation</h3>
+      <p class="rc-body">${esc(g.score_notation)}</p>
+      <ul class="rc-guide-list">${scoreExamples}</ul>
+      <p class="rc-body-sm">Reassessment cadence: ${esc(g.reassessment)}</p>
+    </div>
+
+    <div class="rc-section">
+      <h2 class="rc-section-title">Coach Notes</h2>
+
+      <h3 class="rc-sub-title">Fitts &amp; Posner — motor learning stages</h3>
+      <p class="rc-body">${esc(cn.fitts_posner)}</p>
+
+      <h3 class="rc-sub-title">Calibration — expected skill distribution</h3>
+      <p class="rc-body">${esc(cn.calibration)}</p>
+
+      <h3 class="rc-sub-title">Common assessment errors</h3>
+      <ul class="rc-guide-list">${commonErrors}</ul>
+
+      <h3 class="rc-sub-title">Skill interdependencies</h3>
+      <ul class="rc-guide-list">${interdeps}</ul>
+
+      <h3 class="rc-sub-title">3 Key Essentials — always present above Level 1</h3>
+      <ul class="rc-guide-list">${essentials}</ul>
     </div>`;
 }
 
@@ -475,7 +740,7 @@ export function modalAddPerson(defaultRole = 'athlete') {
       <div id="coach-fields" style="display:${!athleteActive ? 'block' : 'none'};margin-top:8px">
         <label class="fl">NICA Level</label>
         <div class="coach-level-selector">
-          <button class="coach-lv-btn${defaultRole === 'coach' ? '' : ''}" data-m="coach-level-btn" data-n="1">
+          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="1">
             <span class="clv-n">L1</span>
             <span class="clv-label">Sweep</span>
           </button>
@@ -498,10 +763,7 @@ export function modalAddPerson(defaultRole = 'athlete') {
     <div style="height:12px"></div>`;
 }
 
-// Backward-compat alias used by existing event handlers
-export function modalAddAthlete() {
-  return modalAddPerson('athlete');
-}
+export function modalAddAthlete() { return modalAddPerson('athlete'); }
 
 export function modalEditPerson(person) {
   const categoryOptions = CATEGORIES.map(c =>
@@ -565,158 +827,6 @@ export function modalEditPerson(person) {
     <div style="height:12px"></div>`;
 }
 
-// ── Education / Field guide view ─────────────────────────────────────────────
-export function viewRubric(s) {
-  const activeTab = s.rubricSkill || SKILL_IDS[0];
-
-  const allTabs = [...SKILL_IDS, 'guide'];
-  const tabLabels = { body_position: 'Body Position', braking: 'Braking', cornering: 'Cornering', guide: 'Guide' };
-
-  const tabs = allTabs.map(id => {
-    const active = id === activeTab;
-    return `<button class="rubric-tab${active ? ' rubric-tab--active' : ''}"
-      data-a="rubric-tab" data-id="${id}">${tabLabels[id]}</button>`;
-  }).join('');
-
-  const body = activeTab === 'guide' ? rubricGuideBody() : rubricSkillBody(activeTab);
-
-  return `
-    <div class="rubric-view" id="rubric-view">
-      <div class="rubric-topbar">
-        <button class="ico-btn" data-a="go-roster">${BACK} ROSTER</button>
-        <span class="rubric-view-title">FIELD GUIDE</span>
-        <span style="width:88px"></span>
-      </div>
-      <div class="rubric-tabs" role="tablist">${tabs}</div>
-      <div class="rubric-scroll">
-        ${body}
-        <div class="ph"></div>
-      </div>
-    </div>`;
-}
-
-function rubricSkillBody(skillId) {
-  const skill = SKILLS[skillId];
-
-  const notes = (skill.notes || [])
-    .map(n => `<p class="rc-note">${esc(n)}</p>`)
-    .join('');
-
-  const cards = [1, 2, 3, 4, 5].map(lv => {
-    const lvData = skill.levels[lv];
-    const color  = LV[lv];
-
-    const dimRows = skill.dimensions.map(dim => {
-      const label = dim.sublabel
-        ? `${esc(dim.label)} <span class="rc-dim-sub">${esc(dim.sublabel)}</span>`
-        : esc(dim.label);
-      return `<div class="rc-dim">
-        <span class="rc-dim-label">${label}</span>
-        <span class="rc-dim-text">${esc(dim.levels[lv])}</span>
-      </div>`;
-    }).join('');
-
-    const videoLink = lvData.video_url
-      ? `<a class="rc-video-link" href="${esc(lvData.video_url)}" target="_blank" rel="noopener">▶ Video</a>`
-      : '';
-
-    return `<div class="rubric-card" data-lv="${lv}">
-      <div class="rc-head">
-        <div class="rc-badge" style="background:${color}">${lv}</div>
-        <div class="rc-head-info">
-          <div class="rc-gate">${esc(lvData.when_breaks)}</div>
-        </div>
-      </div>
-      <div class="rc-dims">${dimRows}</div>
-      ${videoLink}
-    </div>`;
-  }).join('');
-
-  return `
-    <p class="rubric-skill-desc">${esc(skill.description)}</p>
-    <p class="rc-calibration">${esc(skill.calibration_note)}</p>
-    ${notes}
-    <div class="rubric-cards">${cards}</div>`;
-}
-
-function rubricGuideBody() {
-  const g = TRAIL_GUIDE;
-  const cn = COACH_NOTES;
-
-  const minimumRows = Object.entries(TRAIL_MINIMUMS).map(([key, mins]) => {
-    const label = TRAIL_LABELS[key];
-    return `<tr class="rc-trail-row">
-      <td class="rc-trail-name">${esc(label)}</td>
-      <td class="rc-trail-cell">${mins.body_position}</td>
-      <td class="rc-trail-cell">${mins.braking}</td>
-      <td class="rc-trail-cell">${mins.cornering}</td>
-    </tr>`;
-  }).join('');
-
-  const assessRules = g.assessment_rules
-    .map(r => `<li class="rc-guide-li">${esc(r)}</li>`).join('');
-  const scoreExamples = g.score_examples
-    .map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
-  const commonErrors = cn.common_errors
-    .map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
-  const interdeps = cn.interdependencies
-    .map(i => `<li class="rc-guide-li">${esc(i)}</li>`).join('');
-  const essentials = cn.key_essentials
-    .map(e => `<li class="rc-guide-li">${esc(e)}</li>`).join('');
-
-  return `
-    <div class="rc-section">
-      <h2 class="rc-section-title">Trail Selection</h2>
-      <p class="rc-body">${esc(g.intro)}</p>
-
-      <h3 class="rc-sub-title">Minimum skill levels</h3>
-      <p class="rc-body-sm">${esc(g.minimums_note)}</p>
-      <table class="rc-trail-mins">
-        <thead><tr>
-          <th class="rc-trail-name"></th>
-          <th class="rc-trail-cell">BP</th>
-          <th class="rc-trail-cell">BRK</th>
-          <th class="rc-trail-cell">CRN</th>
-        </tr></thead>
-        <tbody>${minimumRows}</tbody>
-      </table>
-
-      <h3 class="rc-sub-title">Trail ratings reflect the hardest feature</h3>
-      <p class="rc-body">${esc(g.trail_ratings_note)}</p>
-
-      <h3 class="rc-sub-title">How to assess</h3>
-      <ul class="rc-guide-list">${assessRules}</ul>
-
-      <h3 class="rc-sub-title">A real example</h3>
-      <p class="rc-body rc-example">${esc(g.real_example)}</p>
-
-      <h3 class="rc-sub-title">Score notation</h3>
-      <p class="rc-body">${esc(g.score_notation)}</p>
-      <ul class="rc-guide-list">${scoreExamples}</ul>
-      <p class="rc-body-sm">Reassessment cadence: ${esc(g.reassessment)}</p>
-    </div>
-
-    <div class="rc-section">
-      <h2 class="rc-section-title">Coach Notes</h2>
-
-      <h3 class="rc-sub-title">Fitts &amp; Posner — motor learning stages</h3>
-      <p class="rc-body">${esc(cn.fitts_posner)}</p>
-
-      <h3 class="rc-sub-title">Calibration — expected skill distribution</h3>
-      <p class="rc-body">${esc(cn.calibration)}</p>
-
-      <h3 class="rc-sub-title">Common assessment errors</h3>
-      <ul class="rc-guide-list">${commonErrors}</ul>
-
-      <h3 class="rc-sub-title">Skill interdependencies</h3>
-      <ul class="rc-guide-list">${interdeps}</ul>
-
-      <h3 class="rc-sub-title">3 Key Essentials — always present above Level 1</h3>
-      <ul class="rc-guide-list">${essentials}</ul>
-    </div>`;
-}
-
-// ── Modal: safety info edit ───────────────────────────────────────────────────
 export function modalSafetyInfo(a) {
   return `
     <div class="modal-head">
@@ -738,7 +848,6 @@ export function modalSafetyInfo(a) {
     <div style="height:12px"></div>`;
 }
 
-// ── Modal: share card (QR code) ───────────────────────────────────────────────
 export function modalShareCard(a, conf, qrDataUrl) {
   const lvLine = [
     `BP ${conf.body_position || '—'}`,
@@ -764,7 +873,6 @@ export function modalShareCard(a, conf, qrDataUrl) {
     <div style="height:12px"></div>`;
 }
 
-// ── Modal: scan card (camera) ─────────────────────────────────────────────────
 export function modalScanCard() {
   return `
     <div class="modal-head">
@@ -779,7 +887,6 @@ export function modalScanCard() {
     <div style="height:12px"></div>`;
 }
 
-// ── Modal: import preview ─────────────────────────────────────────────────────
 export function modalImportPreview(payload, existingAthlete) {
   const conf = payload.confirmed_levels || {};
   const lvLine = [
@@ -791,7 +898,7 @@ export function modalImportPreview(payload, existingAthlete) {
 
   const mergeWarning = existingAthlete ? `
     <div class="import-merge-warn">
-      <strong>Already on your roster</strong> — this athlete (${esc(existingAthlete.name)}) is already on your roster. Choose below.
+      <strong>Already on your roster</strong> — ${esc(existingAthlete.name)} is already here. Choose below.
     </div>` : '';
 
   return `
@@ -820,52 +927,4 @@ export function modalImportPreview(payload, existingAthlete) {
       <button class="btn btn-ghost" data-m="close">Cancel</button>
     </div>
     <div style="height:12px"></div>`;
-}
-
-// ── Modal: settings ───────────────────────────────────────────────────────────
-export function modalSettings(qrDataUrl = null) {
-  const { name: teamName = 'Idaho League', coachName = '' } = getTeamSettings();
-  const coach = getCoach();
-  const shareSection = qrDataUrl ? `
-    <div class="modal-divider"></div>
-    <div class="fg">
-      <span class="fl">Share App</span>
-      <p class="modal-hint" style="margin-bottom:10px">Scan to open on another device — works offline after first load.</p>
-      <div style="display:flex;justify-content:center">
-        <img src="${qrDataUrl}" alt="App QR code" style="width:160px;height:160px;border-radius:8px">
-      </div>
-      <p class="modal-hint" style="text-align:center;margin-top:6px">ashaber.github.io/mtb-skills</p>
-    </div>` : '';
-
-  return `
-    <div class="modal-head">
-      <span>Settings</span>
-      <button class="ico-btn" data-m="close">✕</button>
-    </div>
-    <div class="fg">
-      <label class="fl" for="inp-team">League / Team name</label>
-      <input class="fi" id="inp-team" type="text" value="${esc(teamName)}" placeholder="Idaho League">
-      <label class="fl" for="inp-coach" style="margin-top:8px">Coach name</label>
-      <input class="fi" id="inp-coach" type="text" value="${esc(coach?.name ?? coachName)}" placeholder="Your name">
-    </div>
-    <div class="fg" style="padding-top:0">
-      <button class="btn btn-primary" data-m="save-settings">Save</button>
-    </div>
-    <div class="modal-divider"></div>
-    <div class="fg">
-      <span class="fl">Data</span>
-      <button class="btn btn-outline" data-m="export">Export JSON backup</button>
-      <label class="btn btn-outline" style="cursor:pointer;text-align:center">
-        Import JSON backup
-        <input id="imp-file" type="file" accept=".json" style="display:none">
-      </label>
-    </div>
-    ${shareSection}
-    <div class="modal-divider"></div>
-    <div class="fg">
-      <span class="fl">About</span>
-      <p class="modal-hint">Tap a level on any rider's row to record an observation instantly. Open the full card for confirmed levels, observation history, and trail readiness.</p>
-      <p class="modal-hint" style="margin-top:6px">Built for Idaho NICA coaches. Rubric authored with Tim Curry. Works offline — no login required.</p>
-    </div>
-    <div style="height:16px"></div>`;
 }
