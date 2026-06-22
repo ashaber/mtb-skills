@@ -25,6 +25,7 @@ import {
   viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
+  modalSettings,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -303,6 +304,11 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'open-settings') {
+    openModal(modalSettings(s));
+    return;
+  }
+
   if (action === 'edit-person') {
     const person = getPeople().find(p => p.id === id);
     if (!person) return;
@@ -417,6 +423,17 @@ function onSheetClick(e) {
     });
     document.getElementById('athlete-fields').style.display = role === 'athlete' ? 'block' : 'none';
     document.getElementById('coach-fields').style.display   = role === 'coach'   ? 'block' : 'none';
+    return;
+  }
+
+  if (action === 'save-settings') {
+    const teamName  = document.getElementById('inp-team')?.value?.trim();
+    const coachName = document.getElementById('inp-coach')?.value?.trim();
+    if (teamName)  saveTeamSettings({ name: teamName });
+    if (coachName) { saveCoach({ name: coachName }); saveTeamSettings({ coachName }); }
+    log.info('settings.save', {});
+    flash('Settings saved');
+    closeModal();
     return;
   }
 
@@ -653,6 +670,13 @@ function onQRDetected(rawData) {
     payload = decodeCard(rawData);
   } catch (err) {
     log.warn('qr.decode.failed', { error: err.message });
+    // If a scan sheet is already visible, don't push another one — update hint and ensure camera is running.
+    const alreadyScanning = document.getElementById('scan-video') || document.querySelector('.modal-sheet .scan-video');
+    if (alreadyScanning) {
+      setScanHint('QR code not recognized as an athlete card. Try again.');
+      if (!_cameraStream) startCameraScan();
+      return;
+    }
     openModal(modalScanCard());
     startCameraScan();
     setScanHint('QR code not recognized as an athlete card. Try again.');

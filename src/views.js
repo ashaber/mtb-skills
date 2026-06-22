@@ -5,8 +5,12 @@
  * Sheet content (viewRubric sheet:true, modals) is set by nav.js into #sheet.
  */
 
-import log from './log.js';
+
+export function modalSettings(s) {
+  return `<div class="modal-sheet">${viewSettings(s)}</div>`;
+}
 import { SKILLS, SKILL_IDS, TRAIL_GUIDE, COACH_NOTES, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
+
 import {
   getPeople, getAthletes, getAthleteConfirmedLevels, getObservations,
   getCoach, getPhoto, getTeamSettings, exportAll,
@@ -78,10 +82,12 @@ export function viewRoster(s) {
     <div class="attend-bar">
       <div>
         <span class="attend-bar-label">ATTENDANCE</span>
-        <span class="attend-bar-count"> · ${attendingIds.size} present</span>
+        <span class="attend-count"> · ${attendingIds.size} attending</span>
       </div>
       <button class="attend-done" data-a="exit-attendance">Done</button>
     </div>` : '';
+
+  const headerTitle = takingAttendance ? 'Attendance' : 'Roster';
 
   return `
     <div class="hdr" id="hdr">
@@ -89,21 +95,24 @@ export function viewRoster(s) {
         <span class="hdr-kicker">${esc(teamName)}</span>
         <div class="hdr-actions">
           <button class="ico-btn" data-a="scan-card" aria-label="Scan athlete card">${SCAN}</button>
+          <button class="ico-btn" data-a="open-settings" aria-label="Open settings">${BOOK}</button>
           <button class="ico-btn" data-a="open-add" data-role="${defaultRole}" aria-label="Add person">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
             Add
           </button>
+          <button class="attendance-btn" data-a="start-attendance">Start Attendance</button>
         </div>
       </div>
       <div class="hdr-title-row">
-        <h1 class="hdr-title">Roster</h1>
+        <h1 class="hdr-title">${headerTitle}</h1>
         <span class="hdr-count">${countLabel}</span>
       </div>
       <div class="roster-filters">${filterChips}</div>
     </div>
     ${attendBar}
     <div class="list" id="list">${rows}</div>
-    <div class="ph"></div>`;
+    <div class="ph"></div>
+    <button class="fab" data-a="open-add" data-role="${defaultRole}">${filter === 'coaches' ? '+ Coach' : '+ Add'}</button>`;
 }
 
 function athleteRowHTML(a, s, practice, attendingIds, attendanceMode) {
@@ -279,8 +288,8 @@ export function viewSettings(s) {
 
   const qrSection = s.settingsQR
     ? `<div class="settings-qr-wrap">
-        <img class="settings-qr" src="${s.settingsQR}" alt="App share QR code">
-        <span class="settings-qr-url">ashaber.github.io/mtb-skills</span>
+      <img class="settings-qr" src="${s.settingsQR}" alt="App QR code">
+      <span class="settings-qr-url">ashaber.github.io/mtb-skills</span>
        </div>`
     : `<p class="settings-about" style="text-align:center;color:var(--dim)">Generating QR…</p>`;
 
@@ -302,7 +311,7 @@ export function viewSettings(s) {
           <label class="fl" for="inp-coach" style="margin-top:8px">Coach name</label>
           <input class="fi" id="inp-coach" type="text" value="${esc(coach?.name ?? coachName)}" placeholder="Your name">
         </div>
-        <button class="btn btn-primary" data-a="save-settings">Save</button>
+        <button class="btn btn-primary" data-a="save-settings" data-m="save-settings">Save</button>
       </div>
 
       <div class="settings-section">
@@ -413,21 +422,22 @@ export function viewCard(s) {
   const contextLabel = a.role === 'coach' ? 'COACH' : 'RIDER';
 
   return `
-    <div class="topbar">
-      <button class="topbar-back" data-a="go-roster">${BACK} Roster</button>
-      <span class="topbar-title">${contextLabel}</span>
-      <div class="topbar-actions">
-        <div class="overflow-wrap">
-          <button class="topbar-ico" data-a="toggle-overflow" aria-label="More options">${MORE}</button>
-          <div class="overflow-menu" id="overflow-menu" style="display:none">
-            <button class="overflow-item" data-a="edit-person" data-id="${a.id}">${EDIT} Edit profile</button>
-            <button class="overflow-item" data-a="share-card" data-id="${a.id}">${SHARE} Share card</button>
-            <button class="overflow-item overflow-item--danger" data-a="del-athlete" data-id="${a.id}">${TRASH} Delete</button>
+    <div class="card-view">
+      <div class="topbar">
+        <button class="topbar-back" data-a="go-roster">${BACK} Roster</button>
+        <span class="topbar-title">${contextLabel}</span>
+        <div class="topbar-actions">
+          <div class="overflow-wrap">
+            <button class="topbar-ico" data-a="toggle-overflow" aria-label="More options">${MORE}</button>
+            <div class="overflow-menu" id="overflow-menu" style="display:none">
+              <button class="overflow-item" data-a="edit-person" data-id="${a.id}">${EDIT} Edit profile</button>
+              <button class="overflow-item" data-a="share-card" data-id="${a.id}">${SHARE} Share card</button>
+              <button class="overflow-item overflow-item--danger" data-a="del-athlete" data-id="${a.id}">${TRASH} Delete</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="card-scroll">
+      <div class="card-scroll">
       <div class="card-hero">
         <div class="card-hero-photo">${photoEl}</div>
         <div class="card-hero-info">
@@ -478,6 +488,7 @@ export function viewCard(s) {
         <textarea class="notes-area" data-a="save-notes" data-id="${a.id}" placeholder="Coaching observations, cues, goals…">${esc(a.notes || '')}</textarea>
         ${!(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `
         <button class="safety-edit-link" data-a="edit-safety" data-id="${a.id}">+ Add safety info</button>` : ''}
+      </div>
       </div>
     </div>`;
 }
