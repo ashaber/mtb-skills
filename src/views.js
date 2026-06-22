@@ -14,7 +14,7 @@ import { SKILLS, SKILL_IDS, TRAIL_GUIDE, COACH_NOTES, TRAIL_MINIMUMS, TRAIL_LABE
 import {
   getPeople, getAthletes, getAthleteConfirmedLevels, getObservations,
   getCoach, getPhoto, getTeamSettings, exportAll,
-  getAttendance, getAttendanceStatus,
+  getAttendance, getAttendanceStatus, getPractices,
   CATEGORIES,
 } from './storage.js';
 import {
@@ -95,12 +95,10 @@ export function viewRoster(s) {
         <span class="hdr-kicker">${esc(teamName)}</span>
         <div class="hdr-actions">
           <button class="ico-btn" data-a="scan-card" aria-label="Scan athlete card">${SCAN}</button>
-          <button class="ico-btn" data-a="open-settings" aria-label="Open settings">${BOOK}</button>
-          <button class="ico-btn" data-a="open-add" data-role="${defaultRole}" aria-label="Add person">
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+          <button class="btn btn-primary btn-sm" data-a="open-add" data-role="${defaultRole}" aria-label="Add person">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
             Add
           </button>
-          <button class="attendance-btn" data-a="start-attendance">Start Attendance</button>
         </div>
       </div>
       <div class="hdr-title-row">
@@ -111,8 +109,7 @@ export function viewRoster(s) {
     </div>
     ${attendBar}
     <div class="list" id="list">${rows}</div>
-    <div class="ph"></div>
-    <button class="fab" data-a="open-add" data-role="${defaultRole}">${filter === 'coaches' ? '+ Coach' : '+ Add'}</button>`;
+    <div class="ph"></div>`;
 }
 
 function athleteRowHTML(a, s, practice, attendingIds, attendanceMode) {
@@ -240,50 +237,114 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
 
 // ── Practice tab ─────────────────────────────────────────────────────────────
 export function viewPractice(s) {
+  const todayStr = new Date().toISOString().slice(0, 10);
   const practice = s.today_practice;
-  const attendingIds = practice ? new Set(
-    getAttendance(practice.id).filter(a => a.status === 'attending').map(a => a.person_id)
-  ) : new Set();
-  const attendingCount = attendingIds.size;
-  const dateLabel = practice ? fmt(practice.date + 'T00:00:00') : fmt(new Date().toISOString());
-  const isActive = s.taking_attendance;
+  const isEnded  = practice?.status === 'ended';
+  const isInAttendance = s.taking_attendance && !isEnded;
+  const { allow_multi_practice: multiPrac = false } = getTeamSettings();
 
-  const attendStatus = attendingCount > 0
-    ? `<span class="practice-meta"><span class="attend-count">${attendingCount} present</span> today</span>`
-    : `<span class="practice-meta">No attendance recorded yet</span>`;
+  const todayCard = practice ? _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) : _practiceCardEmpty();
 
-  const resumeOrStart = isActive
-    ? `<button class="btn btn-primary" data-a="resume-attendance">Resume Attendance →</button>`
-    : `<button class="btn btn-primary" data-a="start-attendance">Start Attendance</button>`;
+  const allPractices = getPractices()
+    .filter(p => p.id !== practice?.id)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+    .slice(0, 20);
 
-  const exportBtn = attendingCount > 0
-    ? `<button class="btn btn-outline" data-a="export-attendance">${DOWNLOAD} Export Attendance</button>`
-    : '';
+  const historyRows = allPractices.length
+    ? allPractices.map(p => {
+        const count = getAttendance(p.id).filter(a => a.status === 'attending').length;
+        const ended = p.status === 'ended';
+        const sameDay = p.date === todayStr;
+        const dateDisplay = sameDay ? 'Today (earlier)' : fmt(p.date + 'T00:00:00');
+        return `<div class="practice-history-row">
+          <div class="practice-history-left">
+            <span class="practice-history-date">${esc(dateDisplay)}</span>
+            <span class="practice-history-status${ended ? '' : ' practice-history-status--active'}">${ended ? 'ended' : 'active'}</span>
+          </div>
+          <div class="practice-history-right">
+            <span class="practice-history-count">${count} attended</span>
+            ${count > 0 ? `<button class="btn-link" data-a="export-attendance" data-pid="${esc(p.id)}" data-date="${esc(p.date)}">${DOWNLOAD}</button>` : ''}
+          </div>
+        </div>`;
+      }).join('')
+    : `<p class="practice-history-empty">No earlier practices recorded.</p>`;
 
   return `
     <div class="hdr" id="hdr">
       <div class="hdr-top">
-        <span class="hdr-kicker">${esc(dateLabel)}</span>
+        <span class="hdr-kicker">Today</span>
       </div>
       <div class="hdr-title-row">
         <h1 class="hdr-title">Practice</h1>
       </div>
     </div>
     <div style="padding:14px">
+      ${todayCard}
+      <div class="practice-history">
+        <span class="practice-history-label">PRACTICE HISTORY</span>
+        ${historyRows}
+      </div>
+    </div>`;
+}
+
+function _practiceCardEmpty() {
+  return `
+    <div class="practice-card">
+      <div class="practice-date">No practice started today</div>
+      <span class="practice-meta">Tap below to begin — this creates today's session and opens attendance in the Roster.</span>
+      <div class="practice-actions">
+        <button class="btn btn-primary" data-a="start-attendance">Start Practice</button>
+      </div>
+    </div>`;
+}
+
+function _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) {
+  const attending = getAttendance(practice.id).filter(a => a.status === 'attending');
+  const count = attending.length;
+  const dateLabel = fmt(practice.date + 'T00:00:00');
+  const exportBtn = count > 0
+    ? `<button class="btn btn-outline" data-a="export-attendance" data-pid="${esc(practice.id)}" data-date="${esc(practice.date)}">${DOWNLOAD} Export Attendance</button>`
+    : '';
+
+  if (isEnded) {
+    const newPracBtn = multiPrac
+      ? `<button class="btn btn-primary" data-a="start-new-practice">Start New Practice</button>`
+      : '';
+    return `
       <div class="practice-card">
         <div class="practice-date">${esc(dateLabel)}</div>
-        ${attendStatus}
+        <span class="practice-meta practice-meta--ended">Practice complete · ${count} attended</span>
         <div class="practice-actions">
-          ${resumeOrStart}
+          ${newPracBtn}
           ${exportBtn}
+          <button class="btn btn-outline" data-a="reopen-practice">Reopen Practice</button>
         </div>
+      </div>`;
+  }
+
+  const attendBtn = isInAttendance
+    ? `<button class="btn btn-primary" data-a="resume-attendance">Resume Attendance →</button>`
+    : `<button class="btn btn-primary" data-a="start-attendance">Take Attendance</button>`;
+
+  const statusLabel = count > 0
+    ? `${count} attending`
+    : 'No attendance taken yet';
+
+  return `
+    <div class="practice-card">
+      <div class="practice-date">${esc(dateLabel)}</div>
+      <span class="practice-meta">${esc(statusLabel)}</span>
+      <div class="practice-actions">
+        ${attendBtn}
+        ${exportBtn}
+        <button class="btn btn-outline btn-danger" data-a="end-practice">End Practice</button>
       </div>
     </div>`;
 }
 
 // ── Settings tab ─────────────────────────────────────────────────────────────
 export function viewSettings(s) {
-  const { name: teamName = '', coachName = '' } = getTeamSettings();
+  const { name: teamName = '', coachName = '', allow_multi_practice: multiPrac = false } = getTeamSettings();
   const coach = getCoach();
 
   const qrSection = s.settingsQR
@@ -311,6 +372,13 @@ export function viewSettings(s) {
           <label class="fl" for="inp-coach" style="margin-top:8px">Coach name</label>
           <input class="fi" id="inp-coach" type="text" value="${esc(coach?.name ?? coachName)}" placeholder="Your name">
         </div>
+        <label class="settings-toggle-row">
+          <span class="settings-toggle-label">
+            Allow multiple practices per day
+            <span class="settings-toggle-hint">For demos — lets you run the full practice lifecycle more than once in a day.</span>
+          </span>
+          <input type="checkbox" id="inp-multi-practice" class="settings-toggle-cb" ${multiPrac ? 'checked' : ''}>
+        </label>
         <button class="btn btn-primary" data-a="save-settings" data-m="save-settings">Save</button>
       </div>
 
@@ -509,9 +577,8 @@ function viewEmpty(s) {
       <div class="hdr-top">
         <span class="hdr-kicker">${esc(teamName)}</span>
         <div class="hdr-actions">
-          <button class="ico-btn" data-a="open-settings" aria-label="Open settings">${BOOK}</button>
-          <button class="ico-btn" data-a="open-add" aria-label="Add person">
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+          <button class="btn btn-primary btn-sm" data-a="open-add" aria-label="Add person">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
             Add
           </button>
         </div>
