@@ -17,11 +17,8 @@ const _sessionStart = Date.now();
 export function initFeedback() {
   _injectCSS();
   _session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
-  if (!_session) {
-    _showSessionOverlay();
-  } else {
-    _startEngagement();
-  }
+  _startEngagement();
+  _addFeedbackButton();
 }
 
 // ── Engagement tracker ────────────────────────────────────────────────────────
@@ -54,56 +51,10 @@ function _flushEngagement() {
   _post(payload);
 }
 
-// ── Session overlay ───────────────────────────────────────────────────────────
-
-function _showSessionOverlay() {
-  const overlay = document.createElement('div');
-  overlay.id = 'fb-overlay';
-  overlay.innerHTML = `
-    <div class="fb-overlay-inner">
-      <div class="fb-overlay-logo">🚵</div>
-      <h2 class="fb-overlay-title">MTB Skills — Conference Demo</h2>
-      <p class="fb-overlay-desc">Welcome! We're collecting feedback at the conference. Tell us a bit about yourself, then explore the app.</p>
-      <div class="fb-overlay-form">
-        <input class="fb-input" id="fb-name" type="text" placeholder="Your name (optional)" autocomplete="name">
-        <input class="fb-input" id="fb-league" type="text" placeholder="NICA League (optional)">
-        <input class="fb-input" id="fb-team" type="text" placeholder="Team (optional)">
-        <div class="fb-role-row">
-          <button class="fb-role-btn" data-role="Coach">Coach</button>
-          <button class="fb-role-btn" data-role="Athlete">Athlete</button>
-        </div>
-        <input type="hidden" id="fb-role">
-        <button class="fb-start-btn" id="fb-start" disabled>Start exploring →</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  overlay.querySelectorAll('.fb-role-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      overlay.querySelectorAll('.fb-role-btn').forEach(b => b.classList.remove('fb-role-btn--active'));
-      btn.classList.add('fb-role-btn--active');
-      document.getElementById('fb-role').value = btn.dataset.role;
-      document.getElementById('fb-start').disabled = false;
-    });
-  });
-
-  document.getElementById('fb-start').addEventListener('click', () => {
-    _session = {
-      name:   document.getElementById('fb-name').value.trim(),
-      league: document.getElementById('fb-league').value.trim(),
-      team:   document.getElementById('fb-team').value.trim(),
-      role:   document.getElementById('fb-role').value,
-    };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(_session));
-    overlay.remove();
-    _startEngagement();
-    _addFeedbackButton();
-  });
-}
-
-// ── Feedback button + modal ───────────────────────────────────────────────────
+// ── Feedback button ───────────────────────────────────────────────────────────
 
 function _addFeedbackButton() {
+  if (document.getElementById('fb-btn')) return;
   const btn = document.createElement('button');
   btn.id = 'fb-btn';
   btn.textContent = '💬 Feedback';
@@ -121,6 +72,7 @@ let _penPath = [];
 let _circleStart = null;
 
 function _openFeedbackModal() {
+  const needsProfile = !_session;
   const modal = document.createElement('div');
   modal.id = 'fb-modal-wrap';
   modal.innerHTML = `
@@ -129,6 +81,17 @@ function _openFeedbackModal() {
         <span class="fb-modal-title">Feedback — <span id="fb-page-label"></span></span>
         <button class="fb-close" id="fb-close">✕</button>
       </div>
+      ${needsProfile ? `
+      <div class="fb-profile-section" id="fb-profile">
+        <p class="fb-profile-label">Tell us about yourself (optional except role)</p>
+        <input class="fb-input" id="fb-name" type="text" placeholder="Your name (optional)" autocomplete="name">
+        <input class="fb-input" id="fb-league" type="text" placeholder="NICA League (optional)">
+        <div class="fb-role-row">
+          <button class="fb-role-btn" data-role="Coach">Coach</button>
+          <button class="fb-role-btn" data-role="Athlete">Athlete</button>
+        </div>
+        <input type="hidden" id="fb-role">
+      </div>` : ''}
       <div class="fb-canvas-wrap">
         <canvas id="fb-canvas"></canvas>
         <div class="fb-canvas-tools">
@@ -154,6 +117,18 @@ function _openFeedbackModal() {
   document.body.appendChild(modal);
 
   document.getElementById('fb-page-label').textContent = window._mtbState?.tab || 'app';
+
+  // Profile section: role buttons (shown on first open only)
+  if (needsProfile) {
+    modal.querySelectorAll('.fb-role-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        modal.querySelectorAll('.fb-role-btn').forEach(b => b.classList.remove('fb-role-btn--active'));
+        btn.classList.add('fb-role-btn--active');
+        document.getElementById('fb-role').value = btn.dataset.role;
+        _checkSubmitReady();
+      });
+    });
+  }
 
   const canvas = document.getElementById('fb-canvas');
   _drawCtx = canvas.getContext('2d');
@@ -211,7 +186,8 @@ function _openFeedbackModal() {
   function _checkSubmitReady() {
     const hasComment = comment.value.trim().length > 0;
     const hasDrawing = _drawHistory.length > 0;
-    submit.disabled = !hasComment && !hasDrawing;
+    const hasRole = !needsProfile || !!document.getElementById('fb-role')?.value;
+    submit.disabled = (!hasComment && !hasDrawing) || !hasRole;
   }
   modal._checkSubmitReady = _checkSubmitReady;
 }
@@ -311,6 +287,17 @@ function _closeFeedbackModal() {
 }
 
 function _submitFeedback() {
+  // Capture session from inline profile fields if this is first submit
+  if (!_session) {
+    _session = {
+      name:   document.getElementById('fb-name')?.value.trim()   || '',
+      league: document.getElementById('fb-league')?.value.trim() || '',
+      team:   '',
+      role:   document.getElementById('fb-role')?.value          || '',
+    };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(_session));
+  }
+
   const comment = document.getElementById('fb-comment')?.value.trim() || '';
   const canvas  = document.getElementById('fb-canvas');
   const hasDrawing = _drawHistory.length > 0;
@@ -321,10 +308,10 @@ function _submitFeedback() {
     type:          'feedback',
     timestamp:     new Date().toISOString(),
     page:          window._mtbState?.tab || '',
-    role:          _session?.role || '',
-    userName:      _session?.name || '',
+    role:          _session?.role   || '',
+    userName:      _session?.name   || '',
     league:        _session?.league || '',
-    team:          _session?.team || '',
+    team:          _session?.team   || '',
     comment,
     hasDrawing,
     drawingUrl:    drawingDataUrl,
@@ -377,19 +364,13 @@ function _drainQueue(url) {
 function _injectCSS() {
   const style = document.createElement('style');
   style.textContent = `
-    #fb-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9000; display:flex; align-items:center; justify-content:center; padding:20px; }
-    .fb-overlay-inner { background:#fff; border-radius:20px; padding:28px 24px; max-width:380px; width:100%; }
-    .fb-overlay-logo { font-size:40px; margin-bottom:12px; }
-    .fb-overlay-title { font:800 20px/1.1 -apple-system,sans-serif; margin-bottom:8px; }
-    .fb-overlay-desc { font:400 14px/1.5 -apple-system,sans-serif; color:#8d877a; margin-bottom:20px; }
-    .fb-overlay-form { display:flex; flex-direction:column; gap:10px; }
     .fb-input { padding:12px 14px; border:2px solid #e9e5dc; border-radius:10px; font:500 15px/1 -apple-system,sans-serif; width:100%; }
     .fb-input:focus { outline:none; border-color:#d94626; }
     .fb-role-row { display:flex; gap:8px; }
     .fb-role-btn { flex:1; padding:12px; border:2px solid #e9e5dc; border-radius:10px; font:700 14px/1 -apple-system,sans-serif; background:#fff; cursor:pointer; text-transform:uppercase; letter-spacing:.04em; color:#8d877a; }
     .fb-role-btn--active { background:#1c1b18; border-color:#1c1b18; color:#fff; }
-    .fb-start-btn { padding:14px; border-radius:11px; background:#d94626; color:#fff; border:none; font:700 16px/1 -apple-system,sans-serif; cursor:pointer; }
-    .fb-start-btn:disabled { background:#e9e5dc; color:#8d877a; cursor:default; }
+    .fb-profile-section { display:flex; flex-direction:column; gap:8px; padding:12px 16px; border-bottom:1px solid #e9e5dc; background:#fafaf8; }
+    .fb-profile-label { font:600 11px/1 -apple-system,sans-serif; letter-spacing:.06em; text-transform:uppercase; color:#8d877a; margin-bottom:2px; }
 
     #fb-btn { position:fixed; bottom:88px; left:16px; z-index:8000; background:#d94626; color:#fff; border:none; border-radius:20px; padding:10px 16px; font:700 13px/1 -apple-system,sans-serif; cursor:pointer; box-shadow:0 4px 12px rgba(217,70,38,.4); }
     #fb-btn:active { opacity:.85; }

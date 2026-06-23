@@ -344,6 +344,7 @@ function onAppClick(e) {
   if (action === 'start-attendance') {
     s.today_practice = s.today_practice || createPractice();
     s.taking_attendance = true;
+    s.expandedId = null;
     log.info('attendance.start', { practice_id: s.today_practice.id });
     switchTab('roster');
     return;
@@ -351,7 +352,13 @@ function onAppClick(e) {
 
   if (action === 'end-practice') {
     if (!s.today_practice) return;
-    openModal(modalReflection(s.today_practice));
+    openModal(modalReflection(s.today_practice, { ending: true }));
+    return;
+  }
+
+  if (action === 'practice-notes') {
+    if (!s.today_practice) return;
+    openModal(modalReflection(s.today_practice, { ending: false }));
     return;
   }
 
@@ -372,6 +379,7 @@ function onAppClick(e) {
   if (action === 'start-new-practice') {
     s.today_practice = createPractice({ force: true });
     s.taking_attendance = true;
+    s.expandedId = null;
     log.info('practice.new', { practice_id: s.today_practice.id });
     switchTab('roster');
     return;
@@ -414,7 +422,7 @@ function onAppClick(e) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `attendance-${practiceDate}.json`;
+    a.download = `practice-report-${practiceDate}.json`;
     a.click();
     URL.revokeObjectURL(url);
     log.info('attendance.export', { practice_id: practiceId });
@@ -501,11 +509,12 @@ function onSheetClick(e) {
     const mood = moodRaw ? +moodRaw : null;
     const reflection = document.getElementById('inp-reflection')?.value.trim() || null;
     const incidents  = document.getElementById('inp-incidents')?.value.trim()  || null;
+    const ending  = document.getElementById('inp-ending')?.value === '1';
     const isEnded = s.today_practice?.status === 'ended';
     const fields = { reflection, mood, incidents };
-    if (!isEnded) fields.status = 'ended';
+    if (ending && !isEnded) fields.status = 'ended';
     s.today_practice = savePractice(practiceId, fields);
-    if (!isEnded) {
+    if (ending && !isEnded) {
       s.taking_attendance = false;
       log.info('practice.end', { practice_id: practiceId });
     }
@@ -804,6 +813,11 @@ document.getElementById('scrim').addEventListener('click', () => { stopCamera();
 window.__test_onQRDetected = onQRDetected;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+// Close any active practices from previous days (stale sessions)
+getPractices()
+  .filter(p => p.date < today() && p.status !== 'ended')
+  .forEach(p => { endPractice(p.id); log.info('practice.stale.closed', { practice_id: p.id }); });
+
 s.today_practice = findTodaysPractice();
 _generateSettingsQR();
 log.info('app.init', { people: getPeople().length, observations: getObservations().length });

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createPractice, findTodaysPractice, endPractice, savePractice,
-  getPractices, exportAll, importAll,
+  getPractices, exportAll, importAll, exportAttendance,
+  savePerson,
 } from '../../src/storage.js';
 
 beforeEach(() => {
@@ -94,6 +95,17 @@ describe('export/import round-trip with reflection fields', () => {
     const restored = practices.find(x => x.id === p.id);
     expect(restored.reflection).toBe('Imported reflection');
     expect(restored.mood).toBe(5);
+  });
+
+  it('exportAttendance includes reflection fields', () => {
+    const p = createPractice();
+    savePractice(p.id, { reflection: 'Great day', mood: 4, incidents: 'None' });
+    savePerson({ name: 'Rider A' });
+    const data = JSON.parse(exportAttendance(p.id));
+    expect(data.reflection).toBe('Great day');
+    expect(data.mood).toBe(4);
+    expect(data.incidents).toBe('None');
+    expect(data).toHaveProperty('attending');
   });
 
   it('backward-compatible: import of old export without reflection fields', () => {

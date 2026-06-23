@@ -36,7 +36,7 @@ def test_end_practice_opens_reflection_sheet(page: Page) -> None:
     start_practice(page)
     page.click('[data-a="exit-attendance"]')
     end_practice_via_tab(page)
-    expect(page.locator('#sheet')).to_contain_text('Practice Reflection')
+    expect(page.locator('#sheet')).to_contain_text('End Practice')
 
 
 def test_reflection_sheet_has_mood_selector(page: Page) -> None:
@@ -127,32 +127,32 @@ def test_normal_url_has_no_feedback_ui(page: Page) -> None:
     expect(page.locator('#fb-overlay')).to_have_count(0)
 
 
-def test_feedback_mode_shows_session_overlay(page: Page, base_url: str) -> None:
+def test_feedback_mode_shows_floating_button_immediately(page: Page, base_url: str) -> None:
+    """Feedback button appears as soon as ?feedback=true loads — no overlay gate."""
     page.goto(base_url + '?feedback=true')
-    # Wait for overlay
-    expect(page.locator('#fb-overlay')).to_be_visible(timeout=5000)
-    # Start button disabled until role selected
-    expect(page.locator('#fb-start')).to_be_disabled()
+    expect(page.locator('#fb-btn')).to_be_visible(timeout=5000)
+    # No overlay
+    expect(page.locator('#fb-overlay')).to_have_count(0)
 
 
-def test_feedback_session_requires_role(page: Page, base_url: str) -> None:
+def test_feedback_modal_shows_profile_fields_on_first_open(page: Page, base_url: str) -> None:
+    """First time opening modal shows inline name/league/role fields."""
     page.goto(base_url + '?feedback=true')
-    expect(page.locator('#fb-overlay')).to_be_visible(timeout=5000)
-    # Coach and Athlete role buttons present
+    page.click('#fb-btn', timeout=5000)
+    expect(page.locator('#fb-profile')).to_be_visible()
     expect(page.locator('.fb-role-btn[data-role="Coach"]')).to_be_visible()
     expect(page.locator('.fb-role-btn[data-role="Athlete"]')).to_be_visible()
 
 
-def test_feedback_selecting_role_enables_start(page: Page, base_url: str) -> None:
+def test_feedback_submit_disabled_without_role_and_content(page: Page, base_url: str) -> None:
     page.goto(base_url + '?feedback=true')
-    expect(page.locator('#fb-overlay')).to_be_visible(timeout=5000)
+    page.click('#fb-btn', timeout=5000)
+    expect(page.locator('#fb-submit')).to_be_disabled()
+
+
+def test_feedback_selecting_role_and_comment_enables_submit(page: Page, base_url: str) -> None:
+    page.goto(base_url + '?feedback=true')
+    page.click('#fb-btn', timeout=5000)
     page.click('.fb-role-btn[data-role="Coach"]')
-    expect(page.locator('#fb-start')).to_be_enabled()
-
-
-def test_feedback_mode_shows_floating_button_after_overlay(page: Page, base_url: str) -> None:
-    page.goto(base_url + '?feedback=true')
-    expect(page.locator('#fb-overlay')).to_be_visible(timeout=5000)
-    page.click('.fb-role-btn[data-role="Athlete"]')
-    page.click('#fb-start')
-    expect(page.locator('#fb-btn')).to_be_visible(timeout=3000)
+    page.fill('#fb-comment', 'Great tool!')
+    expect(page.locator('#fb-submit')).to_be_enabled()

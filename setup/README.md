@@ -60,6 +60,18 @@ Then commit, push, let CI deploy to GitHub Pages.
 - **Offline:** If the Sheets URL is unreachable, feedback is queued in `localStorage` under `mtb_pending_*` keys and flushed on the next successful connection.
 - **Images:** Drawings and screenshots are saved as PNGs in a "MTB Skills Feedback Images" folder in your Google Drive and linked in the sheet.
 
+## Where to find feedback responses
+
+After Step 4 is complete and people start submitting:
+
+1. Open your **Google Sheet** (the one you created in Step 1).
+2. Two sheets appear after the first submissions:
+   - **Feedback** — one row per submission: timestamp, page, role, name, league, comment, drawing/screenshot URLs
+   - **Engagement** — one row per engagement flush (every 15 events or every 60s): session ID, duration, event count, full events JSON
+3. Drawing and screenshot images are saved to a **"MTB Skills Feedback Images"** folder in your Google Drive. Each row in the Feedback sheet contains direct links to those files.
+
+At the conference, check the sheet on your phone or laptop — new rows appear within a few seconds of each submission.
+
 ## Troubleshooting
 
 - **"Script not found" error:** Re-deploy the web app — Apps Script URLs change on each deployment.
