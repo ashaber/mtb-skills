@@ -252,7 +252,7 @@ def test_attendance_export_downloads_file(page: Page) -> None:
     with page.expect_download() as dl_info:
         page.click('[data-a="export-attendance"]')
     dl = dl_info.value
-    assert dl.suggested_filename.startswith('attendance-')
+    assert dl.suggested_filename.startswith('practice-report-')
     assert dl.suggested_filename.endswith('.json')
     with open(dl.path()) as f:
         data = json.load(f)

@@ -13,11 +13,13 @@ import {
   getPhoto, savePhoto,
   getTeamSettings, saveTeamSettings,
   getRosterFilter, saveRosterFilter,
-  findTodaysPractice, createPractice, endPractice, reopenPractice,
+  findTodaysPractice, createPractice, endPractice, reopenPractice, savePractice,
   getPractices, toggleAttendance, getAttendance,
   exportAll, importAll, exportAttendance,
   gradeToCategory, categoryToGrade,
 } from './storage.js';
+
+const FEEDBACK_MODE = new URLSearchParams(location.search).has('feedback');
 import { SKILL_IDS } from './rubric.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import QRCode from 'qrcode';
@@ -26,7 +28,7 @@ import {
   viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
-  modalSettings,
+  modalSettings, modalReflection,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -43,6 +45,7 @@ const s = {
   taking_attendance: false,
   today_practice:  null,
   settingsQR:      null,
+  feedbackQR:      null,
 };
 
 // ── Camera / import state ─────────────────────────────────────────────────────
@@ -103,6 +106,8 @@ function draw() {
   document.getElementById('app').innerHTML = tabContent;
   drawTabBar();
   window.scrollTo(0, 0);
+  window._mtbState = s;
+  if (FEEDBACK_MODE) window.MTB_TRACK?.('page_view', { page: s.tab });
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -127,6 +132,9 @@ function _generateSettingsQR() {
   QRCode.toDataURL('https://ashaber.github.io/mtb-skills/', { width: 200, margin: 2 })
     .then(qr => { s.settingsQR = qr; if (s.tab === 'settings') draw(); })
     .catch(() => {});
+  QRCode.toDataURL('https://ashaber.github.io/mtb-skills/?feedback=true', { width: 200, margin: 2 })
+    .then(qr => { s.feedbackQR = qr; if (s.tab === 'settings') draw(); })
+    .catch(() => {});
 }
 
 // ── Log / Confirm helpers ─────────────────────────────────────────────────────
@@ -143,6 +151,7 @@ function logSession(athleteId) {
   });
 
   log.info('session.log', { athlete_id: athleteId, bp: d.body_position, brk: d.braking, crn: d.cornering });
+  window.MTB_TRACK?.('log_obs', { athlete_id: athleteId });
   flash(`${conf.body_position ? 'Observation' : 'Initial levels'} saved`);
   refreshCard();
 }
@@ -154,6 +163,7 @@ function confirmSession(athleteId) {
     setConfirmedLevel({ athlete_id: athleteId, skill: sk, level: d[sk] });
   });
   log.info('session.confirm', { athlete_id: athleteId });
+  window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId });
   flash('Confirmed levels updated');
   refreshCard();
 }
@@ -162,6 +172,7 @@ function confirmOneSkill(athleteId, skill, level) {
   setConfirmedLevel({ athlete_id: athleteId, skill, level });
   s.draft[athleteId] = { ...s.draft[athleteId], [skill]: level };
   log.info('skill.confirm', { athlete_id: athleteId, skill, level });
+  window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId, skill });
   flash(`${skill.replace('_', ' ')} confirmed at Lv ${level}`);
   refreshCard();
 }
@@ -336,6 +347,7 @@ function onAppClick(e) {
   if (action === 'start-attendance') {
     s.today_practice = s.today_practice || createPractice();
     s.taking_attendance = true;
+    s.expandedId = null;
     log.info('attendance.start', { practice_id: s.today_practice.id });
     switchTab('roster');
     return;
@@ -343,10 +355,19 @@ function onAppClick(e) {
 
   if (action === 'end-practice') {
     if (!s.today_practice) return;
-    s.today_practice = endPractice(s.today_practice.id);
-    s.taking_attendance = false;
-    log.info('practice.end', { practice_id: s.today_practice.id });
-    draw();
+    openModal(modalReflection(s.today_practice, { ending: true }));
+    return;
+  }
+
+  if (action === 'practice-notes') {
+    if (!s.today_practice) return;
+    openModal(modalReflection(s.today_practice, { ending: false }));
+    return;
+  }
+
+  if (action === 'view-reflection') {
+    if (!s.today_practice) return;
+    openModal(modalReflection(s.today_practice));
     return;
   }
 
@@ -361,6 +382,7 @@ function onAppClick(e) {
   if (action === 'start-new-practice') {
     s.today_practice = createPractice({ force: true });
     s.taking_attendance = true;
+    s.expandedId = null;
     log.info('practice.new', { practice_id: s.today_practice.id });
     switchTab('roster');
     return;
@@ -403,15 +425,17 @@ function onAppClick(e) {
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
-    a.download = `attendance-${practiceDate}.json`;
+    a.download = `practice-report-${practiceDate}.json`;
     a.click();
     URL.revokeObjectURL(url);
     log.info('attendance.export', { practice_id: practiceId });
+    window.MTB_TRACK?.('export', { type: 'attendance' });
     return;
   }
 
   if (action === 'export-data') {
     log.info('data.export');
+    window.MTB_TRACK?.('export', { type: 'data' });
     const blob = new Blob([exportAll()], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -470,6 +494,52 @@ function onSheetClick(e) {
     return;
   }
 
+  if (action === 'mood-select') {
+    const n = +el.dataset.n;
+    const hidden = document.getElementById('inp-mood');
+    if (hidden) {
+      const current = +hidden.value || 0;
+      hidden.value = (current === n) ? '' : n;
+    }
+    document.querySelectorAll('.mood-btn').forEach(btn => {
+      btn.classList.toggle('mood-btn--active', +btn.dataset.n === n && (+hidden?.value || 0) === n);
+    });
+    return;
+  }
+
+  if (action === 'save-reflection') {
+    const practiceId = document.getElementById('inp-practice-id')?.value;
+    if (!practiceId) return;
+    const moodRaw = document.getElementById('inp-mood')?.value;
+    const mood = moodRaw ? +moodRaw : null;
+    const reflection = document.getElementById('inp-reflection')?.value.trim() || null;
+    const incidents  = document.getElementById('inp-incidents')?.value.trim()  || null;
+    const ending  = document.getElementById('inp-ending')?.value === '1';
+    const isEnded = s.today_practice?.status === 'ended';
+    const fields = { reflection, mood, incidents };
+    if (ending && !isEnded) fields.status = 'ended';
+    s.today_practice = savePractice(practiceId, fields);
+    if (ending && !isEnded) {
+      s.taking_attendance = false;
+      log.info('practice.end', { practice_id: practiceId });
+    }
+    log.info('practice.reflection.save', { practice_id: practiceId });
+    closeModal();
+    draw();
+    return;
+  }
+
+  if (action === 'skip-end-practice') {
+    const practiceId = document.getElementById('inp-practice-id')?.value;
+    if (!practiceId) return;
+    s.today_practice = endPractice(practiceId);
+    s.taking_attendance = false;
+    log.info('practice.end.skip', { practice_id: practiceId });
+    closeModal();
+    draw();
+    return;
+  }
+
   if (action === 'coach-level-btn') {
     const n = el.dataset.n;
     document.getElementById('inp-coach-level').value = n;
@@ -507,6 +577,7 @@ function onSheetClick(e) {
       s.expandedId = p.id;
     }
     log.info(isEdit ? 'person.update' : 'person.add', { person_id: p.id, role });
+    if (!isEdit) window.MTB_TRACK?.('add_person', { role });
     closeModal();
     if (stackDepth() > 0) refreshCard(); else draw();
     return;
@@ -748,7 +819,15 @@ document.getElementById('scrim').addEventListener('click', () => { stopCamera();
 window.__test_onQRDetected = onQRDetected;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
+// Close any active practices from previous days (stale sessions)
+getPractices()
+  .filter(p => p.date < today() && p.status !== 'ended')
+  .forEach(p => { endPractice(p.id); log.info('practice.stale.closed', { practice_id: p.id }); });
+
 s.today_practice = findTodaysPractice();
 _generateSettingsQR();
 log.info('app.init', { people: getPeople().length, observations: getObservations().length });
 draw();
+if (FEEDBACK_MODE) {
+  import('./feedback.js').then(m => m.initFeedback());
+}

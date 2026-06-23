@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — MTB Skills Assessment</title>
+  <style>
+    :root {
+      --bg: #f4f2ec;
+      --surface: #ffffff;
+      --border: #e9e5dc;
+      --ink: #1c1b18;
+      --dim: #8d877a;
+      --accent: #d94626;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    .page { max-width: 680px; margin: 0 auto; padding: 40px 24px 80px; }
+    header { margin-bottom: 40px; padding-bottom: 24px; border-bottom: 2px solid var(--border); }
+    header h1 { font-size: 32px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 6px; }
+    header p { font-size: 15px; color: var(--dim); }
+    .back-link { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; margin-bottom: 24px; }
+    .back-link:hover { text-decoration: underline; }
+    section { margin-bottom: 36px; }
+    h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 15px; font-weight: 700; margin: 16px 0 6px; color: var(--ink); }
+    p { font-size: 14.5px; color: var(--dim); margin-bottom: 10px; }
+    p strong { color: var(--ink); }
+    ul { padding-left: 20px; margin-bottom: 10px; }
+    li { font-size: 14.5px; color: var(--dim); margin-bottom: 5px; }
+    li strong { color: var(--ink); }
+    .step-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+    .step-list li { display: flex; gap: 12px; align-items: flex-start; }
+    .step-n { min-width: 28px; height: 28px; border-radius: 8px; background: var(--surface); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; flex-shrink: 0; }
+    .faq-item { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
+    .faq-q { font-size: 14.5px; font-weight: 700; margin-bottom: 6px; color: var(--ink); }
+    .faq-a { font-size: 14px; color: var(--dim); }
+    .cta-box { background: var(--accent); color: #fff; border-radius: 16px; padding: 28px 24px; text-align: center; }
+    .cta-box h2 { border-bottom: none; padding-bottom: 0; color: #fff; font-size: 22px; margin-bottom: 10px; }
+    .cta-box p { color: rgba(255,255,255,.85); font-size: 15px; margin-bottom: 16px; }
+    .cta-box a { color: #fff; font-weight: 700; font-size: 15px; }
+    .phase-list { display: flex; flex-direction: column; gap: 8px; }
+    .phase-row { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; }
+    .phase-tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; background: var(--border); border-radius: 5px; padding: 3px 7px; flex-shrink: 0; color: var(--dim); margin-top: 1px; }
+    .phase-tag.done { background: #dcfce7; color: #16a34a; }
+    .phase-tag.active { background: #fef3c7; color: #b45309; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <a class="back-link" href="./index.html">← Back to app</a>
+
+    <header>
+      <h1>MTB Skills Assessment</h1>
+      <p>A coach-facing skill assessment tool for NICA mountain bike coaches.</p>
+    </header>
+
+    <section>
+      <h2>What this is</h2>
+      <p>This tool grew out of a collaboration between <strong>Andrew Shaber</strong> and <strong>Tim Curry</strong>, coaches in the Idaho NICA league. We wanted a structured, offline-first way to assess rider skills on trail — no paper, no cell service needed.</p>
+      <p>The rubric is based on Tim's field assessment cards, adapted for easy tap-to-score use on a phone during a ride. Every observation is timestamped, every confirmed level is explicit — and trail readiness is computed automatically from the rubric minimums.</p>
+      <p>It's free, open source, and works entirely in your browser — <strong>no account, no backend, no subscription</strong>.</p>
+    </section>
+
+    <section>
+      <h2>How assessment works</h2>
+      <ul class="step-list">
+        <li><span class="step-n">1</span><div><strong>Observe</strong> — watch a rider and tap the level that matches what you see. The app logs the observation with a timestamp.</div></li>
+        <li><span class="step-n">2</span><div><strong>Confirm</strong> — once behavior is consistent, set their confirmed level. Confirmed levels are coach judgment, not auto-promoted from observations.</div></li>
+        <li><span class="step-n">3</span><div><strong>Trail ready</strong> — trail readiness is computed from confirmed levels against the rubric minimums for Green, Blue, Black, and Double Black terrain.</div></li>
+      </ul>
+      <p>Three skills are assessed: <strong>Body Position</strong>, <strong>Braking</strong>, and <strong>Cornering</strong>. Each is scored 1–5 on a rubric developed from real coaching observations.</p>
+    </section>
+
+    <section>
+      <h2>Roadmap</h2>
+      <div class="phase-list">
+        <div class="phase-row"><span class="phase-tag done">Done</span><div><strong>Phase 1:</strong> Roster, skill observation &amp; confirmation, trail readiness, athlete trading cards, practice attendance, JSON export/import.</div></div>
+        <div class="phase-row"><span class="phase-tag done">Done</span><div><strong>Phase 2:</strong> Three-tier navigation UX rebuild (tabs → drill-in cards → sheets), swipe gestures.</div></div>
+        <div class="phase-row"><span class="phase-tag active">Now</span><div><strong>Conference Sprint:</strong> Practice reflection, feedback collection, about page.</div></div>
+        <div class="phase-row"><span class="phase-tag">Next</span><div><strong>Phase 2c:</strong> PWA install, service worker for full offline capability.</div></div>
+        <div class="phase-row"><span class="phase-tag">Planned</span><div><strong>Phase 3:</strong> Multi-coach / multi-device sync, team management.</div></div>
+        <div class="phase-row"><span class="phase-tag">Planned</span><div><strong>Phase 4:</strong> Cloud backend (FastAPI + GCP), league-wide analytics.</div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>FAQ</h2>
+
+      <div class="faq-item">
+        <div class="faq-q">Does it work without internet?</div>
+        <div class="faq-a">Yes, fully. Once you've loaded the app, it runs entirely in your browser from cached files. Open it before you leave the trailhead. All data is stored in localStorage on your device.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Where is the data stored?</div>
+        <div class="faq-a">Everything stays on your device in browser localStorage. Nothing is sent to a server. Export JSON from Settings to back up your data or move it to another device.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Can multiple coaches share data?</div>
+        <div class="faq-a">Right now, data lives on each device separately. You can share individual athlete cards by QR code (athlete card → share). Full multi-coach sync is on the roadmap for Phase 3.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">What does each skill level mean?</div>
+        <div class="faq-a">Open the Field Guide tab in the app for the full rubric — all 5 levels for Body Position, Braking, and Cornering with dimensions, failure modes, and video links.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Is this specific to Idaho NICA?</div>
+        <div class="faq-a">The rubric came from Idaho, but the tool works for any NICA league or MTB coaching program. The trail minimums follow standard NICA trail difficulty conventions.</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="cta-box">
+        <h2>Want this for your team or league?</h2>
+        <p>We're happy to talk about customizing the rubric, adding your league's branding, or building out Phase 3 multi-coach sync.</p>
+        <a href="mailto:andrewshaber@gmail.com">andrewshaber@gmail.com</a>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

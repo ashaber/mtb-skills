@@ -335,6 +335,15 @@ export function reopenPractice(id) {
   return all[idx];
 }
 
+export function savePractice(id, fields) {
+  const all = load(KEYS.practices);
+  const idx = all.findIndex(p => p.id === id);
+  if (idx === -1) return null;
+  all[idx] = { ...all[idx], ...fields };
+  save(KEYS.practices, all);
+  return all[idx];
+}
+
 export function getPractices() {
   return load(KEYS.practices);
 }
@@ -469,6 +478,9 @@ export function exportAttendance(practiceId) {
   return JSON.stringify({
     practice_date: practice?.date ?? today(),
     exported_at:   new Date().toISOString(),
+    mood:          practice?.mood          ?? null,
+    reflection:    practice?.reflection    ?? null,
+    incidents:     practice?.incidents     ?? null,
     attending: people.map(p => {
       const parts = (p.name || '').trim().split(/\s+/);
       const first = parts[0] ?? '';

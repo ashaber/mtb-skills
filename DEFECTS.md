@@ -93,3 +93,16 @@ makes gestures possible but did not implement the gesture detection.
   tapping the row body (expand/open card). Deferred to next sprint — the "swipe left
   to open full card" is a secondary gesture with collision risk against horizontal scroll.
   The right-swipe back is higher value and lower risk; shipping that first.
+
+
+## D6 — Conference sprint defects
+
+**Status:** Fixed
+
+- **QR:** Single QR only, points to `?feedback=true`. Removed plain app URL QR.
+- **About text:** Reauthored to "Developed with Tim Curry for NICA MTB coaches. Works fully offline — no account required."
+- **Attendance mode collapse:** All expanded roster rows collapse when entering attendance mode (`s.expandedId = null` on `start-attendance` and `start-new-practice`).
+- **Practice tab clarity:** Active practice card now shows "● IN SESSION" badge; button is "Take Attendance" on first take, "Update Attendance" after. "Practice Notes" button lets coaches record reflection mid-practice without ending. Stale active practices from previous days are auto-ended on app boot.
+- **Practice export:** Attendance export now includes `reflection`, `mood`, `incidents` fields. Renamed to `practice-report-{date}.json`.
+- **Feedback UX:** No overlay on app load. Feedback button appears immediately. On first modal open, name/league/role fields are shown inline; role required to submit.
+- **setup/README.md:** Added "Where to find feedback responses" section explaining the Google Sheet tabs and Drive folder.

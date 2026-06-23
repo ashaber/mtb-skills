@@ -114,198 +114,148 @@ The navigation, routing, and all view-transition code follows a three-tier model
 
 ---
 
-## Sprint 1e — Deferred UX (current branch: phase1/deferred-ux)
+## Conference Sprint — Feedback & Engagement (branch: phase1/conference-feedback)
 
-**Scope:** Single-click level recording, app QR sharing in Settings, About section. Fixes rider photo thumbnail display bug.
+**Goal:** Collect structured feedback and usage data at NICA national conference. Three deliverables: (1) About page additions + standalone `public/about.html`, (2) practice closing reflection flow, (3) feedback/engagement tracking activated by `?feedback=true` URL param.
 
-### Single-click level recording
-- Tapping any level pill in the roster row expand panel immediately records an observation for that skill
-- If the skill has no confirmed level yet, also auto-confirms at that level (first-observation shortcut)
-- Flash toast confirms: "body position Lv 3 recorded"
-- "Log Observation" / "Set Initial Levels" button removed from inline expand panel
-- "Open full rider card →" button retained for history, trail readiness, and explicit confirm flow
-- Full card view unchanged: draft → explicit "Update Confirmed" button
-
-### Settings enhancements
-- **QR code**: opens on Settings; QR encodes `https://ashaber.github.io/mtb-skills/` for easy app sharing to other devices
-- **About section**: brief explanation of observe → confirm → trail ready flow; attribution to Tim Curry; offline note
-
-### Bug fix: rider photo thumbnail
-- `img.mono-photo` was invisible on roster due to `height:100%` not resolving in a `flex; align-items:center` button on iOS Safari
-- Fix: added `overflow:hidden; padding:0` to `.mono-btn`; changed `.mono-photo` to explicit `50px×50px`
-- `savePhoto` now catches `QuotaExceededError` and returns `false`; caller flashes "Photo too large"
+**Source reference:** Port feedback/engagement from `https://github.com/HealthProf/mtb_skill_concept` — `prototype/feedback.jsx` and `setup/google-apps-script.js`. Logic is complete; rewrite from React JSX to vanilla JS DOM.
 
 ---
 
-## Conference Sprint — Feedback & Engagement (branch: phase1/conference-feedback)
+### Deliverable 1 — About page
 
-**Goal:** Collect structured feedback and usage data at NICA national conference. Activated only when `?feedback=true` is in the URL — zero impact on normal coach use.
+**In-app About section** (Settings tab, already exists from Sprint 1e) gets these additions:
+- "Learn more →" link that opens `public/about.html` in a new tab
+- Contact CTA: "Want this for your whole team or league? Reach out — andrewshaber@gmail.com"
 
-**Source reference:** Port from `https://github.com/HealthProf/mtb_skill_concept` — `prototype/feedback.jsx` (feedback modal + engagement tracker) and `setup/google-apps-script.js` (Sheets backend). Logic is complete; needs rewriting from React JSX to vanilla JS DOM to match this app's pattern.
+**Extended about page (`public/about.html`):**
+- Lives at `public/about.html` — Vite copies `public/` to `dist/` verbatim, no build change needed
+- Served at `https://ashaber.github.io/mtb-skills/about.html`
+- Editable on GitHub.com (pencil → commit → deploys in ~60s) — suitable for live FAQ updates at conference
+- Standalone CSS in `<style>` tag — no dependency on app bundle
+- Content sections:
+  - What this is and why it exists (rubric origin, Tim + Andrew collaboration)
+  - How assessment works (observe → confirm → trail readiness)
+  - Roadmap highlights (headline phases only, not full ROADMAP.md)
+  - FAQ (add entries at conference via GitHub.com mobile edit)
+  - Team / league use CTA — andrewshaber@gmail.com
 
-### Architecture
+---
 
-**Feedback mode activation:**
+### Deliverable 2 — Practice Reflection (merged from Sprint 1f)
+
+**Scope:** End-of-practice closing flow — reflection notes, mood rating, and incident log recorded against the practice record.
+
+**Data model:** Three new optional fields on `Practice` entity:
+
+```json
+{
+  "id":         "uuid",
+  "team_id":    "uuid",
+  "coach_id":   "uuid",
+  "date":       "YYYY-MM-DD",
+  "status":     "active | ended",
+  "reflection": "string | null",
+  "mood":       "1 | 2 | 3 | 4 | 5 | null",
+  "incidents":  "string | null"
+}
+```
+
+- `mood` scale: 1 = 😞 2 = 🙁 3 = 😐 4 = 🙂 5 = 😊 — stored as integer, rendered as emoji
+- All three fields optional — closing reflection never blocks ending a practice
+- Export includes all three; import shim sets to `null` if absent (backward compatible)
+
+**UX:** "End Practice" on the Practice tab opens a Tier 3 sheet with:
+1. **How was practice?** — 5-button mood selector, tap to select/deselect
+2. **Reflection** — textarea, placeholder: "What went well? What would you change?"
+3. **Issues or incidents** — textarea, placeholder: "Any incidents, injuries, or safety concerns to note"
+4. **Save & close** — writes fields to practice record, sets `status: 'ended'`, dismisses sheet
+5. **Skip** — ends practice without saving reflection (fields remain null)
+
+Saved reflection viewable by tapping "View / edit reflection" on ended practice card.
+
+---
+
+### Deliverable 3 — Feedback & Engagement tracking
+
+**Activation:**
 ```javascript
 const FEEDBACK_MODE = new URLSearchParams(location.search).has('feedback');
 ```
-All feedback UI — floating button, session overlay, engagement tracking — only initializes when `FEEDBACK_MODE === true`. Normal app is completely unaffected.
+All feedback UI initializes only when `FEEDBACK_MODE === true`. Normal app is completely unaffected.
 
-**QR code in Settings** points to `https://ashaber.github.io/mtb-skills/?feedback=true` — the conference share URL. (QR also ships in Sprint 1e for general app sharing; conference sprint extends it with the `?feedback=true` variant.)
+**QR code in Settings:** The existing Settings QR (shipped Sprint 1e, uses `qrcode` npm package) adds a second QR labeled "Conference feedback mode" pointing to `https://ashaber.github.io/mtb-skills/?feedback=true`. No package change needed.
 
 ### New file: `src/feedback.js`
 
-Self-contained ES module. Exports one function: `initFeedback()`. Called from `main.js` boot only when `FEEDBACK_MODE` is true. Contains:
+Self-contained ES module. Exports one function: `initFeedback()`. Called from `main.js` boot only when `FEEDBACK_MODE` is true.
 
 **1. Engagement tracker** (port from `_eng` in feedback.jsx)
 - `sessionId` = `'sess_' + Date.now()`
 - `record(type, props)` — appends to in-memory event array, flushes at 15 events
 - `flush()` — POSTs to Sheets or queues to localStorage if offline/URL not set
 - Auto-flush: `setInterval(flush, 60000)` + `window.addEventListener('beforeunload', flush)`
-- Offline queue: store as `mtb_pending_<timestamp>` localStorage keys (mirrors Tim's `rl_pending_` pattern, renamed for this app)
+- Offline queue: store as `mtb_pending_<timestamp>` localStorage keys
 - Expose `window.MTB_TRACK = trackEvent` so `main.js` can call it for page views and actions
 
 **2. Session start overlay** (shown once on first feedback-mode load per browser session)
-- Fields: Name (optional), NICA League (optional), Team (optional), Role (Coach / Athlete / Other / Skip)
-- Persisted to `sessionStorage` — survives page reload within same tab, cleared on tab close
-- "Start exploring →" dismisses and shows app normally
+- Fields: Name (optional), NICA League (optional), Team (optional), Role (Coach / Athlete — required)
+- Persisted to `sessionStorage` — survives page reload within tab, cleared on tab close
+- "Start exploring →" dismisses and shows app normally; button disabled until role selected
 
 **3. Feedback button + modal** (port from FeedbackButton + FeedbackModal in feedback.jsx)
 - Floating button: bottom-left, `💬 Feedback` label, z-index above all app chrome
-- On click: capture screenshot via `html2canvas`, open modal (graceful fallback if html2canvas fails — show blank canvas)
+- On click: capture screenshot via `html2canvas` (dynamic import — ~620KB lazy chunk, only loads on first modal open in feedback mode, zero impact on normal users), graceful fallback to blank canvas if it fails
 - Modal contains:
-  - Page label (current view + context, e.g. "Athlete card")
-  - Drawing canvas with pen + circle tools, color picker, undo, clear (port canvas logic from `useDrawingCanvas` hook — rewrite as imperative DOM)
+  - Page label (current view, read from `window._mtbState.tab`)
+  - Drawing canvas with pen + circle tools, color picker, undo, clear
   - Text comment input
-  - Submit button (disabled until comment or drawing is present)
-  - Cancel with discard confirm if content exists
-- On submit: POST to Sheets (or queue if offline), show "✓ Feedback sent!", auto-close after 1.6s
-- No nav guard — low friction, submit when ready
+  - Submit (disabled until comment or drawing present); Cancel with discard confirm if content exists
+- On submit: POST to Sheets or queue if offline; show "✓ Feedback sent!", auto-close after 1.6s
 
 **4. Page identity**
-`main.js` sets `window._mtbState = s` after each `draw()` call. `feedback.js` reads `window._mtbState` to label the current page at screenshot time.
+`main.js` sets `window._mtbState = s` after each `draw()` call. `feedback.js` reads `window._mtbState.tab` to label the current page at screenshot time.
 
-`main.js` also calls `window.MTB_TRACK?.('page_view', { page: s.view })` after each `draw()` when feedback mode is active.
+`main.js` calls `window.MTB_TRACK?.('page_view', { page: s.tab })` after each `draw()` when `FEEDBACK_MODE` is true.
 
 ### Google Apps Script backend
 
-Copy `setup/google-apps-script.js` from Tim's repo verbatim. No changes needed — it handles both `feedback` and `engagement` payload types, saves images to Drive, creates sheets on first run.
+Copy `setup/google-apps-script.js` from Tim's repo verbatim. Handles both `feedback` and `engagement` payload types, saves images to Drive, creates sheets on first run.
 
-**Setup steps (one-time, documented in `setup/README.md`):**
+**Setup steps (one-time, in `setup/README.md`):**
 1. Create Google Sheet → Extensions → Apps Script → paste script → set `SHEET_ID`
 2. Deploy as web app (Execute as: Me, Access: Anyone)
-3. Hardcode URL as `window.MTB_SHEETS_URL` in a `<script>` tag in `index.html` before conference (or set via `localStorage.setItem('mtb_sheets_url', '...')` in DevTools)
+3. Set URL as `window.MTB_SHEETS_URL` via `<script>` tag in `index.html` before conference (or `localStorage.setItem('mtb_sheets_url', '...')` in DevTools)
 
 Sheet columns — Feedback: Timestamp, Date, Page, Role, User Name, NICA League, Team, Comment, Has Drawing, Drawing URL, Screenshot URL
 Sheet columns — Engagement: Timestamp, Session ID, Session Start, Duration(s), User Name, NICA League, Team, Event Count, Events JSON
 
-### QR code in Settings
-
-Use `qrcode-svg` npm package — generates an SVG string inline, no canvas required, zero runtime overhead for non-feedback users. Dynamic import so it only loads when Settings opens:
-```javascript
-const { default: QRCode } = await import('qrcode-svg');
-```
-QR renders in Settings below coach name. Label: "Share app · scan to open". The `?feedback=true` variant is a second QR labeled "Conference feedback mode".
-
 ### Offline safety
-
 - All Sheets POSTs use `fetch(...).catch(() => queue())` — never throws, never blocks
-- Pending queue flushed opportunistically on each `flush()` call
-- **Feedback and engagement tracking never block any app operation** — all async, all silent on failure
-
-### html2canvas
-
-Add as npm dependency: `npm install html2canvas`. Dynamic import inside feedback modal open handler:
-```javascript
-const html2canvas = await import('html2canvas').then(m => m.default);
-```
-Keeps it out of the main bundle for normal app loads.
-
-### Sprint DOD
-- [ ] `src/feedback.js` created; `initFeedback()` only called when `?feedback=true` present
-- [ ] Normal app URL has zero feedback code loaded or executed
-- [ ] Session overlay shown on first feedback-mode load, role required (other fields optional)
-- [ ] Floating feedback button visible on all views in feedback mode
-- [ ] Screenshot captured (or graceful fallback to blank canvas), drawing canvas works (pen + circle)
-- [ ] Submit posts to Sheets or queues offline — never blocks app
-- [ ] Engagement events tracked: `page_view`, `add_person`, `log_obs`, `confirm_level`, `export`
-- [ ] `setup/google-apps-script.js` copied from Tim's repo; `setup/README.md` documents Sheets setup
-- [ ] QR code in Settings shows both app URL and `?feedback=true` URL
-- [ ] Playwright: feedback mode loads session overlay; submit flow completes; normal URL shows no feedback UI
+- **Feedback and engagement never block any app operation** — all async, all silent on failure
 
 ---
 
-## Sprint 1d — People & Practice Roster (merged: phase1/practice-roster)
+### Sprint DOD
+- [ ] `public/about.html` created; Settings About section has "Learn more →" link and contact CTA
+- [ ] `Practice` schema updated with `reflection`, `mood`, `incidents` fields
+- [ ] `savePractice()` in `storage.js` handles partial update (merge, not overwrite)
+- [ ] End Practice opens reflection sheet; Save & close writes fields + sets status ended; Skip ends without saving
+- [ ] Reflection viewable/editable from ended practice card
+- [ ] JSON export includes reflection fields; import backward-compatible
+- [ ] `src/feedback.js` created; `initFeedback()` only called when `?feedback=true` present
+- [ ] Normal app URL has zero feedback code loaded or executed
+- [ ] Session overlay shown on first feedback-mode load; role (Coach/Athlete) required
+- [ ] Floating `💬 Feedback` button visible on all views in feedback mode
+- [ ] Screenshot captured (or graceful fallback), drawing canvas works (pen + circle)
+- [ ] Submit posts to Sheets or queues offline — never blocks app
+- [ ] Engagement events tracked: `page_view`, `add_person`, `log_obs`, `confirm_level`, `export`
+- [ ] `setup/google-apps-script.js` copied; `setup/README.md` documents Sheets setup steps
+- [ ] Settings shows second QR for `?feedback=true` URL
+- [ ] Vitest: savePractice merge, mood range, export/import round-trip
+- [ ] Playwright: reflection flow persists; feedback mode shows overlay; normal URL shows no feedback UI
 
-**Scope (this PR):** Schema migration + roster filter + practice attendance.
-**Deferred to next PR:** QR sharing, kill switch, swipe UX, single-click observation.
-
-### Schema migration: Athlete → Person
-
-Rename the concept from `Athlete` to `Person`. Storage key `mtb_athletes` preserved for backward compatibility.
-
-**Person schema (v2):**
-```json
-{
-  "id":       "uuid",
-  "team_id":  "uuid",
-  "name":     "string",
-  "role":     "athlete | coach",
-  "category": "5th | 6th | 7th | 8th | MS Advanced | Freshman | JV2 | JV1 | Varsity | null",
-  "grade":    "integer | null",
-  "level":    "integer | null"
-}
-```
-
-- Athletes: `category` is the primary field (coach picks from dropdown). Grade is derived:
-  - 5th→5, 6th→6, 7th→7, 8th→8, Freshman→9, JV2→10, JV1→11, Varsity→12, MS Advanced→null (7th or 8th, not defaulted)
-- Coaches: `level` is NICA certification — 1 (sweep/front), 2 (full coach, can lead pod), 3 (can run a practice). `category` and `grade` are null.
-- `getAthletes()` → `getPeople()`, optional `{ role }` filter
-- `saveAthlete()` → `savePerson()`, defaults `role: 'athlete'`
-- Export `schema_version` bumps 1 → 2; import shim maps v1 athletes with `role: 'athlete'`
-- `coach_id` on Observation/ConfirmedLevel is the *device's assessing coach*, not a Person record — do not conflate
-
-### Roster filter: All · Athletes · Coaches
-
-- Filter chips at top of roster: All · Athletes · Coaches
-- `s.roster_filter` persisted in localStorage
-- "Add person" FAB defaults role based on active filter (Coaches filter → role=coach, Athletes → role=athlete, All → defaults athlete)
-- Athlete rows show category (e.g. "JV1"); coach rows show NICA level (e.g. "L2")
-
-### Practice roster & attendance
-
-New `Practice` and `PracticeAttendance` entities stored in localStorage.
-
-**Practice:**
-```json
-{ "id": "uuid", "team_id": "uuid", "coach_id": "uuid", "date": "YYYY-MM-DD" }
-```
-
-**PracticeAttendance:**
-```json
-{ "id": "uuid", "practice_id": "uuid", "person_id": "uuid", "status": "attending | absent", "ts": "ISO8601" }
-```
-### Additional small features
-- Today's practice auto-created on app open (keyed by date — only one per day)
-- **"Start Attendance" global button** enters attendance mode; tapping a person row toggles attending/absent
-- Clicking "Start Attendance" again on same date resumes (supports late arrivals)
-- After attendance session: attending riders sort to top, non-attending to bottom
-- Can toggle back to absent (for mistakes or if rider is traded to different group)
-- Coaches visible in the roster when filter is All or Coaches
-- "Add person" during attendance mode → creates full Person record immediately (same flow as normal add)
-- **Export attendance**: downloads JSON list of attending people (name, role, category/level) for the current practice date
-
-**Assessment model (unchanged):**
-- Raw observations are immutable append-only
-- Confirmed level is separate — coach judgment, not auto-promoted
-- Trail readiness computed client-side from confirmed levels + `TRAIL_MINIMUMS`
-
-### Deferred to phase1/deferred-ux
-- App sharing: QR code in Settings ✅ shipped
-- About section in Settings ✅ shipped
-- Single-click level recording ✅ shipped
-- Swipe left to open full athlete card; swipe right to return to roster (deferred — complex gesture, deprioritized)
-- Kill switch (dropped — no clear use case defined)
+---
 
 ## Build Guidelines
 
