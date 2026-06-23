@@ -336,7 +336,7 @@ function _post(payload) {
   if (!url) { _queue(payload); return; }
   fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(payload),
   }).catch(() => _queue(payload));
   _drainQueue(url);
@@ -352,7 +352,7 @@ function _drainQueue(url) {
     .forEach(k => {
       try {
         const p = JSON.parse(localStorage.getItem(k));
-        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) })
+        fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(p) })
           .then(() => localStorage.removeItem(k))
           .catch(() => {});
       } catch { /* ignore */ }
