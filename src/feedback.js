@@ -81,33 +81,35 @@ function _openFeedbackModal() {
         <span class="fb-modal-title">Feedback — <span id="fb-page-label"></span></span>
         <button class="fb-close" id="fb-close">✕</button>
       </div>
-      ${needsProfile ? `
-      <div class="fb-profile-section" id="fb-profile">
-        <p class="fb-profile-label">Tell us about yourself (optional except role)</p>
-        <input class="fb-input" id="fb-name" type="text" placeholder="Your name (optional)" autocomplete="name">
-        <input class="fb-input" id="fb-league" type="text" placeholder="NICA League (optional)">
-        <div class="fb-role-row">
-          <button class="fb-role-btn" data-role="Coach">Coach</button>
-          <button class="fb-role-btn" data-role="Athlete">Athlete</button>
-        </div>
-        <input type="hidden" id="fb-role">
-      </div>` : ''}
-      <div class="fb-canvas-wrap">
-        <canvas id="fb-canvas"></canvas>
-        <div class="fb-canvas-tools">
-          <button class="fb-tool fb-tool--active" id="fb-pen" title="Pen">✏️</button>
-          <button class="fb-tool" id="fb-circle" title="Circle">⭕</button>
-          <div class="fb-colors">
-            ${['#d94626','#2563eb','#16a34a','#000000'].map(c =>
-              `<button class="fb-color${c === '#d94626' ? ' fb-color--active' : ''}" style="background:${c}" data-color="${c}"></button>`
-            ).join('')}
+      <div class="fb-modal-scroll">
+        ${needsProfile ? `
+        <div class="fb-profile-section" id="fb-profile">
+          <p class="fb-profile-label">Tell us about yourself (optional except role)</p>
+          <input class="fb-input" id="fb-name" type="text" placeholder="Your name (optional)" autocomplete="name">
+          <input class="fb-input" id="fb-league" type="text" placeholder="NICA League (optional)">
+          <div class="fb-role-row">
+            <button class="fb-role-btn" data-role="Coach">Coach</button>
+            <button class="fb-role-btn" data-role="Athlete">Athlete</button>
           </div>
-          <button class="fb-tool" id="fb-undo" title="Undo">↩</button>
-          <button class="fb-tool" id="fb-clear" title="Clear">🗑</button>
+          <input type="hidden" id="fb-role">
+        </div>` : ''}
+        <div class="fb-canvas-wrap">
+          <canvas id="fb-canvas"></canvas>
+          <div class="fb-canvas-tools">
+            <button class="fb-tool fb-tool--active" id="fb-pen" title="Pen">✏️</button>
+            <button class="fb-tool" id="fb-circle" title="Circle">⭕</button>
+            <div class="fb-colors">
+              ${['#d94626','#2563eb','#16a34a','#000000'].map(c =>
+                `<button class="fb-color${c === '#d94626' ? ' fb-color--active' : ''}" style="background:${c}" data-color="${c}"></button>`
+              ).join('')}
+            </div>
+            <button class="fb-tool" id="fb-undo" title="Undo">↩</button>
+            <button class="fb-tool" id="fb-clear" title="Clear">🗑</button>
+          </div>
         </div>
-      </div>
-      <div class="fb-modal-body">
-        <textarea class="fb-comment" id="fb-comment" placeholder="What do you think? What's confusing? What's missing?" rows="3"></textarea>
+        <div class="fb-modal-body">
+          <textarea class="fb-comment" id="fb-comment" placeholder="What do you think? What's confusing? What's missing?" rows="3"></textarea>
+        </div>
       </div>
       <div class="fb-modal-foot">
         <button class="fb-submit" id="fb-submit" disabled>Submit feedback</button>
@@ -389,7 +391,8 @@ function _injectCSS() {
     .fb-colors { display:flex; gap:5px; }
     .fb-color { width:24px; height:24px; border-radius:50%; border:2px solid transparent; cursor:pointer; }
     .fb-color--active { border-color:#1c1b18; }
-    .fb-modal-body { padding:12px 16px; flex:1; min-height:0; }
+    .fb-modal-scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+    .fb-modal-body { padding:12px 16px; }
     .fb-comment { width:100%; padding:12px 14px; border:2px solid #e9e5dc; border-radius:10px; font:400 14px/1.5 -apple-system,sans-serif; resize:none; }
     .fb-comment:focus { outline:none; border-color:#d94626; }
     .fb-modal-foot { padding:12px 16px 24px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
