@@ -5,10 +5,12 @@
  *   type: 'feedback'   → logs to "Feedback" sheet, saves drawings/screenshots to Drive
  *   type: 'engagement' → logs to "Engagement" sheet
  *
- * Setup: see README.md in this directory.
+ * Setup: create this script from INSIDE the Google Sheet
+ *   (Extensions → Apps Script), not as a standalone script.
+ *   This keeps permissions scoped to just this spreadsheet + files
+ *   the script creates. See README.md for full setup steps.
  */
 
-const SHEET_ID = 'REPLACE_WITH_YOUR_SHEET_ID';
 const DRIVE_FOLDER_NAME = 'MTB Skills Feedback Images';
 
 function doPost(e) {
@@ -32,7 +34,7 @@ function doGet(e) {
 // ── Feedback handler ──────────────────────────────────────────────────────────
 
 function _handleFeedback(p) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = _getOrCreateSheet(ss, 'Feedback', [
     'Timestamp', 'Date', 'Page', 'Role', 'User Name', 'NICA League', 'Team',
     'Comment', 'Has Drawing', 'Drawing URL', 'Screenshot URL',
@@ -60,7 +62,7 @@ function _handleFeedback(p) {
 // ── Engagement handler ────────────────────────────────────────────────────────
 
 function _handleEngagement(p) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = _getOrCreateSheet(ss, 'Engagement', [
     'Timestamp', 'Session ID', 'Session Start', 'Duration(s)',
     'User Name', 'NICA League', 'Team', 'Event Count', 'Events JSON',
@@ -92,8 +94,14 @@ function _getOrCreateSheet(ss, name, headers) {
 }
 
 function _getOrCreateFolder() {
-  const folders = DriveApp.getFoldersByName(DRIVE_FOLDER_NAME);
-  return folders.hasNext() ? folders.next() : DriveApp.createFolder(DRIVE_FOLDER_NAME);
+  const props = PropertiesService.getScriptProperties();
+  const cached = props.getProperty('DRIVE_FOLDER_ID');
+  if (cached) {
+    try { return DriveApp.getFolderById(cached); } catch (e) {}
+  }
+  const folder = DriveApp.createFolder(DRIVE_FOLDER_NAME);
+  props.setProperty('DRIVE_FOLDER_ID', folder.getId());
+  return folder;
 }
 
 function _saveImage(folder, dataUrl, filename) {

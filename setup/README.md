@@ -6,16 +6,17 @@ One-time setup before the conference. Takes about 10 minutes.
 
 1. Go to [Google Sheets](https://sheets.google.com) and create a new blank spreadsheet.
 2. Name it "MTB Skills Conference Feedback".
-3. Copy the Sheet ID from the URL:  
-   `https://docs.google.com/spreadsheets/d/`**`<SHEET_ID>`**`/edit`
 
 ## Step 2 — Create the Apps Script
 
 1. In the spreadsheet, click **Extensions → Apps Script**.
 2. Delete the default `myFunction` code.
 3. Paste the contents of `setup/google-apps-script.js` from this repo.
-4. Replace `REPLACE_WITH_YOUR_SHEET_ID` on line 13 with the Sheet ID from Step 1.
-5. Click **Save** (Ctrl+S / Cmd+S).
+4. Click **Save** (Ctrl+S / Cmd+S).
+
+> **Important:** Create the script from *inside* the spreadsheet (Extensions → Apps Script),
+> not as a standalone script. This keeps OAuth permissions scoped to just this spreadsheet
+> and files the script creates — no broad Drive/Sheets access required.
 
 ## Step 3 — Deploy as a web app
 
