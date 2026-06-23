@@ -241,3 +241,36 @@ TRAIL READY
 - [ ] PR description references DOD items
 
 ---
+
+## Sprint 1d — People & Practice Roster
+
+**Merged:** 2026-06-21 (PR #7)
+**Branch:** `phase1/practice-roster`
+
+Schema migration Athlete → Person (v2 schema, role field, backward-compat storage key). Roster filter chips (All · Athletes · Coaches). Practice and PracticeAttendance entities in localStorage. Attendance mode on roster (toggle per row, attending sorts to top, export JSON). Coach records with NICA level. Today's practice auto-created on open. "Start Attendance" global button.
+
+**Deferred to 1e:** QR sharing, single-click observation, swipe gestures, kill switch (dropped).
+
+---
+
+## Sprint 1e — Deferred UX
+
+**Merged:** 2026-06-22 (PR #8)
+**Branch:** `phase1/deferred-ux`
+
+Single-click level recording from roster inline expand (tap pill → immediate observation + auto-confirm if first). Settings QR code (encodes app URL). About section in Settings (observe → confirm → trail ready flow, Tim Curry attribution, offline note, contact CTA). Rider photo thumbnail bug fixed (iOS Safari height:100% issue). savePhoto QuotaExceededError handling.
+
+**QR code shipped:** `qrcode` npm package, generates dataURL, rendered in Settings. URL updated to `?feedback=true` variant in Conference Sprint.
+
+---
+
+## Phase 2 — Three-Tier Navigation UX Rebuild + Defect Fixes
+
+**Merged:** 2026-06-22 (PR #9 + PR #10)
+**Branch:** `phase2/ux-rebuild` → `phase2/defect-fixes`
+
+Three-tier nav system (Tabs → Drill-in layers → Sheets), `src/nav.js` pushLayer/pushSheet/pop, `src/components.css` ship-ready CSS, drill-in rider card, rubric sheet from card, all modals as sheets. Swipe right to pop drill-in layer.
+
+Defect fixes (PR #10): removed FAB (D1/D2), stripped wrong buttons from roster header (D3), practice flow rebuilt as coach-initiated with explicit Start/End/Reopen states and practice history (D4), swipe right gesture implemented (D5). +Add rendered as btn-primary. Demo mode toggle (multiple practices per day). e2e test suite aligned with CI (`tests/e2e/` full run).
+
+---
