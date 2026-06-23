@@ -338,6 +338,7 @@ function _post(payload) {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(payload),
+    mode: 'no-cors',
   }).catch(() => _queue(payload));
   _drainQueue(url);
 }
@@ -352,7 +353,7 @@ function _drainQueue(url) {
     .forEach(k => {
       try {
         const p = JSON.parse(localStorage.getItem(k));
-        fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(p) })
+        fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(p), mode: 'no-cors' })
           .then(() => localStorage.removeItem(k))
           .catch(() => {});
       } catch { /* ignore */ }
