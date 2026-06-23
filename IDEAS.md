@@ -83,3 +83,8 @@ Practice process:
 
 ### Later in roadmap: record SOAP notes, incidents and other details
 
+### App Feedback
+- Allow users to give really simple 5 star
+- provide freeform text feedback
+- take specific rubric feedback:  Adjust skills, keywords or level boundaries
+- track usage.  Report back if app is 1. shared 2. used - opened and interacted 

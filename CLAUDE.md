@@ -137,6 +137,104 @@ The navigation, routing, and all view-transition code follows a three-tier model
 
 ---
 
+## Conference Sprint — Feedback & Engagement (branch: phase1/conference-feedback)
+
+**Goal:** Collect structured feedback and usage data at NICA national conference. Activated only when `?feedback=true` is in the URL — zero impact on normal coach use.
+
+**Source reference:** Port from `https://github.com/HealthProf/mtb_skill_concept` — `prototype/feedback.jsx` (feedback modal + engagement tracker) and `setup/google-apps-script.js` (Sheets backend). Logic is complete; needs rewriting from React JSX to vanilla JS DOM to match this app's pattern.
+
+### Architecture
+
+**Feedback mode activation:**
+```javascript
+const FEEDBACK_MODE = new URLSearchParams(location.search).has('feedback');
+```
+All feedback UI — floating button, session overlay, engagement tracking — only initializes when `FEEDBACK_MODE === true`. Normal app is completely unaffected.
+
+**QR code in Settings** points to `https://ashaber.github.io/mtb-skills/?feedback=true` — the conference share URL. (QR also ships in Sprint 1e for general app sharing; conference sprint extends it with the `?feedback=true` variant.)
+
+### New file: `src/feedback.js`
+
+Self-contained ES module. Exports one function: `initFeedback()`. Called from `main.js` boot only when `FEEDBACK_MODE` is true. Contains:
+
+**1. Engagement tracker** (port from `_eng` in feedback.jsx)
+- `sessionId` = `'sess_' + Date.now()`
+- `record(type, props)` — appends to in-memory event array, flushes at 15 events
+- `flush()` — POSTs to Sheets or queues to localStorage if offline/URL not set
+- Auto-flush: `setInterval(flush, 60000)` + `window.addEventListener('beforeunload', flush)`
+- Offline queue: store as `mtb_pending_<timestamp>` localStorage keys (mirrors Tim's `rl_pending_` pattern, renamed for this app)
+- Expose `window.MTB_TRACK = trackEvent` so `main.js` can call it for page views and actions
+
+**2. Session start overlay** (shown once on first feedback-mode load per browser session)
+- Fields: Name (optional), NICA League (optional), Team (optional), Role (Coach / Athlete / Other / Skip)
+- Persisted to `sessionStorage` — survives page reload within same tab, cleared on tab close
+- "Start exploring →" dismisses and shows app normally
+
+**3. Feedback button + modal** (port from FeedbackButton + FeedbackModal in feedback.jsx)
+- Floating button: bottom-left, `💬 Feedback` label, z-index above all app chrome
+- On click: capture screenshot via `html2canvas`, open modal (graceful fallback if html2canvas fails — show blank canvas)
+- Modal contains:
+  - Page label (current view + context, e.g. "Athlete card")
+  - Drawing canvas with pen + circle tools, color picker, undo, clear (port canvas logic from `useDrawingCanvas` hook — rewrite as imperative DOM)
+  - Text comment input
+  - Submit button (disabled until comment or drawing is present)
+  - Cancel with discard confirm if content exists
+- On submit: POST to Sheets (or queue if offline), show "✓ Feedback sent!", auto-close after 1.6s
+- No nav guard — low friction, submit when ready
+
+**4. Page identity**
+`main.js` sets `window._mtbState = s` after each `draw()` call. `feedback.js` reads `window._mtbState` to label the current page at screenshot time.
+
+`main.js` also calls `window.MTB_TRACK?.('page_view', { page: s.view })` after each `draw()` when feedback mode is active.
+
+### Google Apps Script backend
+
+Copy `setup/google-apps-script.js` from Tim's repo verbatim. No changes needed — it handles both `feedback` and `engagement` payload types, saves images to Drive, creates sheets on first run.
+
+**Setup steps (one-time, documented in `setup/README.md`):**
+1. Create Google Sheet → Extensions → Apps Script → paste script → set `SHEET_ID`
+2. Deploy as web app (Execute as: Me, Access: Anyone)
+3. Hardcode URL as `window.MTB_SHEETS_URL` in a `<script>` tag in `index.html` before conference (or set via `localStorage.setItem('mtb_sheets_url', '...')` in DevTools)
+
+Sheet columns — Feedback: Timestamp, Date, Page, Role, User Name, NICA League, Team, Comment, Has Drawing, Drawing URL, Screenshot URL
+Sheet columns — Engagement: Timestamp, Session ID, Session Start, Duration(s), User Name, NICA League, Team, Event Count, Events JSON
+
+### QR code in Settings
+
+Use `qrcode-svg` npm package — generates an SVG string inline, no canvas required, zero runtime overhead for non-feedback users. Dynamic import so it only loads when Settings opens:
+```javascript
+const { default: QRCode } = await import('qrcode-svg');
+```
+QR renders in Settings below coach name. Label: "Share app · scan to open". The `?feedback=true` variant is a second QR labeled "Conference feedback mode".
+
+### Offline safety
+
+- All Sheets POSTs use `fetch(...).catch(() => queue())` — never throws, never blocks
+- Pending queue flushed opportunistically on each `flush()` call
+- **Feedback and engagement tracking never block any app operation** — all async, all silent on failure
+
+### html2canvas
+
+Add as npm dependency: `npm install html2canvas`. Dynamic import inside feedback modal open handler:
+```javascript
+const html2canvas = await import('html2canvas').then(m => m.default);
+```
+Keeps it out of the main bundle for normal app loads.
+
+### Sprint DOD
+- [ ] `src/feedback.js` created; `initFeedback()` only called when `?feedback=true` present
+- [ ] Normal app URL has zero feedback code loaded or executed
+- [ ] Session overlay shown on first feedback-mode load, role required (other fields optional)
+- [ ] Floating feedback button visible on all views in feedback mode
+- [ ] Screenshot captured (or graceful fallback to blank canvas), drawing canvas works (pen + circle)
+- [ ] Submit posts to Sheets or queues offline — never blocks app
+- [ ] Engagement events tracked: `page_view`, `add_person`, `log_obs`, `confirm_level`, `export`
+- [ ] `setup/google-apps-script.js` copied from Tim's repo; `setup/README.md` documents Sheets setup
+- [ ] QR code in Settings shows both app URL and `?feedback=true` URL
+- [ ] Playwright: feedback mode loads session overlay; submit flow completes; normal URL shows no feedback UI
+
+---
+
 ## Sprint 1d — People & Practice Roster (merged: phase1/practice-roster)
 
 **Scope (this PR):** Schema migration + roster filter + practice attendance.
