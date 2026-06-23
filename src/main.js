@@ -151,6 +151,7 @@ function logSession(athleteId) {
   });
 
   log.info('session.log', { athlete_id: athleteId, bp: d.body_position, brk: d.braking, crn: d.cornering });
+  window.MTB_TRACK?.('log_obs', { athlete_id: athleteId });
   flash(`${conf.body_position ? 'Observation' : 'Initial levels'} saved`);
   refreshCard();
 }
@@ -162,6 +163,7 @@ function confirmSession(athleteId) {
     setConfirmedLevel({ athlete_id: athleteId, skill: sk, level: d[sk] });
   });
   log.info('session.confirm', { athlete_id: athleteId });
+  window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId });
   flash('Confirmed levels updated');
   refreshCard();
 }
@@ -170,6 +172,7 @@ function confirmOneSkill(athleteId, skill, level) {
   setConfirmedLevel({ athlete_id: athleteId, skill, level });
   s.draft[athleteId] = { ...s.draft[athleteId], [skill]: level };
   log.info('skill.confirm', { athlete_id: athleteId, skill, level });
+  window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId, skill });
   flash(`${skill.replace('_', ' ')} confirmed at Lv ${level}`);
   refreshCard();
 }
@@ -426,11 +429,13 @@ function onAppClick(e) {
     a.click();
     URL.revokeObjectURL(url);
     log.info('attendance.export', { practice_id: practiceId });
+    window.MTB_TRACK?.('export', { type: 'attendance' });
     return;
   }
 
   if (action === 'export-data') {
     log.info('data.export');
+    window.MTB_TRACK?.('export', { type: 'data' });
     const blob = new Blob([exportAll()], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -572,6 +577,7 @@ function onSheetClick(e) {
       s.expandedId = p.id;
     }
     log.info(isEdit ? 'person.update' : 'person.add', { person_id: p.id, role });
+    if (!isEdit) window.MTB_TRACK?.('add_person', { role });
     closeModal();
     if (stackDepth() > 0) refreshCard(); else draw();
     return;
