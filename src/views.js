@@ -310,13 +310,16 @@ function _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) {
     const newPracBtn = multiPrac
       ? `<button class="btn btn-primary" data-a="start-new-practice">Start New Practice</button>`
       : '';
+    const moodEmoji = practice.mood ? ['','😞','🙁','😐','🙂','😊'][practice.mood] : null;
+    const reflectionBtn = `<button class="btn btn-outline" data-a="view-reflection">${practice.reflection || practice.mood || practice.incidents ? '✏ View / edit reflection' : '+ Add reflection'}</button>`;
     return `
       <div class="practice-card">
         <div class="practice-date">${esc(dateLabel)}</div>
-        <span class="practice-meta practice-meta--ended">Practice complete · ${count} attended</span>
+        <span class="practice-meta practice-meta--ended">Practice complete · ${count} attended${moodEmoji ? ' · ' + moodEmoji : ''}</span>
         <div class="practice-actions">
           ${newPracBtn}
           ${exportBtn}
+          ${reflectionBtn}
           <button class="btn btn-outline" data-a="reopen-practice">Reopen Practice</button>
         </div>
       </div>`;
@@ -397,12 +400,20 @@ export function viewSettings(s) {
         <span class="settings-section-label">Share App</span>
         <p class="settings-about" style="margin-bottom:10px">Scan to open on another device — works offline after first load.</p>
         ${qrSection}
+        ${s.feedbackQR ? `
+        <div class="settings-qr-wrap" style="margin-top:16px">
+          <span class="settings-about" style="font-weight:600;margin-bottom:6px">Conference feedback mode</span>
+          <img class="settings-qr" src="${s.feedbackQR}" alt="Feedback QR code">
+          <span class="settings-qr-url">ashaber.github.io/mtb-skills/?feedback=true</span>
+        </div>` : ''}
       </div>
 
       <div class="settings-section">
         <span class="settings-section-label">About</span>
         <p class="settings-about">Tap a level on any rider's row to record an observation instantly. Open the full card for confirmed levels, observation history, and trail readiness.</p>
         <p class="settings-about" style="margin-top:8px">Built for Idaho NICA coaches. Rubric authored with Tim Curry. Works fully offline — no login required.</p>
+        <p class="settings-about" style="margin-top:8px">Want this for your whole team or league? Reach out — <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
+        <a href="about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
       </div>
     </div>`;
 }
@@ -950,6 +961,43 @@ export function modalScanCard() {
       <video id="scan-video" class="scan-video" playsinline muted autoplay></video>
       <canvas id="scan-canvas" style="display:none"></canvas>
       <p class="scan-hint" id="scan-hint">Point camera at a QR code from another coach's device.</p>
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+export function modalReflection(practice) {
+  const MOODS = [
+    { n: 1, emoji: '😞' }, { n: 2, emoji: '🙁' }, { n: 3, emoji: '😐' },
+    { n: 4, emoji: '🙂' }, { n: 5, emoji: '😊' },
+  ];
+  const currentMood = practice?.mood ?? null;
+  const moodBtns = MOODS.map(m =>
+    `<button class="mood-btn${currentMood === m.n ? ' mood-btn--active' : ''}" data-m="mood-select" data-n="${m.n}">${m.emoji}</button>`
+  ).join('');
+
+  const isEnded = practice?.status === 'ended';
+  const saveLabel = isEnded ? 'Save' : 'Save & close';
+
+  return `
+    <div class="modal-head">
+      <span>Practice Reflection</span>
+      <button class="ico-btn" data-m="close">✕</button>
+    </div>
+    <input type="hidden" id="inp-practice-id" value="${esc(practice?.id ?? '')}">
+    <div class="fg">
+      <label class="fl">How was practice?</label>
+      <div class="mood-selector">
+        ${moodBtns}
+      </div>
+      <input type="hidden" id="inp-mood" value="${currentMood ?? ''}">
+      <label class="fl" for="inp-reflection" style="margin-top:4px">Reflection</label>
+      <textarea class="fi" id="inp-reflection" rows="3" placeholder="What went well? What would you change?">${esc(practice?.reflection ?? '')}</textarea>
+      <label class="fl" for="inp-incidents" style="margin-top:4px">Issues or incidents</label>
+      <textarea class="fi" id="inp-incidents" rows="2" placeholder="Any incidents, injuries, or safety concerns to note">${esc(practice?.incidents ?? '')}</textarea>
+    </div>
+    <div class="fg" style="padding-top:0">
+      <button class="btn btn-primary" data-m="save-reflection">${saveLabel}</button>
+      ${!isEnded ? `<button class="btn btn-ghost" data-m="skip-end-practice">Skip</button>` : ''}
     </div>
     <div style="height:12px"></div>`;
 }

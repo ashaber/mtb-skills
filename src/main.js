@@ -13,11 +13,13 @@ import {
   getPhoto, savePhoto,
   getTeamSettings, saveTeamSettings,
   getRosterFilter, saveRosterFilter,
-  findTodaysPractice, createPractice, endPractice, reopenPractice,
+  findTodaysPractice, createPractice, endPractice, reopenPractice, savePractice,
   getPractices, toggleAttendance, getAttendance,
   exportAll, importAll, exportAttendance,
   gradeToCategory, categoryToGrade,
 } from './storage.js';
+
+const FEEDBACK_MODE = new URLSearchParams(location.search).has('feedback');
 import { SKILL_IDS } from './rubric.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import QRCode from 'qrcode';
@@ -26,7 +28,7 @@ import {
   viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
-  modalSettings,
+  modalSettings, modalReflection,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -43,6 +45,7 @@ const s = {
   taking_attendance: false,
   today_practice:  null,
   settingsQR:      null,
+  feedbackQR:      null,
 };
 
 // ── Camera / import state ─────────────────────────────────────────────────────
@@ -103,6 +106,8 @@ function draw() {
   document.getElementById('app').innerHTML = tabContent;
   drawTabBar();
   window.scrollTo(0, 0);
+  window._mtbState = s;
+  if (FEEDBACK_MODE) window.MTB_TRACK?.('page_view', { page: s.tab });
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -126,6 +131,9 @@ function refreshCard() {
 function _generateSettingsQR() {
   QRCode.toDataURL('https://ashaber.github.io/mtb-skills/', { width: 200, margin: 2 })
     .then(qr => { s.settingsQR = qr; if (s.tab === 'settings') draw(); })
+    .catch(() => {});
+  QRCode.toDataURL('https://ashaber.github.io/mtb-skills/?feedback=true', { width: 200, margin: 2 })
+    .then(qr => { s.feedbackQR = qr; if (s.tab === 'settings') draw(); })
     .catch(() => {});
 }
 
@@ -343,10 +351,13 @@ function onAppClick(e) {
 
   if (action === 'end-practice') {
     if (!s.today_practice) return;
-    s.today_practice = endPractice(s.today_practice.id);
-    s.taking_attendance = false;
-    log.info('practice.end', { practice_id: s.today_practice.id });
-    draw();
+    openModal(modalReflection(s.today_practice));
+    return;
+  }
+
+  if (action === 'view-reflection') {
+    if (!s.today_practice) return;
+    openModal(modalReflection(s.today_practice));
     return;
   }
 
@@ -465,6 +476,51 @@ function onSheetClick(e) {
     saveTeamSettings({ allow_multi_practice: multiPrac });
     log.info('settings.save', {});
     flash('Settings saved');
+    closeModal();
+    draw();
+    return;
+  }
+
+  if (action === 'mood-select') {
+    const n = +el.dataset.n;
+    const hidden = document.getElementById('inp-mood');
+    if (hidden) {
+      const current = +hidden.value || 0;
+      hidden.value = (current === n) ? '' : n;
+    }
+    document.querySelectorAll('.mood-btn').forEach(btn => {
+      btn.classList.toggle('mood-btn--active', +btn.dataset.n === n && (+hidden?.value || 0) === n);
+    });
+    return;
+  }
+
+  if (action === 'save-reflection') {
+    const practiceId = document.getElementById('inp-practice-id')?.value;
+    if (!practiceId) return;
+    const moodRaw = document.getElementById('inp-mood')?.value;
+    const mood = moodRaw ? +moodRaw : null;
+    const reflection = document.getElementById('inp-reflection')?.value.trim() || null;
+    const incidents  = document.getElementById('inp-incidents')?.value.trim()  || null;
+    const isEnded = s.today_practice?.status === 'ended';
+    const fields = { reflection, mood, incidents };
+    if (!isEnded) fields.status = 'ended';
+    s.today_practice = savePractice(practiceId, fields);
+    if (!isEnded) {
+      s.taking_attendance = false;
+      log.info('practice.end', { practice_id: practiceId });
+    }
+    log.info('practice.reflection.save', { practice_id: practiceId });
+    closeModal();
+    draw();
+    return;
+  }
+
+  if (action === 'skip-end-practice') {
+    const practiceId = document.getElementById('inp-practice-id')?.value;
+    if (!practiceId) return;
+    s.today_practice = endPractice(practiceId);
+    s.taking_attendance = false;
+    log.info('practice.end.skip', { practice_id: practiceId });
     closeModal();
     draw();
     return;
@@ -752,3 +808,6 @@ s.today_practice = findTodaysPractice();
 _generateSettingsQR();
 log.info('app.init', { people: getPeople().length, observations: getObservations().length });
 draw();
+if (FEEDBACK_MODE) {
+  import('./feedback.js').then(m => m.initFeedback());
+}

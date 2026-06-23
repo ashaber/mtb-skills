@@ -335,6 +335,15 @@ export function reopenPractice(id) {
   return all[idx];
 }
 
+export function savePractice(id, fields) {
+  const all = load(KEYS.practices);
+  const idx = all.findIndex(p => p.id === id);
+  if (idx === -1) return null;
+  all[idx] = { ...all[idx], ...fields };
+  save(KEYS.practices, all);
+  return all[idx];
+}
+
 export function getPractices() {
   return load(KEYS.practices);
 }
