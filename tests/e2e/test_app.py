@@ -110,7 +110,7 @@ def test_confirm_skill_from_card(page: Page) -> None:
     add_athlete(page, 'Alex Chen')
     open_card(page, 'Alex Chen')
     card = page.locator('.card-scroll')
-    card.locator('[data-a="draft-level"][data-sk="braking"][data-n="3"]').click()
+    card.locator('[data-a="preview-level"][data-sk="braking"][data-n="3"]').click()
     card.locator('[data-a="confirm-session"]').click()
     expect(card).to_be_visible()
 

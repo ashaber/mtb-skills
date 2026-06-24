@@ -119,7 +119,7 @@
   transition: transform .3s cubic-bezier(.32,.72,0,1); will-change: transform;
 }
 .sheet--in { transform: translateX(-50%) translateY(0); }
-.sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: #d9d4c8; margin: 9px auto 2px; flex-shrink: 0; pointer-events: none; }
+.sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: #d9d4c8; margin: 9px auto 2px; flex-shrink: 0; cursor: pointer; touch-action: none; }
 /* scrollable wrapper inside sheet (wraps modal / rubric content) */
 .sheet-scroll { overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .sheet-head {

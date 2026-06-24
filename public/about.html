@@ -5,82 +5,118 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>About — MTB Skills Assessment</title>
   <style>
-    :root {
-      --bg: #f4f2ec;
-      --surface: #ffffff;
-      --border: #e9e5dc;
-      --ink: #1c1b18;
-      --dim: #8d877a;
-      --accent: #d94626;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.6; -webkit-font-smoothing: antialiased; }
-    .page { max-width: 680px; margin: 0 auto; padding: 40px 24px 80px; }
-    header { margin-bottom: 40px; padding-bottom: 24px; border-bottom: 2px solid var(--border); }
-    header h1 { font-size: 32px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 6px; }
-    header p { font-size: 15px; color: var(--dim); }
-    .back-link { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; margin-bottom: 24px; }
-    .back-link:hover { text-decoration: underline; }
-    section { margin-bottom: 36px; }
-    h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-    h3 { font-size: 15px; font-weight: 700; margin: 16px 0 6px; color: var(--ink); }
-    p { font-size: 14.5px; color: var(--dim); margin-bottom: 10px; }
-    p strong { color: var(--ink); }
-    ul { padding-left: 20px; margin-bottom: 10px; }
-    li { font-size: 14.5px; color: var(--dim); margin-bottom: 5px; }
-    li strong { color: var(--ink); }
-    .step-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-    .step-list li { display: flex; gap: 12px; align-items: flex-start; }
-    .step-n { min-width: 28px; height: 28px; border-radius: 8px; background: var(--surface); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; flex-shrink: 0; }
-    .faq-item { background: var(--surface); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid var(--border); }
-    .faq-q { font-size: 14.5px; font-weight: 700; margin-bottom: 6px; color: var(--ink); }
-    .faq-a { font-size: 14px; color: var(--dim); }
-    .cta-box { background: var(--accent); color: #fff; border-radius: 16px; padding: 28px 24px; text-align: center; }
-    .cta-box h2 { border-bottom: none; padding-bottom: 0; color: #fff; font-size: 22px; margin-bottom: 10px; }
-    .cta-box p { color: rgba(255,255,255,.85); font-size: 15px; margin-bottom: 16px; }
-    .cta-box a { color: #fff; font-weight: 700; font-size: 15px; }
-    .phase-list { display: flex; flex-direction: column; gap: 8px; }
-    .phase-row { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; }
-    .phase-tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; background: var(--border); border-radius: 5px; padding: 3px 7px; flex-shrink: 0; color: var(--dim); margin-top: 1px; }
-    .phase-tag.done { background: #dcfce7; color: #16a34a; }
-    .phase-tag.active { background: #fef3c7; color: #b45309; }
+    :root { --bg:#f4f2ec; --surface:#fff; --border:#e9e5dc; --ink:#1c1b18; --dim:#8d877a; --accent:#d94626; }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); line-height:1.6; -webkit-font-smoothing:antialiased; }
+    .page { max-width:680px; margin:0 auto; padding:40px 24px 80px; }
+    header { margin-bottom:40px; padding-bottom:24px; border-bottom:2px solid var(--border); }
+    header h1 { font-size:32px; font-weight:800; letter-spacing:-.5px; margin-bottom:6px; }
+    header p { font-size:15px; color:var(--dim); }
+    .back-link { display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:600; color:var(--accent); text-decoration:none; margin-bottom:24px; }
+    .back-link:hover { text-decoration:underline; }
+    section { margin-bottom:36px; }
+    h2 { font-size:20px; font-weight:700; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+    p { font-size:14.5px; color:var(--dim); margin-bottom:10px; }
+    p strong { color:var(--ink); }
+    ul { padding-left:20px; margin-bottom:10px; }
+    li { font-size:14.5px; color:var(--dim); margin-bottom:5px; }
+    li strong { color:var(--ink); }
+    .step-list { list-style:none; padding:0; display:flex; flex-direction:column; gap:10px; }
+    .step-list li { display:flex; gap:12px; align-items:flex-start; }
+    .step-n { min-width:28px; height:28px; border-radius:8px; background:var(--surface); border:1.5px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; flex-shrink:0; }
+    .faq-item { background:var(--surface); border-radius:12px; padding:14px 16px; margin-bottom:10px; border:1px solid var(--border); }
+    .faq-q { font-size:14.5px; font-weight:700; margin-bottom:6px; color:var(--ink); }
+    .faq-a { font-size:14px; color:var(--dim); }
+    .faq-a a { color:var(--accent); }
+    .cta-box { background:var(--accent); color:#fff; border-radius:16px; padding:28px 24px; text-align:center; }
+    .cta-box h2 { border-bottom:none; padding-bottom:0; color:#fff; font-size:22px; margin-bottom:10px; }
+    .cta-box p { color:rgba(255,255,255,.85); font-size:15px; margin-bottom:16px; }
+    .cta-box a { color:#fff; font-weight:700; font-size:15px; }
+    table { width:100%; border-collapse:collapse; margin:12px 0 16px; font-size:14px; }
+    th { text-align:left; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); padding:0 8px 8px 0; }
+    td { padding:7px 8px 7px 0; vertical-align:top; border-top:1px solid var(--border); color:var(--dim); font-size:14px; }
+    .lv { display:inline-block; width:26px; height:26px; border-radius:7px; font:700 13px/26px sans-serif; text-align:center; color:#fff; }
+    .phase-list { display:flex; flex-direction:column; gap:8px; }
+    .phase-row { display:flex; gap:12px; align-items:flex-start; font-size:14.5px; }
+    .phase-tag { font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; background:var(--border); border-radius:5px; padding:3px 7px; flex-shrink:0; color:var(--dim); margin-top:1px; }
+    .phase-tag.done { background:#dcfce7; color:#16a34a; }
+    .phase-tag.active { background:#fef3c7; color:#b45309; }
+    .copyright { text-align:center; font-size:13px; color:var(--dim); margin-top:40px; }
   </style>
 </head>
 <body>
   <div class="page">
-    <a class="back-link" href="./index.html">← Back to app</a>
+    <a class="back-link" href="https://ashaber.github.io/mtb-skills/">← Back to app</a>
 
     <header>
       <h1>MTB Skills Assessment</h1>
-      <p>A coach-facing skill assessment tool for NICA mountain bike coaches.</p>
+      <p>A rubric-based skill assessment tool for NICA MTB coaches — Andrew Shaber, Renee Shaber &amp; Tim Curry</p>
     </header>
 
     <section>
-      <h2>What this is</h2>
-      <p>This tool grew out of a collaboration between <strong>Andrew Shaber</strong> and <strong>Tim Curry</strong>, coaches in the Idaho NICA league. We wanted a structured, offline-first way to assess rider skills on trail — no paper, no cell service needed.</p>
-      <p>The rubric is based on Tim's field assessment cards, adapted for easy tap-to-score use on a phone during a ride. Every observation is timestamped, every confirmed level is explicit — and trail readiness is computed automatically from the rubric minimums.</p>
-      <p>It's free, open source, and works entirely in your browser — <strong>no account, no backend, no subscription</strong>.</p>
+      <h2>Why this exists</h2>
+      <p>Ask a mountain bike coach the skill level of their riders and the answer is almost universally: <em><strong>"They're really fast."</strong></em> That's answering the wrong question.</p>
+      <p>The consequence is real. A coach picks up an unfamiliar rider, assumes competence, and discovers the gap in the middle of a difficult trail. NICA's instructor training uses a 1–5 scale for individual skills — but without objective measures behind the numbers, the scale is unreliable across coaches and teams. Measuring skills in isolation, especially in a parking lot at the start of the season, isn't a strong predictor of trail readiness.</p>
+      <p>This rubric is the attempt to fix that. Andrew Shaber, Renee Shaber, and Tim Curry co-founded the Boise Foothills MTB team and kept running into the same problems. The rubric grew out of coaching practice, not theory — refined over multiple seasons with real athletes on real trails.</p>
     </section>
 
     <section>
-      <h2>How assessment works</h2>
-      <ul class="step-list">
-        <li><span class="step-n">1</span><div><strong>Observe</strong> — watch a rider and tap the level that matches what you see. The app logs the observation with a timestamp.</div></li>
-        <li><span class="step-n">2</span><div><strong>Confirm</strong> — once behavior is consistent, set their confirmed level. Confirmed levels are coach judgment, not auto-promoted from observations.</div></li>
-        <li><span class="step-n">3</span><div><strong>Trail ready</strong> — trail readiness is computed from confirmed levels against the rubric minimums for Green, Blue, Black, and Double Black terrain.</div></li>
+      <h2>What makes this rubric different</h2>
+      <p>Skill is not binary. The rubric measures the full progression within each skill. Three foundational skills — body position, braking, cornering — across five levels defined by two parallel progressions:</p>
+      <ul>
+        <li><strong>Environment and consistency</strong> — controlled → sometimes → most of the time → always → bombproof</li>
+        <li><strong>Skill accumulation</strong> — each level adds specific teaching points. The rubric describes what <em>breaks</em>, when it breaks, and at what threshold.</li>
       </ul>
-      <p>Three skills are assessed: <strong>Body Position</strong>, <strong>Braking</strong>, and <strong>Cornering</strong>. Each is scored 1–5 on a rubric developed from real coaching observations.</p>
+      <p><strong>Body position is the foundation.</strong> A rider can't brake effectively if their weight is wrong. They can't corner if they can't brake. The three skills build on each other in order.</p>
+      <table>
+        <thead><tr><th>Level</th><th>Cornering example</th></tr></thead>
+        <tbody>
+          <tr><td><span class="lv" style="background:#dc2626">1</span></td><td>Seated, steering with handlebars, eyes fixed on ground ahead</td></tr>
+          <tr><td><span class="lv" style="background:#ea580c">2</span></td><td>Begins to look ahead; outside foot down inconsistently; braking in corners</td></tr>
+          <tr><td><span class="lv" style="background:#2563eb">3</span></td><td>Low/look/lean emerging; breaks down on rough or off-camber terrain</td></tr>
+          <tr><td><span class="lv" style="background:#16a34a">4</span></td><td>Full technique most of the time; recovers from small errors; manages blue terrain</td></tr>
+          <tr><td><span class="lv" style="background:#7c3aed">5</span></td><td>Speed on black-plus terrain with roots and rocks; failures rare and self-corrected</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Motor learning alignment</h2>
+      <p>The progression reflects the Fitts and Posner stages of motor learning used in NICA coach training:</p>
+      <ul>
+        <li><strong>Levels 1–2: Cognitive stage</strong> — movements are conscious and inconsistent. The rider is thinking about what to do.</li>
+        <li><strong>Level 3: Associative</strong> — movements becoming reliable but degrading under pressure or on unfamiliar terrain.</li>
+        <li><strong>Level 4: Largely autonomous</strong> — foundational movements require no conscious attention, freeing the rider for terrain reading and tactics.</li>
+        <li><strong>Level 5: Fully autonomous</strong> — applied on the most demanding terrain; errors are self-detected and self-corrected.</li>
+      </ul>
+      <p>A note on the OTB curriculum: NICA's OTB 101/201/301 teaches the positive — what to do. This rubric is the complementary tool. It describes failure modes because error detection and correction requires knowing what breakdown looks like. Different purposes, same progression.</p>
+    </section>
+
+    <section>
+      <h2>Trail readiness</h2>
+      <p>Confirmed skill levels map to trail difficulty. The app shows which trails a rider is genuinely ready for — <em>not which trails they've survived.</em> That distinction matters when building a practice route or deciding whether a rider is ready to step up.</p>
+      <p>A rider who has done a black trail once, on a good day, with a patient group, is not "black ready." Confirmed levels require consistency — the rubric defines what consistent looks like at each level. Trail readiness is computed from the lowest confirmed skill across body position, braking, and cornering.</p>
+    </section>
+
+    <section>
+      <h2>The app</h2>
+      <ul class="step-list">
+        <li><span class="step-n">1</span><div><strong>Observe</strong> — tap a level on a rider's row to log what you see, right on the trail. The observation is timestamped and added to their history.</div></li>
+        <li><span class="step-n">2</span><div><strong>Confirm</strong> — set a confirmed level when behavior is consistent. Confirmation is coach judgment — not auto-promoted from observations.</div></li>
+        <li><span class="step-n">3</span><div><strong>Trail ready</strong> — readiness is computed automatically from confirmed levels against rubric minimums for Green, Blue, Black, and Double Black terrain.</div></li>
+      </ul>
+      <p style="margin-top:12px">Works fully offline — no network needed on trail. No login required. Data stays on your device and exports to JSON for backup or sharing.</p>
     </section>
 
     <section>
       <h2>Roadmap</h2>
       <div class="phase-list">
-        <div class="phase-row"><span class="phase-tag done">Done</span><div><strong>Phase 1:</strong> Roster, skill observation &amp; confirmation, trail readiness, athlete trading cards, practice attendance, JSON export/import.</div></div>
-        <div class="phase-row"><span class="phase-tag done">Done</span><div><strong>Phase 2:</strong> Three-tier navigation UX rebuild (tabs → drill-in cards → sheets), swipe gestures.</div></div>
-        <div class="phase-row"><span class="phase-tag active">Now</span><div><strong>Conference Sprint:</strong> Practice reflection, feedback collection, about page.</div></div>
-        <div class="phase-row"><span class="phase-tag">Next</span><div><strong>Phase 2c:</strong> PWA install, service worker for full offline capability.</div></div>
-        <div class="phase-row"><span class="phase-tag">Planned</span><div><strong>Phase 3:</strong> Multi-coach / multi-device sync, team management.</div></div>
-        <div class="phase-row"><span class="phase-tag">Planned</span><div><strong>Phase 4:</strong> Cloud backend (FastAPI + GCP), league-wide analytics.</div></div>
+        <div class="phase-row"><span class="phase-tag done">Done</span><div><strong>Phase 1:</strong> Roster, skill observation &amp; confirmation, trail readiness, athlete cards, practice attendance, JSON export/import.</div></div>
+        <div class="phase-row"><span class="phase-tag done">Done</span><div><strong>Phase 2:</strong> Three-tier navigation UX (tabs → drill-in cards → sheets), swipe gestures.</div></div>
+        <div class="phase-row"><span class="phase-tag active">Now</span><div><strong>Conference Sprint:</strong> Practice reflection, feedback collection, about page, full rubric card view.</div></div>
+        <div class="phase-row"><span class="phase-tag">Next</span><div><strong>Phase 2c:</strong> PWA install prompt, service worker for reliable offline caching.</div></div>
+        <div class="phase-row"><span class="phase-tag">Planned</span><div><strong>Phase 3:</strong> Multi-coach / multi-device sync, team management, shared rosters.</div></div>
+        <div class="phase-row"><span class="phase-tag">Planned</span><div><strong>Phase 4:</strong> Cloud backend (FastAPI + GCP), league-wide analytics and reporting.</div></div>
       </div>
     </section>
 
@@ -88,8 +124,28 @@
       <h2>FAQ</h2>
 
       <div class="faq-item">
+        <div class="faq-q">Does this replace OTB coach training?</div>
+        <div class="faq-a">No. OTB training teaches coaching skills and safety procedures. This rubric is an assessment tool — it tells you where a rider is in their progression, not how to coach them there. The two are complementary.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">How long does it take to assess a rider?</div>
+        <div class="faq-a">For an experienced coach, 5–10 minutes of watching a rider on varied terrain is enough for a working read on body position and braking. Cornering takes a few dedicated attempts. You don't need a formal session — log observations as you ride together.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">What if a rider is strong in one skill and weak in another?</div>
+        <div class="faq-a">That's exactly what per-skill tracking is for. Trail readiness is computed from the lowest confirmed level — a rider isn't ready at a trail tier until all foundational skills support it. The bottleneck skill is the right coaching focus.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">Can the app be used for a full league?</div>
+        <div class="faq-a">The data model is designed for multi-team use, but right now each coach runs their own local instance. League-wide sync and reporting is planned for Phase 4. Interested in early access? Get in touch.</div>
+      </div>
+
+      <div class="faq-item">
         <div class="faq-q">Does it work without internet?</div>
-        <div class="faq-a">Yes, fully. Once you've loaded the app, it runs entirely in your browser from cached files. Open it before you leave the trailhead. All data is stored in localStorage on your device.</div>
+        <div class="faq-a">Yes, fully. Once you've loaded the app, it runs entirely from your browser cache. Open it before you leave the trailhead. All data is stored locally on your device.</div>
       </div>
 
       <div class="faq-item">
@@ -99,27 +155,24 @@
 
       <div class="faq-item">
         <div class="faq-q">Can multiple coaches share data?</div>
-        <div class="faq-a">Right now, data lives on each device separately. You can share individual athlete cards by QR code (athlete card → share). Full multi-coach sync is on the roadmap for Phase 3.</div>
+        <div class="faq-a">Right now, data lives on each device separately. You can share individual athlete cards by QR code. Full multi-coach sync is on the roadmap for Phase 3.</div>
       </div>
 
       <div class="faq-item">
-        <div class="faq-q">What does each skill level mean?</div>
-        <div class="faq-a">Open the Field Guide tab in the app for the full rubric — all 5 levels for Body Position, Braking, and Cornering with dimensions, failure modes, and video links.</div>
-      </div>
-
-      <div class="faq-item">
-        <div class="faq-q">Is this specific to Idaho NICA?</div>
-        <div class="faq-a">The rubric came from Idaho, but the tool works for any NICA league or MTB coaching program. The trail minimums follow standard NICA trail difficulty conventions.</div>
+        <div class="faq-q">Is there an athlete or head coach view?</div>
+        <div class="faq-a">There's an early prototype — <a href="https://healthprof.github.io/mtb_skill_concept/prototype/RideLevel.html">healthprof.github.io/mtb_skill_concept</a> — with athlete, coach, head coach, and admin views. Feedback welcome.</div>
       </div>
     </section>
 
     <section>
       <div class="cta-box">
         <h2>Want this for your team or league?</h2>
-        <p>We're happy to talk about customizing the rubric, adding your league's branding, or building out Phase 3 multi-coach sync.</p>
+        <p>The assessment system is designed to scale — from a single ride pod to a full league. If you're interested in structured skill assessment for your program, reach out.</p>
         <a href="mailto:andrewshaber@gmail.com">andrewshaber@gmail.com</a>
       </div>
     </section>
+
+    <p class="copyright">© 2026 Andrew Shaber, Renee Shaber &amp; Tim Curry</p>
   </div>
 </body>
 </html>

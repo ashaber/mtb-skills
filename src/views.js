@@ -354,6 +354,7 @@ function _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) {
 // ── Settings tab ─────────────────────────────────────────────────────────────
 export function viewSettings(s) {
   const { name: teamName = '', coachName = '', allow_multi_practice: multiPrac = false } = getTeamSettings();
+  const feedbackOn = localStorage.getItem('mtb_feedback_mode') !== 'false';
   const coach = getCoach();
 
   const qrSection = s.settingsQR
@@ -414,11 +415,22 @@ export function viewSettings(s) {
       </div>
 
       <div class="settings-section">
+        <span class="settings-section-label">Feedback</span>
+        <label class="settings-toggle-row">
+          <span class="settings-toggle-label">
+            Conference feedback mode
+            <span class="settings-toggle-hint">Shows a 💬 button on every screen for collecting coach feedback.</span>
+          </span>
+          <input type="checkbox" id="inp-feedback-mode" class="settings-toggle-cb" data-a="toggle-feedback" ${feedbackOn ? 'checked' : ''}>
+        </label>
+      </div>
+
+      <div class="settings-section">
         <span class="settings-section-label">About</span>
-        <p class="settings-about">Tap a level on any rider's row to record an observation instantly. Open the full card for confirmed levels, observation history, and trail readiness.</p>
-        <p class="settings-about" style="margin-top:8px">Developed with Tim Curry for NICA MTB coaches. Works fully offline — no account required.</p>
-        <p class="settings-about" style="margin-top:8px">Want this for your whole team or league? Reach out — <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
-        <a href="about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
+        <p class="settings-about">A rubric-based skill assessment tool for NICA MTB coaches — three foundational skills across five levels defined by what breaks, when, and at what threshold. Log observations, confirm levels, and see trail readiness at a glance. Works fully offline. No login required.</p>
+        <p class="settings-about" style="margin-top:8px">Want this for your team or league? <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
+        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Shaber &amp; Tim Curry</p>
+        <a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
       </div>
     </div>`;
 }

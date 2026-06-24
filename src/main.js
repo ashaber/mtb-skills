@@ -19,7 +19,7 @@ import {
   gradeToCategory, categoryToGrade,
 } from './storage.js';
 
-const FEEDBACK_MODE = new URLSearchParams(location.search).has('feedback');
+const FEEDBACK_MODE = localStorage.getItem('mtb_feedback_mode') !== 'false';
 import { SKILL_IDS } from './rubric.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import QRCode from 'qrcode';
@@ -270,6 +270,13 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'preview-level') {
+    s.draft[aid] = s.draft[aid] || {};
+    s.draft[aid][sk] = +n;
+    refreshCard();
+    return;
+  }
+
   if (action === 'log-session')     { logSession(id); return; }
   if (action === 'confirm-session') { confirmSession(id); return; }
   if (action === 'confirm-skill')   { confirmOneSkill(id, sk, +n); return; }
@@ -455,6 +462,13 @@ function onAppClick(e) {
     saveTeamSettings({ allow_multi_practice: multiPrac });
     log.info('settings.save', {});
     flash('Settings saved');
+    return;
+  }
+
+  if (action === 'toggle-feedback') {
+    const on = document.getElementById('inp-feedback-mode')?.checked ?? true;
+    localStorage.setItem('mtb_feedback_mode', on ? 'true' : 'false');
+    location.reload();
     return;
   }
 
@@ -658,6 +672,9 @@ document.body.addEventListener('change', e => {
     reader.readAsDataURL(file);
   } else if (e.target.id === 'imp-file') {
     onImport(e);
+  } else if (e.target.id === 'inp-feedback-mode') {
+    localStorage.setItem('mtb_feedback_mode', e.target.checked ? 'true' : 'false');
+    location.reload();
   } else if (e.target.id === 'inp-category') {
     const gradeInp = document.getElementById('inp-grade');
     if (gradeInp) {
