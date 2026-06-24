@@ -12,6 +12,8 @@ let _events = [];
 const _sessionId = 'sess_' + Date.now();
 const _sessionStart = Date.now();
 
+const _esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function initFeedback() {
@@ -71,8 +73,35 @@ let _drawingActive = false;
 let _penPath = [];
 let _circleStart = null;
 
+// ── Modal open: capture screenshot FIRST, then show modal ────────────────────
+
 function _openFeedbackModal() {
+  if (document.getElementById('fb-modal-wrap')) return;
+
+  // Capture the current screen before any modal DOM is created (D8 issue 2)
+  import('html2canvas').then(m => {
+    return m.default(document.body, {
+      useCORS: true, scale: 1,
+      x: 0, y: 0,
+      width: window.innerWidth, height: window.innerHeight,
+      windowWidth: window.innerWidth, windowHeight: window.innerHeight,
+    }).catch(() => null);
+  }).catch(() => null).then(shot => {
+    _screenshotCanvas = shot || null;
+    _showFeedbackModal();
+  });
+}
+
+function _showFeedbackModal() {
   const needsProfile = !_session;
+
+  // D13: pre-fill from coach profile stored in localStorage
+  const coach = needsProfile ? JSON.parse(localStorage.getItem('mtb_coach') || 'null') : null;
+  const teamSettings = needsProfile ? JSON.parse(localStorage.getItem('mtb_team') || 'null') : null;
+  const prefillName = coach?.name || '';
+  const prefillTeam = teamSettings?.name || '';
+  const hasCoachProfile = !!(coach?.name);
+
   const modal = document.createElement('div');
   modal.id = 'fb-modal-wrap';
   modal.innerHTML = `
@@ -85,13 +114,15 @@ function _openFeedbackModal() {
         ${needsProfile ? `
         <div class="fb-profile-section" id="fb-profile">
           <p class="fb-profile-label">Tell us about yourself (optional except role)</p>
-          <input class="fb-input" id="fb-name" type="text" placeholder="Your name (optional)" autocomplete="name">
+          <input class="fb-input" id="fb-name" type="text" placeholder="Your name (optional)" autocomplete="name" value="${_esc(prefillName)}">
+          <input class="fb-input" id="fb-email" type="email" placeholder="Email (optional — for follow-up)" autocomplete="email">
           <input class="fb-input" id="fb-league" type="text" placeholder="NICA League (optional)">
+          <input class="fb-input" id="fb-team" type="text" placeholder="Team (optional)" autocomplete="organization" value="${_esc(prefillTeam)}">
           <div class="fb-role-row">
-            <button class="fb-role-btn" data-role="Coach">Coach</button>
+            <button class="fb-role-btn${hasCoachProfile ? ' fb-role-btn--active' : ''}" data-role="Coach">Coach</button>
             <button class="fb-role-btn" data-role="Athlete">Athlete</button>
           </div>
-          <input type="hidden" id="fb-role">
+          <input type="hidden" id="fb-role" value="${hasCoachProfile ? 'Coach' : ''}">
         </div>` : ''}
         <div class="fb-canvas-wrap">
           <canvas id="fb-canvas"></canvas>
@@ -110,17 +141,17 @@ function _openFeedbackModal() {
         <div class="fb-modal-body">
           <textarea class="fb-comment" id="fb-comment" placeholder="What do you think? What's confusing? What's missing?" rows="3"></textarea>
         </div>
-      </div>
-      <div class="fb-modal-foot">
-        <button class="fb-submit" id="fb-submit" disabled>Submit feedback</button>
-        <button class="fb-cancel" id="fb-cancel">Cancel</button>
+        <div class="fb-modal-foot">
+          <button class="fb-submit" id="fb-submit" disabled>Submit feedback</button>
+          <button class="fb-cancel" id="fb-cancel">Cancel</button>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(modal);
 
   document.getElementById('fb-page-label').textContent = window._mtbState?.tab || 'app';
 
-  // Profile section: role buttons (shown on first open only)
+  // D13: wire up role buttons with Coach pre-selected when profile exists
   if (needsProfile) {
     modal.querySelectorAll('.fb-role-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -132,36 +163,14 @@ function _openFeedbackModal() {
     });
   }
 
-  const canvas = document.getElementById('fb-canvas');
-  _drawCtx = canvas.getContext('2d');
   _drawHistory = [];
   _drawMode = 'pen';
   _drawColor = '#d94626';
   _penPath = [];
   _circleStart = null;
 
-  import('html2canvas').then(m => {
-    return m.default(document.body, {
-      useCORS: true, scale: 1,
-      x: 0, y: 0,
-      width: window.innerWidth, height: window.innerHeight,
-      windowWidth: window.innerWidth, windowHeight: window.innerHeight,
-    }).catch(() => null);
-  }).catch(() => null).then(shot => {
-    if (shot) {
-      canvas.width  = shot.width;
-      canvas.height = shot.height;
-      _drawCtx.drawImage(shot, 0, 0);
-      _screenshotCanvas = shot;
-    } else {
-      canvas.width  = 300;
-      canvas.height = 200;
-      _drawCtx.fillStyle = '#f4f2ec';
-      _drawCtx.fillRect(0, 0, 300, 200);
-      _screenshotCanvas = null;
-    }
-    _saveDrawState();
-  });
+  // D8 issues 1 & 4: initialize canvas after layout settles with correct pixel dimensions
+  requestAnimationFrame(() => _initCanvas());
 
   // Tool buttons
   document.getElementById('fb-pen').addEventListener('click', () => { _drawMode = 'pen'; _updateToolUI(); });
@@ -176,12 +185,12 @@ function _openFeedbackModal() {
     });
   });
 
-  // Draw events
+  const canvas = document.getElementById('fb-canvas');
   canvas.addEventListener('pointerdown', _onDrawStart);
   canvas.addEventListener('pointermove', _onDrawMove);
   canvas.addEventListener('pointerup', _onDrawEnd);
+  canvas.addEventListener('pointercancel', _onDrawEnd);
 
-  // Submit enable/disable
   const comment = document.getElementById('fb-comment');
   const submit  = document.getElementById('fb-submit');
   comment.addEventListener('input', _checkSubmitReady);
@@ -192,11 +201,35 @@ function _openFeedbackModal() {
 
   function _checkSubmitReady() {
     const hasComment = comment.value.trim().length > 0;
-    const hasDrawing = _drawHistory.length > 0;
+    const hasDrawing = _drawHistory.length > 1; // >1 because initial screenshot state is [0]
     const hasRole = !needsProfile || !!document.getElementById('fb-role')?.value;
     submit.disabled = (!hasComment && !hasDrawing) || !hasRole;
   }
   modal._checkSubmitReady = _checkSubmitReady;
+}
+
+// D8 issues 1 & 4: set canvas pixel dimensions from CSS layout, scale ctx by dpr
+function _initCanvas() {
+  const canvas = document.getElementById('fb-canvas');
+  if (!canvas) return;
+
+  const dpr  = window.devicePixelRatio || 1;
+  const cssW = canvas.offsetWidth;
+  const cssH = canvas.offsetHeight;
+
+  canvas.width  = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+
+  _drawCtx = canvas.getContext('2d');
+  _drawCtx.scale(dpr, dpr);
+
+  if (_screenshotCanvas) {
+    _drawCtx.drawImage(_screenshotCanvas, 0, 0, cssW, cssH);
+  } else {
+    _drawCtx.fillStyle = '#f4f2ec';
+    _drawCtx.fillRect(0, 0, cssW, cssH);
+  }
+  _saveDrawState();
 }
 
 function _updateToolUI() {
@@ -219,9 +252,18 @@ function _undo() {
 }
 
 function _clearDraw() {
-  if (!_drawCtx || !_screenshotCanvas) return;
-  _drawCtx.drawImage(_screenshotCanvas, 0, 0);
-  _drawHistory = [_drawCtx.getImageData(0, 0, _drawCtx.canvas.width, _drawCtx.canvas.height)];
+  if (!_drawCtx) return;
+  const canvas = _drawCtx.canvas;
+  const dpr  = window.devicePixelRatio || 1;
+  const cssW = canvas.width / dpr;
+  const cssH = canvas.height / dpr;
+  if (_screenshotCanvas) {
+    _drawCtx.drawImage(_screenshotCanvas, 0, 0, cssW, cssH);
+  } else {
+    _drawCtx.fillStyle = '#f4f2ec';
+    _drawCtx.fillRect(0, 0, cssW, cssH);
+  }
+  _drawHistory = [_drawCtx.getImageData(0, 0, canvas.width, canvas.height)];
   document.getElementById('fb-modal-wrap')?._checkSubmitReady?.();
 }
 
@@ -251,7 +293,6 @@ function _onDrawMove(e) {
     _drawCtx.lineTo(x, y);
     _drawCtx.stroke();
   } else if (_circleStart) {
-    // Preview: restore last saved state, draw circle
     if (_drawHistory.length) _drawCtx.putImageData(_drawHistory[_drawHistory.length - 1], 0, 0);
     const r = Math.sqrt((x - _circleStart.x) ** 2 + (y - _circleStart.y) ** 2);
     _drawCtx.beginPath();
@@ -279,12 +320,11 @@ function _onDrawEnd(e) {
   _saveDrawState();
 }
 
+// D8 issue 4: coordinates in CSS pixels — ctx is already scaled by dpr via ctx.scale()
 function _canvasXY(e) {
   const rect = _drawCtx.canvas.getBoundingClientRect();
-  const scaleX = _drawCtx.canvas.width  / rect.width;
-  const scaleY = _drawCtx.canvas.height / rect.height;
   const src = e.touches?.[0] ?? e;
-  return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
+  return { x: src.clientX - rect.left, y: src.clientY - rect.top };
 }
 
 function _closeFeedbackModal() {
@@ -294,12 +334,13 @@ function _closeFeedbackModal() {
 }
 
 function _submitFeedback() {
-  // Capture session from inline profile fields if this is first submit
+  // Capture session from inline profile fields on first submit (D10: include email)
   if (!_session) {
     _session = {
       name:   document.getElementById('fb-name')?.value.trim()   || '',
+      email:  document.getElementById('fb-email')?.value.trim()  || '',
       league: document.getElementById('fb-league')?.value.trim() || '',
-      team:   '',
+      team:   document.getElementById('fb-team')?.value.trim()   || '',
       role:   document.getElementById('fb-role')?.value          || '',
     };
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(_session));
@@ -307,7 +348,7 @@ function _submitFeedback() {
 
   const comment = document.getElementById('fb-comment')?.value.trim() || '';
   const canvas  = document.getElementById('fb-canvas');
-  const hasDrawing = _drawHistory.length > 0;
+  const hasDrawing = _drawHistory.length > 1;
   const drawingDataUrl = hasDrawing ? canvas.toDataURL('image/png') : null;
   const screenshotDataUrl = _screenshotCanvas ? _screenshotCanvas.toDataURL('image/png') : null;
 
@@ -317,6 +358,7 @@ function _submitFeedback() {
     page:          window._mtbState?.tab || '',
     role:          _session?.role   || '',
     userName:      _session?.name   || '',
+    email:         _session?.email  || '',
     league:        _session?.league || '',
     team:          _session?.team   || '',
     comment,
@@ -389,7 +431,7 @@ function _injectCSS() {
     .fb-modal-title { font:700 15px/1 -apple-system,sans-serif; text-transform:uppercase; letter-spacing:.06em; }
     .fb-close { background:none; border:none; font-size:18px; cursor:pointer; color:#8d877a; padding:4px; }
     .fb-canvas-wrap { flex-shrink:0; position:relative; }
-    #fb-canvas { width:100%; max-height:220px; display:block; object-fit:contain; touch-action:none; }
+    #fb-canvas { width:100%; height:180px; display:block; touch-action:none; }
     .fb-canvas-tools { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f4f2ec; border-bottom:1px solid #e9e5dc; flex-wrap:wrap; }
     .fb-tool { width:32px; height:32px; border:1.5px solid #e9e5dc; border-radius:8px; background:#fff; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
     .fb-tool--active { border-color:#d94626; background:#fdf0ed; }
@@ -400,7 +442,7 @@ function _injectCSS() {
     .fb-modal-body { padding:12px 16px; }
     .fb-comment { width:100%; padding:12px 14px; border:2px solid #e9e5dc; border-radius:10px; font:400 14px/1.5 -apple-system,sans-serif; resize:none; }
     .fb-comment:focus { outline:none; border-color:#d94626; }
-    .fb-modal-foot { padding:12px 16px 24px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+    .fb-modal-foot { position:sticky; bottom:0; padding:12px 16px 24px; display:flex; flex-direction:column; gap:8px; border-top:1px solid #e9e5dc; background:#fff; }
     .fb-submit { padding:13px; border-radius:11px; background:#d94626; color:#fff; border:none; font:700 15px/1 -apple-system,sans-serif; cursor:pointer; }
     .fb-submit:disabled { background:#e9e5dc; color:#8d877a; cursor:default; }
     .fb-cancel { background:none; border:none; font:600 13px/1 -apple-system,sans-serif; color:#8d877a; cursor:pointer; padding:4px; }

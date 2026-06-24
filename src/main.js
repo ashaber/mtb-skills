@@ -46,6 +46,7 @@ const s = {
   today_practice:  null,
   settingsQR:      null,
   feedbackQR:      null,
+  cardQR:          {},
 };
 
 // ── Camera / import state ─────────────────────────────────────────────────────
@@ -122,10 +123,32 @@ function goCard(athleteId) {
   ensureDraft(athleteId);
   s.athleteId = athleteId;
   pushLayer(() => viewCard(s));
+  _generateCardQR(athleteId);
+}
+
+function _generateCardQR(athleteId) {
+  const a = getPeople().find(x => x.id === athleteId);
+  if (!a) return;
+  const conf = getAthleteConfirmedLevels(athleteId);
+  const payload = encodeCard(a, conf);
+  QRCode.toDataURL(payload, { width: 200, margin: 2, errorCorrectionLevel: 'Q' })
+    .then(qr => {
+      s.cardQR[athleteId] = qr;
+      if (s.athleteId === athleteId && stackDepth() > 0) refreshCard();
+    })
+    .catch(() => {});
 }
 
 function refreshCard() {
+  const scrollEl = document.querySelector('.card-scroll');
+  const scrollTop = scrollEl?.scrollTop ?? 0;
   refreshTopLayer(() => viewCard(s));
+  if (scrollTop > 0) {
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.card-scroll');
+      if (el) el.scrollTop = scrollTop;
+    });
+  }
 }
 
 function _generateSettingsQR() {
@@ -165,7 +188,9 @@ function confirmSession(athleteId) {
   log.info('session.confirm', { athlete_id: athleteId });
   window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId });
   flash('Confirmed levels updated');
+  delete s.cardQR[athleteId];
   refreshCard();
+  _generateCardQR(athleteId);
 }
 
 function confirmOneSkill(athleteId, skill, level) {
@@ -174,7 +199,9 @@ function confirmOneSkill(athleteId, skill, level) {
   log.info('skill.confirm', { athlete_id: athleteId, skill, level });
   window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId, skill });
   flash(`${skill.replace('_', ' ')} confirmed at Lv ${level}`);
+  delete s.cardQR[athleteId];
   refreshCard();
+  _generateCardQR(athleteId);
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -746,7 +773,7 @@ function startCameraScan() {
     })
     .catch(err => {
       log.error('camera.access.failed', { error: err.message });
-      setScanHint('Camera permission denied. Allow camera access and try again.');
+      setScanHint('Camera access is blocked. To re-enable: tap the lock icon in your browser\'s address bar → Camera → Allow, then try again.');
     });
 }
 

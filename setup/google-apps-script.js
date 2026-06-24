@@ -36,13 +36,20 @@ function doGet(e) {
 function _handleFeedback(p) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = _getOrCreateSheet(ss, 'Feedback', [
-    'Timestamp', 'Date', 'Page', 'Role', 'User Name', 'NICA League', 'Team',
-    'Comment', 'Has Drawing', 'Drawing URL', 'Screenshot URL',
+    'Timestamp', 'Date', 'Page', 'Role', 'User Name', 'Email', 'NICA League', 'Team',
+    'Comment', 'Has Drawing', 'Drawing URL', 'Screenshot URL', 'Error',
   ]);
 
   const folder = _getOrCreateFolder();
-  const drawingUrl    = p.hasDrawing && p.drawingUrl    ? _saveImage(folder, p.drawingUrl,    'drawing_'    + Date.now() + '.png') : '';
-  const screenshotUrl = p.screenshotUrl                 ? _saveImage(folder, p.screenshotUrl, 'screenshot_' + Date.now() + '.png') : '';
+
+  let drawingUrl = '';
+  let drawError  = '';
+  if (p.hasDrawing && p.drawingUrl) {
+    const result = _saveImageSafe(folder, p.drawingUrl, 'drawing_' + Date.now() + '.png');
+    drawingUrl = result.url;
+    drawError  = result.error;
+  }
+  const screenshotUrl = p.screenshotUrl ? _saveImage(folder, p.screenshotUrl, 'screenshot_' + Date.now() + '.png') : '';
 
   sheet.appendRow([
     new Date().toISOString(),
@@ -50,12 +57,14 @@ function _handleFeedback(p) {
     p.page        || '',
     p.role        || '',
     p.userName    || '',
+    p.email       || '',
     p.league      || '',
     p.team        || '',
     p.comment     || '',
     p.hasDrawing  ? 'Yes' : 'No',
     drawingUrl,
     screenshotUrl,
+    drawError,
   ]);
 }
 
@@ -106,13 +115,29 @@ function _getOrCreateFolder() {
 
 function _saveImage(folder, dataUrl, filename) {
   try {
-    const [, b64] = dataUrl.split(',');
-    const blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/png', filename);
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) return '';
+    const blob = Utilities.newBlob(Utilities.base64Decode(parts[1]), 'image/png', filename);
     const file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return file.getUrl();
   } catch {
     return '';
+  }
+}
+
+function _saveImageSafe(folder, dataUrl, filename) {
+  try {
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) throw new Error('malformed data URL — no base64 segment');
+    const b64 = parts[1];
+    if (!b64 || b64.length < 10) throw new Error('base64 payload empty or too short (' + b64?.length + ' chars)');
+    const blob = Utilities.newBlob(Utilities.base64Decode(b64), 'image/png', filename);
+    const file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return { url: file.getUrl(), error: '' };
+  } catch (err) {
+    return { url: '', error: err.message };
   }
 }
 
