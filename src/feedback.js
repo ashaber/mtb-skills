@@ -141,7 +141,12 @@ function _openFeedbackModal() {
   _circleStart = null;
 
   import('html2canvas').then(m => {
-    return m.default(document.getElementById('app'), { useCORS: true, scale: 1 }).catch(() => null);
+    return m.default(document.body, {
+      useCORS: true, scale: 1,
+      x: 0, y: 0,
+      width: window.innerWidth, height: window.innerHeight,
+      windowWidth: window.innerWidth, windowHeight: window.innerHeight,
+    }).catch(() => null);
   }).catch(() => null).then(shot => {
     if (shot) {
       canvas.width  = shot.width;
@@ -375,7 +380,7 @@ function _injectCSS() {
     .fb-profile-section { display:flex; flex-direction:column; gap:8px; padding:12px 16px; border-bottom:1px solid #e9e5dc; background:#fafaf8; }
     .fb-profile-label { font:600 11px/1 -apple-system,sans-serif; letter-spacing:.06em; text-transform:uppercase; color:#8d877a; margin-bottom:2px; }
 
-    #fb-btn { position:fixed; bottom:88px; left:16px; z-index:8000; background:#d94626; color:#fff; border:none; border-radius:20px; padding:10px 16px; font:700 13px/1 -apple-system,sans-serif; cursor:pointer; box-shadow:0 4px 12px rgba(217,70,38,.4); }
+    #fb-btn { position:fixed; bottom:88px; right:16px; z-index:8000; background:#d94626; color:#fff; border:none; border-radius:20px; padding:10px 16px; font:700 13px/1 -apple-system,sans-serif; cursor:pointer; box-shadow:0 4px 12px rgba(217,70,38,.4); }
     #fb-btn:active { opacity:.85; }
 
     #fb-modal-wrap { position:fixed; inset:0; z-index:8500; background:rgba(0,0,0,.5); display:flex; align-items:flex-end; justify-content:center; }

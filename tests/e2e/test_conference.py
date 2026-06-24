@@ -121,10 +121,19 @@ def test_view_reflection_opens_sheet_with_existing_data(page: Page) -> None:
 
 # ── Feedback mode ─────────────────────────────────────────────────────────────
 
-def test_normal_url_has_no_feedback_ui(page: Page) -> None:
-    """Normal app URL must never show feedback elements."""
-    expect(page.locator('#fb-btn')).to_have_count(0)
+def test_feedback_on_by_default(page: Page) -> None:
+    """Feedback mode defaults to on — floating button is visible on the normal URL."""
+    expect(page.locator('#fb-btn')).to_be_visible(timeout=5000)
+    # No session overlay — that was removed in IDEA-014
     expect(page.locator('#fb-overlay')).to_have_count(0)
+
+
+def test_feedback_off_when_disabled_in_settings(page: Page, base_url: str) -> None:
+    """When feedback is toggled off in settings, the button should not appear."""
+    # Disable via localStorage before loading
+    page.evaluate("() => localStorage.setItem('mtb_feedback_mode', 'false')")
+    page.goto(base_url)
+    expect(page.locator('#fb-btn')).to_have_count(0)
 
 
 def test_feedback_mode_shows_floating_button_immediately(page: Page, base_url: str) -> None:

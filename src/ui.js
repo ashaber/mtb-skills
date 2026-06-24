@@ -180,13 +180,14 @@ export function trendSVG(history, confirmed, width = 160, height = 46) {
 // ── Segmented level selector (5 tappable stops) ───────────────────────────
 // Replaces drag-slider; renders cleanly in vanilla JS with event delegation.
 export function levelSelectorHTML(skill, draftLevel, athleteId, size = 'compact') {
+  const action = size === 'full' ? 'preview-level' : 'draft-level';
   const segs = [1, 2, 3, 4, 5].map(n => {
     const sel = n === draftLevel;
     const style = sel
       ? `background:${LV[n]};border-color:${LV[n]};color:#fff`
       : `color:${LV[n]};border-color:var(--border)`;
     return `<button class="lv-seg${sel ? ' sel' : ''}" style="${style}"
-      data-a="draft-level" data-sk="${skill}" data-n="${n}" data-aid="${athleteId}">
+      data-a="${action}" data-sk="${skill}" data-n="${n}" data-aid="${athleteId}">
       <span class="lv-seg-n">${n}</span>
     </button>`;
   }).join('');

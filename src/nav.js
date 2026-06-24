@@ -78,6 +78,14 @@ function _mountSheet(entry) {
   sheet.innerHTML = `<div class="sheet-grip"></div><div class="sheet-scroll">${entry.render()}</div>`;
   scrim.classList.add('scrim--in');
   requestAnimationFrame(() => sheet.classList.add('sheet--in'));
+
+  const grip = sheet.querySelector('.sheet-grip');
+  let _touchY = 0;
+  grip.addEventListener('touchstart', e => { _touchY = e.touches[0].clientY; }, { passive: true });
+  grip.addEventListener('touchend', e => {
+    if (e.changedTouches[0].clientY - _touchY > 40) pop();
+  }, { passive: true });
+  grip.addEventListener('click', () => pop());
 }
 
 function _unmountSheet() {
