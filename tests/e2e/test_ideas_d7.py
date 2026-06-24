@@ -117,8 +117,10 @@ def test_sheet_grip_click_closes_sheet(page: Page) -> None:
     expect(page.locator('#sheet')).to_be_empty()
 
 
-def test_sheet_grip_swipe_down_closes_sheet(page: Page) -> None:
+def test_sheet_grip_swipe_down_closes_sheet(page: Page, request) -> None:
     """Swiping down on the sheet grip via touch events dismisses the sheet."""
+    if request.node.callspec.id == 'webkit':
+        pytest.skip('WebKit does not support new Touch() constructor in evaluate()')
     add_athlete(page, 'Swipe Rider')
     page.click('[data-a="open-add"]')
     expect(page.locator('#sheet')).to_be_visible()
