@@ -128,21 +128,68 @@ The navigation, routing, and all view-transition code follows a three-tier model
 - "Learn more →" link that opens `public/about.html` in a new tab
 - Contact CTA: "Want this for your whole team or league? Reach out — andrewshaber@gmail.com"
 
+**In-app About section** copy (Settings tab — keep short, sell the concept):
+
+```
+MTB Skills Assessment
+
+Ask a mountain bike coach the skill level of the riders in their group.
+The answer is almost universally: "They're really fast." That's answering
+the wrong question.
+
+This rubric gives coaches a shared language for skill — three foundational
+skills (body position, braking, cornering) across five levels defined by
+what breaks, when it breaks, and at what threshold. Skills are not binary.
+A rider corners at Level 1 seated and looking down; at Level 5 at speed on
+black-plus terrain with near-zero failure. The rubric measures the full
+progression.
+
+This app puts the rubric to work at practice: log observations, confirm
+levels when athletes demonstrate consistency, and know which trails each
+rider is ready for. Works fully offline. No login required.
+
+Rubric by Andrew Shaber, Renee Kline & Tim Curry.
+Want this for your team or league? andrewshaber@gmail.com
+
+Learn more →     [opens public/about.html in new tab]
+
+© 2026 Andrew Shaber, Renee Kline & Tim Curry
+```
+
 **Extended about page (`public/about.html`):**
 - Lives at `public/about.html` — Vite copies `public/` to `dist/` verbatim, no build change needed
 - Served at `https://ashaber.github.io/mtb-skills/about.html`
-- Editable on GitHub.com (pencil → commit → deploys in ~60s) — suitable for live FAQ updates at conference
-- Standalone CSS in `<style>` tag — no dependency on app bundle
-- Content sections:
-  - What this is and why it exists (rubric origin, Tim + Andrew collaboration)
-  - How assessment works (observe → confirm → trail readiness)
-  - Roadmap highlights (headline phases only, not full ROADMAP.md)
-  - FAQ (add entries at conference via GitHub.com mobile edit)
-  - Team / league use CTA — andrewshaber@gmail.com
+- Editable on GitHub.com (pencil → commit → deploys in ~60s, no terminal needed) — suitable for live FAQ updates at conference from a phone
+- Standalone `<style>` block — no dependency on app bundle or Vite
+- Linked from in-app About section via `<a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank">Learn more →</a>`
+
+**Content sections and narrative brief for each:**
+
+1. **Why this exists** — Origin story: Andrew Shaber, Renee Kline, and Tim Curry co-founded the Boise mountain bike team and kept encountering the same problem: ask a coach the skill level of their riders and the answer is almost universally "they're really fast." The consequence is real — a coach picks up an unfamiliar rider, assumes competence, and discovers the gap in the middle of a difficult trail. NICA's instructor training uses a 1–5 scale for individual skills with no objective measures behind the numbers. Measuring skills in isolation (especially in a parking lot at the start of the season) is not a strong indicator of trail readiness. This rubric is the attempt to fix that.
+
+2. **What makes this rubric different** — Skill is not binary. The rubric measures the full progression within each skill. Cornering at Level 1: seated, steering with handlebars, eyes fixed on the ground ahead. Cornering at Level 5: speed, black-plus terrain with roots and rocks, full low/look/lean/counter/rotate/pressure control, failures rare and self-corrected. Three skills — body position, braking, cornering — across five levels defined by two parallel progressions: (a) environment and consistency (controlled → sometimes → most of the time → always → bombproof), and (b) skill accumulation (each level adds specific teaching points; the rubric describes what *breaks*, when it breaks, at what threshold). Body position is the foundation for both braking and cornering — skills build on each other.
+
+3. **Motor learning alignment** — The progression reflects the Fitts and Posner stages of motor learning used in NICA coach training. Levels 1–2: cognitive stage — movements conscious and inconsistent. Level 3: associative — becoming reliable but degrading under pressure. Level 4: largely autonomous — foundational movements require no conscious attention, freeing the rider for terrain and tactics. Level 5: fully autonomous, applied on the most demanding terrain. Note on OTB curriculum: NICA's OTB 101/201/301 teaches the positive — what to do. This rubric is the complementary tool, describing failure modes, because error detection and correction requires knowing what breakdown looks like. Different purposes, same progression.
+
+4. **Trail readiness** — Confirmed skill levels map to trail difficulty. The app shows which trails a rider is genuinely ready for — not which trails they've survived. That distinction matters when building a practice route or deciding if a rider is ready to move up.
+
+5. **The app** — Brief: puts the rubric to work at practice. Log observations while you ride. Confirm a level when a rider demonstrates it consistently — not on one good rep. See trail readiness at a glance. Fully offline. No login.
+
+6. **FAQ** — Stub with 2–3 starter questions; add more entries at conference via GitHub.com mobile edit (pencil icon → edit → commit).
+
+7. **Team / league CTA** — "The assessment system is designed to scale — from a single ride pod to a full league. If you're interested in bringing structured skill assessment to your program, reach out: andrewshaber@gmail.com"
+
+8. **Copyright** — `© 2026 Andrew Shaber, Renee Kline & Tim Curry` — no "All rights reserved" (don't discourage coaches sharing/printing the rubric; the notice establishes authorship and deters commercial misuse).
+
+### Deliverable 4 - IDEA-013, IDEA-014
+Implement these two ideas.
+
+### Defects - D7
+Resolve D7 defect list
 
 ---
 
-### Deliverable 2 — Practice Reflection (merged from Sprint 1f)
+### Deliverable 2 — Practice Reflection (complete - merged from Sprint 1f)
 
 **Scope:** End-of-practice closing flow — reflection notes, mood rating, and incident log recorded against the practice record.
 

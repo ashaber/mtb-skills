@@ -106,3 +106,98 @@ makes gestures possible but did not implement the gesture detection.
 - **Practice export:** Attendance export now includes `reflection`, `mood`, `incidents` fields. Renamed to `practice-report-{date}.json`.
 - **Feedback UX:** No overlay on app load. Feedback button appears immediately. On first modal open, name/league/role fields are shown inline; role required to submit.
 - **setup/README.md:** Added "Where to find feedback responses" section explaining the Google Sheet tabs and Drive folder.
+
+## D7 conference feedback round 2
+- missing link in settings -> about to the long form about page (defined in claude.md)
+- screen shot for feedback on rubric page shows whole page.  Needs to be the in-focus screen page so user can see to draw on it.
+- full rubric in field guide opens rubric overlay. It has a swipe away handle on top that doesn't function (swipe down should clear it).  
+
+
+## D11 — Rider card scrolls to top when tapping a level pill
+
+**Status:** Fixed
+**Symptom:** On the full rider card, tapping a level pill to view detail causes the page to jump to the top. Expected behavior: scroll position stays fixed at the top of the visible screen; only the detail content below shifts as the selected level changes.
+**Root cause:** Likely `draw()` is re-rendering the entire card via `innerHTML`, which resets scroll position to 0. Fix: either (a) update only the level detail section in-place without a full redraw, or (b) capture `scrollTop` before the redraw and restore it immediately after.
+**Fix preference:** Option (b) is lower risk — save `el.scrollTop` before `innerHTML` assignment, restore after. Option (a) is cleaner long-term but requires the detail panel to be a stable DOM node updated independently of the card redraw.
+**Also affects:** "Confirm level" button on the rider card triggers the same scroll-to-top behavior — same root cause, same fix.
+
+---
+
+## D16 — Athlete card QR code won't scan — likely scaled incorrectly
+
+**Status:** Fixed
+**Symptom:** QR code displayed on the full rider card cannot be scanned by another device.
+**Likely cause:** QR rendered too small, or the SVG/canvas element is scaled down via CSS without the underlying QR module size being adjusted — resulting in modules too small to reliably scan, or aliasing artifacts that confuse scanners.
+**Diagnosis:** The share modal QR (3-dot menu) scans correctly and is ~2× the size of the inline card QR. Same library, same content — pure size difference. The inline QR is too small to scan reliably.
+**Fix:** Increased inline QR generation from `width:120` to `width:200, margin:2`, and CSS display size from 68×68px to 160×160px.
+
+---
+
+## D15 — Camera permission error message doesn't guide recovery
+
+**Status:** Fixed
+**Symptom:** When camera permission is blocked, app shows "Camera permission denied. Allow camera access and try again." — but the browser won't re-prompt automatically, so the user has no idea how to actually re-enable it.
+**Fix:** Improve the error message to include browser-specific guidance: "Camera access is blocked. To re-enable: tap the lock icon in your browser's address bar → Camera → Allow, then try again."
+
+---
+
+## D14 — Rider card QR code hidden behind share button instead of always visible
+
+**Status:** Fixed
+**Symptom:** On the full rider card, the QR code is not visible by default — it appears behind or under a share button rather than being displayed inline.
+**Expected:** QR code always visible on the rider card, positioned below the rider's name and to the right of their photo — no tap required to reveal it.
+**Layout target:** Photo left, name above QR right — QR sized to fit that column without a button wrapper around it.
+**Fix:** QR is now pre-generated on card open and rendered inline below the rider's name. Regenerates after level confirmation. Share card item in the ⋯ menu is preserved for the transfer-to-another-device flow.
+
+---
+
+## D9 — Drawing upload fails silently, saves filename instead of Drive URL
+
+**Status:** Fixed
+**Source:** Feedback sheet row 5 (2026-06-23T23:24, guide page, "Many words")
+**Symptom:** Drawing URL column contains `drawing_1782257055283.png` — a local filename — instead of a Google Drive link. Screenshot URL on the same row uploaded successfully. Drawing data never reached Drive.
+**Root cause:** The drawing upload path in `setup/google-apps-script.js` likely fails when the base64 payload is malformed or exceeds a size limit, and the fallback writes the intended filename rather than an empty/error value — making it look like it succeeded.
+**Fix:** Added `_saveImageSafe()` that returns `{url, error}` tuple; drawing errors now logged in a new Error column in the Feedback sheet. Added Email column (D10) at the same time.
+
+---
+
+## D12 — Enhancement: enable pinch-to-zoom on Guide page
+
+**Type:** Enhancement
+**Source:** IDEA-016 — coaches on trail without reading glasses
+**Request:** Allow pinch-to-zoom on the Guide page only. Current viewport meta tag likely has `user-scalable=no` which blocks native browser zoom across the entire app.
+**Approach:** Check `index.html` viewport meta tag. If `user-scalable=no` is set, evaluate whether removing it breaks any fixed-position UI (tab bar, sheets, modals) on other pages. If zoom on other pages causes layout issues, scope the fix to the Guide page only via a JS workaround that temporarily re-enables zoom on Guide tab entry and disables it on exit.
+**Acceptance:** Coach can pinch-zoom rubric text on the Guide page. Tab bar and other fixed elements remain stable.
+**Status:** Deferred — native browser zoom moves nav/buttons off screen. Scoping zoom to guide text only requires a custom pinch handler or iframe, both non-trivial. Revisit with IDEA-015 guide page redesign which may address readability through layout and font size instead.
+
+---
+
+## D13 — Enhancement: pre-fill feedback overlay from coach profile
+
+**Status:** Fixed
+**Type:** Enhancement
+**Source:** Pre-conference review
+**Symptom:** Coach who has already set up their profile (name, team) in app Settings is asked the same questions again in the feedback session overlay — double entry.
+**Fix:** On feedback overlay init, read coach profile from storage (`getCoach()`) and pre-fill Name and Team fields. League would still need manual entry as it's not a current profile field. Role defaults to Coach if a coach profile exists.
+**Note:** Low priority — doesn't block conference use. Nice cleanup once D8 drawing/layout bugs are resolved.
+
+---
+
+## D10 — Enhancement: add optional email field to feedback session overlay
+
+**Status:** Fixed
+**Type:** Enhancement
+**Source:** Pre-conference review
+**Request:** Add an optional Email field to the session start overlay in `src/feedback.js`, after the Name field. Allows coaches who want a follow-up to leave contact info. Most will skip it — that's fine.
+**Scope:** Session overlay UI + pass email through to Feedback sheet (new Email column after User Name). Engagement sheet does not need it.
+**Note:** The partial-fix description in a prior revision was based on the deployed version. The local code uses named `getElementById` lookups (`fb-email` → email, `fb-league` → league, `fb-team` → team) — no positional indexing bug.
+
+---
+
+## D8 RC1 Conference Feedback
+
+**Status:** Fixed
+- **Screenshot includes modal:** Fixed — screenshot captured before modal DOM is created.
+- **Drawing not full width / touch offset:** Fixed — canvas dpr approach applied.
+- **Coordinates offset on Android:** Fixed.
+- **Submit button overlap:** Fixed — footer moved inside the scroll div with `position:sticky; bottom:0`. Footer now sticks to the bottom of the visible scroll viewport regardless of content height or keyboard state. No longer relies on flex child layout which failed on some Android Chrome versions.

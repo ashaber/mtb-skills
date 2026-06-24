@@ -429,7 +429,7 @@ export function viewSettings(s) {
         <span class="settings-section-label">About</span>
         <p class="settings-about">A rubric-based skill assessment tool for NICA MTB coaches — three foundational skills across five levels defined by what breaks, when, and at what threshold. Log observations, confirm levels, and see trail readiness at a glance. Works fully offline. No login required.</p>
         <p class="settings-about" style="margin-top:8px">Want this for your team or league? <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
-        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Shaber &amp; Tim Curry</p>
+        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry</p>
         <a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
       </div>
     </div>`;
@@ -454,6 +454,8 @@ export function viewCard(s) {
         <span class="photo-hint">Add photo</span>
        </label>
        <input id="photo-upload" type="file" accept="image/*" style="display:none" data-aid="${a.id}">`;
+
+  const qrDataUrl = s.cardQR?.[a.id];
 
   const skillBlocks = SKILL_IDS.map(sk => {
     const lv         = draft[sk] || 1;
@@ -543,6 +545,7 @@ export function viewCard(s) {
             ${metaLabel ? `<span class="card-grade">${metaLabel}</span>` : ''}
             <span class="card-grade" style="margin-left:auto;color:var(--dim)">${totalObs} obs</span>
           </div>
+          ${qrDataUrl ? `<img class="card-hero-qr" src="${qrDataUrl}" alt="Athlete QR code" title="Scan to share">` : ''}
         </div>
       </div>
       ${(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `
