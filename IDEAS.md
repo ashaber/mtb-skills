@@ -122,6 +122,8 @@ Redesign the Guide page to take advantage of the full screen rather than replica
 
 **Authoring note:** Requires careful content work — rubric.js currently has `detail`, `failure_modes`, and `when_breaks` fields but no progression coaching or game recommendations. New fields needed: `progression_drills` and `recommended_games` per level per skill.
 
+**Coach feedback (2026-06-25):** "Each level needs what is changing. Decreasing fear errors, increased skill, increased trail difficulty. Show with color icons, red down arrow, green up arrow. Expand out; how to improve." — This directly validates the level-section approach and adds a specific visual requirement: directional delta indicators (↑/↓ with color) on each level showing what improves relative to the previous level. Red down-arrow = what failures decrease, green up-arrow = what capability increases. This is a concrete UI pattern to design to when IDEA-015 is built.
+
 ---
 
 ### IDEA-014 Feedback mode *(complete — phase2/about-ideas-d7)*

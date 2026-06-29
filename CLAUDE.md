@@ -189,9 +189,9 @@ After generating `rubric.json`, output the top-level keys so the schema can be r
 
 ### Phase 2 Definition of Done
 
-- [ ] App installable from Chrome (Android) and Safari (iOS) — "Add to Home Screen" works
+- [ x] App installable from Chrome (Android) and Safari (iOS) — "Add to Home Screen" works
 - [ ] Service worker pre-caches all app assets and `public/rubric.json`
-- [ ] App loads fully offline after first install — no network calls on open
+- [ x] App loads fully offline after first install — no network calls on open
 - [ ] `public/rubric.json` contains all rubric text content; `src/rubric.js` has structural constants only
 - [ ] Wording edit in `rubric.json` on GitHub.com deploys without a build
 - [ ] Settings: Google Sheets URL input; import parses and merges roster
@@ -202,6 +202,20 @@ After generating `rubric.json`, output the top-level keys so the schema can be r
 - [ ] Playwright: install prompt present, offline load, import flow, error states
 - [ ] Lighthouse PWA audit passes
 - [ ] Real-device test: Android install + offline; iOS install + offline
+
+### Current open defects on branch `phase2/pwa` (fix before merge to main)
+
+All items tracked in `DEFECTS.md`. Priority order for the next build:
+
+1. **D18** — Remove Google Fonts `<link>` from `index.html`; switch `font-family` to system font stack (`-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif`). Offline DOD blocker.
+2. **D17a** — Fix QR on full rider card: generate at `160 * devicePixelRatio` px, display 160px CSS. Fallback: replace with Share button.
+3. **D17b** — Attendance highlight: add `background: rgba(22,163,74,0.08)` to `.row-card--attending` and `.row-card--present`.
+4. **D17f** — `public/about.html`: replace hardcoded `ashaber.github.io/mtb-skills` URL with relative link.
+5. **D17e** — Settings about section: rename "conference" label to "Feedback"; add dismiss option.
+6. **D17d** — Default `allow_multi_practice` to `true` in `getTeamSettings()`.
+7. **D20** — App version in Settings: wire `__APP_VERSION__` from `package.json` via Vite `define`; display `v{version}` in Settings About section; bump `package.json` to `0.2.2`. See DEFECTS.md D20 for versioning scheme.
+8. **D19** — Install prompt in Settings tab (enhancement; can be separate PR).
+9. **D17c** — First-launch coach onboarding (IDEA-017; can be separate PR).
 
 ---
 
