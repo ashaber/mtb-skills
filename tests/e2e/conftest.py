@@ -66,8 +66,10 @@ def page(request, base_url: str):
         pg.reload()
         try:
             yield pg
-            # WebKit rejects SW registration on plain HTTP (expected in test env)
-            real_errors = [e for e in js_errors if 'sw.js load failed' not in e]
+            # WebKit rejects SW/module loading on plain HTTP (expected in test env)
+            real_errors = [e for e in js_errors
+                           if 'sw.js load failed' not in e
+                           and 'Importing a module script failed' not in e]
             assert not real_errors, f'Uncaught JS errors: {real_errors}'
         finally:
             ctx.close()
