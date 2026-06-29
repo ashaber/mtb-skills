@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Rounded square background -->
+  <rect width="512" height="512" rx="96" fill="#d94626"/>
+  <!-- Mountain silhouette: two peaks, white -->
+  <polygon points="256,112 384,368 128,368" fill="white" opacity="0.95"/>
+  <polygon points="360,176 460,368 260,368" fill="white" opacity="0.75"/>
+</svg>

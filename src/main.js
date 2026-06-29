@@ -21,6 +21,7 @@ import {
 
 const FEEDBACK_MODE = localStorage.getItem('mtb_feedback_mode') !== 'false';
 import { SKILL_IDS } from './rubric.js';
+import { loadRubricContent } from './rubric-content.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
@@ -863,15 +864,20 @@ document.getElementById('scrim').addEventListener('click', () => { stopCamera();
 window.__test_onQRDetected = onQRDetected;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-// Close any active practices from previous days (stale sessions)
-getPractices()
-  .filter(p => p.date < today() && p.status !== 'ended')
-  .forEach(p => { endPractice(p.id); log.info('practice.stale.closed', { practice_id: p.id }); });
+(async () => {
+  // Fetch rubric content before first draw; falls back to bundled defaults on failure.
+  await loadRubricContent(import.meta.env.BASE_URL.replace(/\/$/, ''));
 
-s.today_practice = findTodaysPractice();
-_generateSettingsQR();
-log.info('app.init', { people: getPeople().length, observations: getObservations().length });
-draw();
-if (FEEDBACK_MODE) {
-  import('./feedback.js').then(m => m.initFeedback());
-}
+  // Close any active practices from previous days (stale sessions)
+  getPractices()
+    .filter(p => p.date < today() && p.status !== 'ended')
+    .forEach(p => { endPractice(p.id); log.info('practice.stale.closed', { practice_id: p.id }); });
+
+  s.today_practice = findTodaysPractice();
+  _generateSettingsQR();
+  log.info('app.init', { people: getPeople().length, observations: getObservations().length });
+  draw();
+  if (FEEDBACK_MODE) {
+    import('./feedback.js').then(m => m.initFeedback());
+  }
+})();

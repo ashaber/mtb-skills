@@ -9,7 +9,8 @@
 export function modalSettings(s) {
   return `<div class="modal-sheet">${viewSettings(s)}</div>`;
 }
-import { SKILLS, SKILL_IDS, TRAIL_GUIDE, COACH_NOTES, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
+import { SKILL_IDS, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
+import { SKILLS, TRAIL_GUIDE, COACH_NOTES } from './rubric-content.js';
 
 import {
   getPeople, getAthletes, getAthleteConfirmedLevels, getObservations,

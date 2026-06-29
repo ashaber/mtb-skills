@@ -57,63 +57,148 @@ Fully offline by design — no network calls.
 
 ---
 
-## Phase 2 — Offline-First PWA + Google Sheets Backend
+## Phase 2 — PWA + Google Sheets Roster Import
 
-**Goal:** Team leadership can view all athletes; coaches can work offline and sync when back in range.
+**Goal:** App installs to home screen and works reliably offline; coaches can load their existing team roster from a Google Sheet instead of entering athletes manually.
+
+Two independent milestones — neither requires a backend.
 
 ### Milestones (in order)
 
-**2a — Roster import from Google Sheet**
-Before building full sync, add the ability to load the athlete list from a designated Google Sheet. The local copy is cached for offline use. No auth required if the sheet is publicly readable by link.
+**2a — PWA: service worker + installability**
+- Add `vite-plugin-pwa` to generate service worker and web manifest
+- App installs to home screen on Android (Chrome) and iOS (Safari)
+- Service worker caches all static assets and rubric data — app loads fully offline even after a browser restart or low-storage cache eviction
+- Manifest: name, short name, icons (192×192, 512×512), display: standalone, theme color
+- Test: install on real Android and iOS devices, airplane mode, re-open — zero network calls
 
-**2b — Full Google Sheets backend + OAuth**
-- Google OAuth: coaches authenticate, head coach / team director can view the full roster and all assessments
-- Observations write to Google Sheets when online; queued locally when offline
-- Sync strategy: observations are immutable append-only (no merge conflict); ConfirmedLevel uses last-write-wins
-- Data privacy scoped to the team's Google Sheet — no cross-team visibility
+**2b — Google Sheets CSV roster import**
+- Head coaches typically manage team rosters in a Google Sheet (names, roles, categories)
+- Coach shares their sheet with "anyone with link can view," pastes the link into Settings
+- App extracts the sheet ID, fetches the Sheets CSV export endpoint (no OAuth needed for public-read sheets), parses to athlete records
+- Imported athletes merge into the existing roster by name (no duplicates); existing observations and confirmed levels are preserved
+- Offline: last-fetched roster cached in localStorage — import works once, then stays available
+- No backend required — entirely client-side
 
-**2c — Service worker**
-Full PWA: app installs to home screen, works completely offline, syncs on reconnect.
-
-### Architecture note
-Team data lives in that team's Google Sheet — not a shared database. This is intentional: a future Phase 4 can add a proper DB without schema changes because the data model already carries `team_id` on every record.
-
----
-
-## Phase 3 — Native Mobile App
-
-**Goal:** Better UX on iOS and Android; camera access for future video features.
-
-- React Native or Flutter, same data model and business logic
-- Native offline storage (SQLite) replacing localStorage
-- Sync to Google Sheets (Phase 2) or a proper backend (Phase 4 decision point)
+### Not in Phase 2
+Real-time roster distribution (head coach pushes, ride group coaches pull) requires a backend — that's Phase 3.
 
 ---
 
-## Phase 4 — Multi-Tenant Backend (optional)
+## Phase 3 — Supabase Multi-Tenant Backend
 
-**Goal:** League-level visibility; inter-rater reliability tooling.
+**Goal:** Head coach maintains one roster; ride group coaches authenticate and see their assigned group. Eliminates manual roster entry on each device.
 
-### Backend stack
-- **Python FastAPI** — REST API, Docker container (python:3.12-slim)
-- **GCP Cloud Run** — serverless container hosting, scales to zero, no cluster to manage
-- **GCP Artifact Registry** — Docker image storage
-- **Supabase** — managed PostgreSQL (do not self-host Postgres)
-- **Frontend** — same Vite build, deploy target changes from GitHub Pages to GCS bucket or Firebase Hosting
-
-### CI/CD at Phase 1 (GitHub Actions)
-```
-push to main →
-  test job: npm run test + pytest tests/e2e/
-  build-frontend: npm run build → deploy dist/ to GCS/Firebase
-  build-backend: docker build → push to Artifact Registry → deploy to Cloud Run
-```
+### Problem solved
+A team has one head coach and multiple ride group coaches. Today: each coach's app is a silo. A head coach imports the roster into their app; ride group coaches still enter athletes manually or scan QR codes one by one. Phase 3 connects them.
 
 ### Features
-- PostgreSQL with a `teams` table — existing data model supports this without migration
-- League director visibility across teams
-- NICA PitZone integration if their API becomes accessible
-- Inter-rater reliability testing between trained coaches
+- **Supabase (managed PostgreSQL)** — do not self-host Postgres
+- Head coach imports Google Sheet roster → Supabase seeds `team_id`-scoped athlete records
+- Ride group coaches authenticate (Google OAuth or magic link) → pull their assigned group
+- Observations written locally (offline-first) → synced to Supabase on reconnect
+- Sync strategy: observations are immutable append-only (no conflict); ConfirmedLevel uses last-write-wins
+- All records already carry `team_id` and `coach_id` from Phase 1 — no schema migration
+
+### Architecture
+- **FastAPI backend** (Python 3.12-slim) — REST API on GCP Cloud Run, scales to zero
+- **GCP Artifact Registry** — Docker image storage
+- **Frontend** — same Vite build; deploy target shifts from GitHub Pages to GCS bucket or Firebase Hosting
+
+### Data flow
+```
+Google Sheet (head coach) → Phase 2b import → head coach's app
+                                                     ↓ push to Supabase
+ride group coach → authenticate → pull assigned group → local cache
+                                                              ↓ observe on trail (offline)
+                                                              ↓ sync to Supabase on reconnect
+```
+
+---
+
+## Phase 4 — Native Mobile App
+
+**Goal:** App Store distribution and native UX. The break point from PWA is distribution — when a league coordinator needs to say "download MTB Skills from the App Store" in a coach training session, PWA becomes a distribution liability.
+
+### Migration path
+
+| Step | What | Why |
+|---|---|---|
+| 2c | PWA manifest + service worker | Reliable offline, home screen install on Android |
+| 4a | Capacitor wrapper → App Store | Fastest path to iOS App Store reusing existing codebase |
+| 4b | Evaluate: is PWA-in-shell sufficient? | Stay here if coaches are satisfied and no native APIs needed |
+| 4c | React Native rewrite (optional) | Only if background sync, video processing, or native UX is a real complaint |
+
+### Tech stack options
+
+**Capacitor (Ionic)** — wraps the existing web app in a native shell with native API bridges. Closest migration from the current codebase: HTML/CSS/JS runs as-is, Capacitor adds native plugins for camera, notifications, etc. Tradeoff: the app runs in a WebView, which has a subtly different feel than a truly native app (see note below). Right choice for Step 4a.
+
+**React Native (Expo)** — write once in TypeScript, compiles to truly native iOS and Android components (not a WebView). The existing JS business logic (storage, rubric, trail readiness) ports directly; only the UI layer is rewritten. Expo managed workflow handles Xcode/Android Studio setup and enables over-the-air content updates without App Store review. Right choice if 4b evaluation shows native UX is a real requirement.
+
+**Flutter** — write once in Dart, renders its own UI (not native widgets). Best cross-platform consistency; steeper learning curve (new language). Not recommended unless the team already knows Dart.
+
+### WebView feel vs. truly native
+
+Capacitor runs the app inside a browser engine embedded in a native shell. The gap is subtle but real:
+
+- **Scroll physics** — iOS has a distinctive momentum scroll with rubber-band bounce at the edges. WebView scroll feels slightly stiffer and doesn't always match the native spring curve. Coaches who use a lot of iOS apps will notice.
+- **Tap response** — native controls have a ~16ms touch-to-visual-response. WebViews add a layer of JS event processing; on slower devices this shows up as a slight lag on button taps.
+- **Animations** — CSS transitions run on the browser's compositor thread, which is good, but complex animated transitions (like the sheet slide-up) can stutter on mid-range Android devices under memory pressure in ways that native UIKit/Jetpack animations don't.
+- **Text selection and context menus** — WebView text behaves like a webpage: long-press selects text and shows a web context menu instead of native iOS/Android behavior.
+- **Keyboard handling** — the soft keyboard pushing the WebView viewport up can cause layout jumps that native forms handle more gracefully (this app already has this in the feedback modal on Android — D8).
+- **What you don't lose** — all app logic, all rubric content, all data model code transfers unchanged. The gap is purely in feel, not in capability.
+
+**For this app specifically:** coaches are using it in gloves, on trail, often on mid-range Android devices. The tap responsiveness and scroll physics difference is real in that context. Whether it's a dealbreaker depends on the user feedback at 4a — hence the evaluation step before committing to a React Native rewrite.
+
+### Native features needed (not available in PWA)
+
+- App Store distribution and discoverability
+- Push notifications (practice reminders, coach alerts) — limited on iOS PWA
+- Reliable background sync — PWA background sync is unreliable on iOS
+- Video frame processing (moonshot) — browser video APIs are too slow for real-time analysis
+
+### Offline storage
+
+localStorage is replaced with SQLite (via Expo SQLite or Capacitor SQLite plugin). Same data model; the `storage.js` abstraction layer from Phase 1 is designed for this swap.
+
+### Syncs to
+
+Supabase backend (Phase 3).
+
+---
+
+## Phase 5 — League-Level Visibility + HubSpot Integration (optional)
+
+**Goal:** League director visibility across all teams; automated roster sync from NICA registration data.
+
+### Features
+- League director dashboard: all teams, all athletes, cross-team readiness reporting
+- Inter-rater reliability tooling between trained coaches
+- NICA PitZone integration via HubSpot (replaces manual Google Sheets roster import from Phase 2b)
+
+### NICA / HubSpot / PitZone integration
+
+**Context (2026-06-26):** NICA is centralizing on HubSpot CRM. HubSpot has a 2-way API integration with PitZone (NICA's athlete/team registration platform). External app integrations go through HubSpot. HubSpot integration is estimated 1+ year away — Phase 2b (Google Sheets import) covers the near-term gap. Contact: Tony (NICA IT) — coordinate access before building.
+
+**Opportunity:** If NICA exposes team/athlete roster data via HubSpot API, the app can pull pre-built rosters instead of requiring coaches to enter athletes manually. Coach opens app → team roster already populated from PitZone registration data. Replaces the Phase 2b Google Sheets import step.
+
+**Data available via HubSpot API (likely):**
+- Coaches and athletes as Contact records
+- Teams as Company records
+- League/region hierarchy
+- Registration status, age group, category (from PitZone sync)
+
+**Integration approach for Phase 5:**
+- FastAPI backend authenticates to HubSpot via OAuth 2.0
+- On team setup: pull roster from HubSpot, seed local Supabase records with `team_id` + `coach_id`
+- Periodic sync or on-demand refresh (coaches may join/leave mid-season)
+- Skill assessment data stays in Supabase — never written back to HubSpot (read-only integration)
+- `team_id` and `coach_id` already on every record from Phase 1 — no schema migration needed
+
+**Prerequisites before building:**
+- Meeting with Tony (NICA IT) to confirm API access scope and auth method
+- Determine if NICA offers a developer program or if this requires a formal partnership
+- Confirm PitZone → HubSpot sync includes the fields needed (athlete name, category, team assignment)
 
 ### Architecture note
 Monorepo: frontend in `src/`, backend in `backend/`. Split into separate repos later only if team size or deploy cadence requires it.

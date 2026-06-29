@@ -55,7 +55,9 @@ def page(request, base_url: str):
         pg.goto(base_url)
         try:
             yield pg
-            assert not js_errors, f'Uncaught JS errors: {js_errors}'
+            # WebKit rejects SW registration on plain HTTP (expected in test env)
+            real_errors = [e for e in js_errors if 'sw.js load failed' not in e]
+            assert not real_errors, f'Uncaught JS errors: {real_errors}'
         finally:
             ctx.close()
             browser.close()

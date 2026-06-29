@@ -108,6 +108,8 @@ makes gestures possible but did not implement the gesture detection.
 - **setup/README.md:** Added "Where to find feedback responses" section explaining the Google Sheet tabs and Drive folder.
 
 ## D7 conference feedback round 2
+
+**Status:** Fixed (PR #13, 2026-06-24)
 - missing link in settings -> about to the long form about page (defined in claude.md)
 - screen shot for feedback on rubric page shows whole page.  Needs to be the in-focus screen page so user can see to draw on it.
 - full rubric in field guide opens rubric overlay. It has a swipe away handle on top that doesn't function (swipe down should clear it).  

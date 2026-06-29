@@ -3,7 +3,8 @@
  * Pure functions returning HTML/SVG strings. No side-effects.
  */
 
-import { SKILLS, SKILL_IDS, TRAIL_LABELS, TRAIL_MINIMUMS } from './rubric.js';
+import { SKILL_IDS, TRAIL_LABELS, TRAIL_MINIMUMS } from './rubric.js';
+import { SKILLS } from './rubric-content.js';
 
 // ── Level colours (functional — kept from existing app) ───────────────────
 export const LV = { 0:'#b3aea3', 1:'#dc2626', 2:'#ea580c', 3:'#2563eb', 4:'#16a34a', 5:'#7c3aed' };
@@ -195,6 +196,47 @@ export function levelSelectorHTML(skill, draftLevel, athleteId, size = 'compact'
 }
 
 // ── Score chip (roster row) ───────────────────────────────────────────────
+// ── Skill bullet icons ────────────────────────────────────────────────────
+// viewBox 26×18: symbol left 0–16 (currentColor), directional arrow right 18–26.
+// Recommended size: width="28" height="16" inline; width="35" height="20" for labels.
+// Color via className or wrap in <span style="color:var(--l3)">.
+//
+// Usage:
+//   <span class="skill-line">
+//     <span style="color:var(--l3)">${ICON_TERRAIN_INCREASE}</span>
+//     Loose over hardpack, rutted corners
+//   </span>
+
+export const ICON_FAIL_DECREASE = `
+<svg viewBox="0 0 26 18" fill="none" stroke="currentColor"
+     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M7 1.5 L1.5 3.8 V8.4 C1.5 12.2 4 14.9 7 16.2
+           C10 14.9 12.5 12.2 12.5 8.4 V3.8 Z"/>
+  <polyline points="4.5,7.2 7,10.2 9.5,7.2"/>
+  <line x1="21" y1="3" x2="21" y2="11.5"/>
+  <polygon points="18.5,10 21,14.5 23.5,10" fill="currentColor" stroke="none"/>
+</svg>`;
+
+export const ICON_TERRAIN_INCREASE = `
+<svg viewBox="0 0 26 18" fill="none" stroke="currentColor"
+     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <polyline points="1,16 4.5,8.5 7.5,11.5 11,4 16,16"/>
+  <line x1="1" y1="16" x2="16" y2="16" stroke-opacity=".3"/>
+  <line x1="21" y1="15" x2="21" y2="6.5"/>
+  <polygon points="18.5,8.5 21,3.5 23.5,8.5" fill="currentColor" stroke="none"/>
+</svg>`;
+
+export const ICON_SKILL_INCREASE = `
+<svg viewBox="0 0 26 18" fill="none" stroke="currentColor"
+     stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <polyline points="1.5,16 1.5,13 6,13 6,9.5 10.5,9.5 10.5,6 16,6"/>
+  <line x1="6"    y1="13"  x2="6"    y2="16" stroke-opacity=".25"/>
+  <line x1="10.5" y1="9.5" x2="10.5" y2="16" stroke-opacity=".25"/>
+  <line x1="16"   y1="6"   x2="16"   y2="16" stroke-opacity=".25"/>
+  <line x1="21" y1="15" x2="21" y2="6.5"/>
+  <polygon points="18.5,8.5 21,3.5 23.5,8.5" fill="currentColor" stroke="none"/>
+</svg>`;
+
 export function scoreChip(label, lv) {
   const unset = !lv;
   const bg = unset ? 'var(--border)' : LV[lv];

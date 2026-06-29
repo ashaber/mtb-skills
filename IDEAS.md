@@ -89,7 +89,7 @@ Practice process:
 - take specific rubric feedback:  Adjust skills, keywords or level boundaries
 - track usage.  Report back if app is 1. shared 2. used - opened and interacted 
 
-### IDEA-013 full rider page - allow viewing other level descriptions and not set observation
+### IDEA-013 full rider page - allow viewing other level descriptions and not set observation *(complete — phase2/about-ideas-d7)*
 The full rider page is the first documentation.  Make it easy to see what level 2 or 3 is in the short format. Maybe just make the full rider page
 work so that you click on a level number and see its description.  Then, must click log observation.  This takes away the quick log but is why you would open full rider page.
 
@@ -124,6 +124,84 @@ Redesign the Guide page to take advantage of the full screen rather than replica
 
 ---
 
-### IDEA-014 Feedback mode
+### IDEA-014 Feedback mode *(complete — phase2/about-ideas-d7)*
 Default feedback mode to on.  Add a toggle in settings page.  It is unintrusive so just keep it active.
+
+---
+
+### IDEA-018 — Separate rubric content from code (public/rubric.json)
+
+**Problem:** Rubric content lives in `src/rubric.js` as an ES module. Any wording change — "word X would resonate better with coaches than word Y" — goes through the full code pipeline: edit JS, PR, CI, build, deploy. This is unnecessary friction for pure content edits, and it creates risk (content edit accidentally breaks a JS import).
+
+**Goal:** Rubric wording should be editable on GitHub.com (pencil → commit → auto-deploy in ~60s), the same as `public/about.html` already is. No terminal, no build required.
+
+**Recommended approach: `public/rubric.json`**
+
+Move rubric content fields (`detail`, `failure_modes`, `when_breaks`, level descriptions) to `public/rubric.json`. Vite copies `public/` verbatim to `dist/`, so the file is served at `/rubric.json`. The app fetches it at startup instead of importing from JS.
+
+`src/rubric.js` retains only the structural constants that the code depends on: `SKILL_IDS`, `TRAIL_MINIMUMS`, `TRAIL_LABELS` — things that have code implications if changed. Pure text content moves to JSON.
+
+**The offline complication:** Currently the rubric is bundled, so it works offline on first load with no prior visit. A runtime fetch requires a prior online visit to cache it. This resolves cleanly when the Phase 2c service worker lands — the service worker pre-caches `rubric.json` at install time, fully restoring offline behavior. In the gap (Phase 1 → Phase 2c), the app can fall back to a bundled default if the fetch fails.
+
+**Scope boundary:** This idea covers content fields only. Structural changes — adding new fields like `progression_drills` or `recommended_games`, or adding icon metadata — still go through the code pipeline because they require view changes. The split makes that boundary explicit: if you're only changing words, touch only JSON. If you're changing structure, touch JS.
+
+**Related:** [[IDEA-015]] (Guide page redesign) will need new rubric fields; design those fields in JSON from the start.
+
+---
+
+### IDEA-019 — Localization and translation strategy
+
+**Context:** If the app expands beyond English-speaking NICA programs, rubric content needs translation. The rubric is technical and nuanced — motor learning terminology, failure mode descriptions — so machine translation alone won't be sufficient; it needs native-speaker coach review per language.
+
+**Option A: Per-language JSON files**
+```
+public/rubric.en.json
+public/rubric.es.json
+public/rubric.fr.json
+```
+App detects `navigator.language` or coach preference, fetches the matching file. Simple, fully offline-compatible with service worker pre-cache. GitHub-editable per language. Recommended for Phase 1–3.
+
+**Option B: Single file with language keys**
+```json
+{ "body_position": { "en": "...", "es": "..." } }
+```
+Simpler to keep in sync but file grows proportionally with every language added. Likely to perform poorly at 5+ languages — the entire multi-language rubric loads even when only one is needed.
+
+**Option C: DB backend (Phase 4+)**
+FastAPI endpoint serves rubric content by language: `GET /rubric?lang=es`. Content managed in Supabase, editable via admin UI without GitHub access. Required if non-technical translators (coaches in other countries) need to contribute or review content. Overkill until there's a real translation partner.
+
+**Recommendation:** Start with Option A (`rubric.{lang}.json`) when the first translation is needed — it's the natural extension of [[IDEA-018]]. Move to Option C only if a league partnership (e.g. NICA Canada, a Spanish-speaking league) needs non-GitHub editorial access.
+
+**Globalization note:** Language and locale are separate concerns. `rubric.es.json` covers Spanish wording; country-specific trail rating systems (not all countries use green/blue/black/double-black) would require locale variants (`rubric.es-MX.json`). Don't over-engineer this until there's a concrete non-US use case.
+
+**Prerequisite:** [[IDEA-018]] (content/code separation) should ship first — localization on top of a bundled JS module is much harder than localization on top of a JSON fetch.
+
+---
+
+### IDEA-017 — First-use onboarding: coach adds themselves on first open
+
+**Problem:** New users land on an empty roster with no guidance. Engagement data shows them bouncing between Roster and Practice tabs without taking any action — the empty state doesn't tell them what to do first. The natural first step (add yourself) is hidden behind the + Add button with no prompt.
+
+**Insight:** The coach is simultaneously two things in the data model — the Settings profile (name, team, used to tag observations) and a Coach entry on the roster. Right now these are set up independently, requiring the user to visit Settings before the roster is useful. New users have no reason to go to Settings first.
+
+**Proposed flow:** On first launch (no roster entries, no coach profile set), show a simple onboarding prompt instead of the empty roster:
+
+> "Welcome — let's get started. What's your name?"
+> [Name field] [Team field (optional)]
+> [Get started →]
+
+On submit:
+- Create the coach profile in Settings (name, team)
+- Add the coach as a Coach entry on the roster (same name/team, role: coach)
+- Dismiss onboarding and show the roster with the coach already listed
+
+**Key decisions:**
+- Trigger condition: `getCoach()` returns null AND roster is empty — never shown again after first setup
+- Sheet or inline? A Tier 3 sheet on first load is appropriate — same pattern as the practice reflection sheet
+- Name is required to proceed; team is optional (can be set in Settings later)
+- Role is always Coach for this flow — athletes are added manually afterward
+- Photo can be added later from the coach's roster card
+
+**Why this helps:** Removes the Settings-first dependency. Coach sees their own card immediately, which also demonstrates the roster UI and makes the + Add flow for athletes obvious by example.
+
 

@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  SKILLS,
-  SKILL_IDS,
-  TRAIL_MINIMUMS,
-  TRAIL_LABELS,
-  trailReadiness,
-} from '../../src/rubric.js';
+import { SKILL_IDS, TRAIL_MINIMUMS, TRAIL_LABELS, trailReadiness } from '../../src/rubric.js';
+import { SKILLS } from '../../src/rubric-content.js';
 import { bottleneckSkills } from '../../src/ui.js';
 
 describe('SKILLS data shape', () => {

@@ -274,3 +274,45 @@ Three-tier nav system (Tabs → Drill-in layers → Sheets), `src/nav.js` pushLa
 Defect fixes (PR #10): removed FAB (D1/D2), stripped wrong buttons from roster header (D3), practice flow rebuilt as coach-initiated with explicit Start/End/Reopen states and practice history (D4), swipe right gesture implemented (D5). +Add rendered as btn-primary. Demo mode toggle (multiple practices per day). e2e test suite aligned with CI (`tests/e2e/` full run).
 
 ---
+
+## Phase 2 — Conference Sprint: About Page, Feedback System, IDEA-013/014, D7–D16
+
+**Merged:** 2026-06-24 (PR #13, PR #14)
+**Branch:** `phase2/about-ideas-d7`
+
+**Goal:** Ship the app for use at NICA national conference (June 2026). Collect structured feedback and usage data. Expand the about page. Implement IDEA-013 and IDEA-014. Resolve D7–D16 defect list.
+
+**About page (`public/about.html`):**
+Expanded with full step-by-step "Using the app" guide: first-time setup, logging observations, confirming levels, running a practice (Start → Attendance → Observe → End with reflection), sharing athlete cards via QR, exporting data. FAQ section with links. Settings tab: "Learn more →" link to about.html, contact CTA (andrewshaber@gmail.com).
+
+**IDEA-013 — Full rider card level preview** *(complete)*
+Tap a level number on the rider card to see its description without logging an observation. Level pill is a view control first, log-observation second.
+
+**IDEA-014 — Feedback mode toggle in Settings** *(complete)*
+Feedback mode moved from URL-param only (`?feedback=true`) to a toggleable setting in the Settings tab. Unintrusive — always available without a special URL.
+
+**Defects resolved (D7–D16):**
+- **D7:** Settings → about link added; screenshot scoped to active view on rubric/guide page (was capturing full page); swipe-down handle on rubric overlay fixed
+- **D8:** Screenshot captured before modal DOM exists; drawing canvas DPI corrected; feedback modal footer `position:sticky` prevents overlap on Android
+- **D9:** Drawing upload errors logged to Feedback sheet Error column; `_saveImageSafe()` returns `{url, error}` tuple instead of silently writing filename
+- **D10:** Optional Email field added to feedback session overlay; Email column added to Feedback sheet
+- **D11:** Rider card scroll position saved/restored around `innerHTML` assignment — level pill tap no longer jumps to top
+- **D13:** Feedback overlay pre-filled from coach profile (`getCoach()`) on init — no double-entry for coaches who set up Settings
+- **D14:** Rider card QR always visible inline below athlete name; regenerates after level confirmation; no tap required
+- **D15:** Camera permission error includes browser-specific recovery guidance (lock icon → Camera → Allow)
+- **D16:** Inline QR size increased from `width:120` to `width:200, margin:2`; CSS display 68→160px — scannable from normal hand distance
+
+**Deferred:**
+- **D12:** Pinch-to-zoom on Guide page — native browser zoom shifts tab bar off screen; scoping zoom to guide text only requires a custom pinch handler. Deferred to IDEA-015 (guide page redesign), which may address readability through layout and font size instead.
+
+**Tests added:**
+- `tests/e2e/test_ideas_d7.py` — D11 scroll restore, D16 QR size, IDEA-013 level preview, IDEA-014 feedback toggle
+- `tests/unit/ui.test.js` — scoreChip rendering, level selector variants
+- WebKit skip on swipe test (Touch constructor not available in WebKit `evaluate`)
+
+**Ideas captured during sprint** (in IDEAS.md):
+- IDEA-017: First-use onboarding — coach adds themselves on first open, eliminates Settings-first dependency
+- IDEA-018: Separate rubric content from code (`public/rubric.json`) — GitHub-editable wording without a build
+- IDEA-019: Localization/translation strategy — per-language JSON files as natural extension of IDEA-018
+
+---
