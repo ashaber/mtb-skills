@@ -242,7 +242,7 @@ export function viewPractice(s) {
   const practice = s.today_practice;
   const isEnded  = practice?.status === 'ended';
   const isInAttendance = s.taking_attendance && !isEnded;
-  const { allow_multi_practice: multiPrac = false } = getTeamSettings();
+  const { allow_multi_practice: multiPrac = true } = getTeamSettings();
 
   const todayCard = practice ? _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) : _practiceCardEmpty();
 
@@ -354,8 +354,9 @@ function _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) {
 
 // ── Settings tab ─────────────────────────────────────────────────────────────
 export function viewSettings(s) {
-  const { name: teamName = '', coachName = '', allow_multi_practice: multiPrac = false } = getTeamSettings();
+  const { name: teamName = '', coachName = '', allow_multi_practice: multiPrac = true } = getTeamSettings();
   const feedbackOn = localStorage.getItem('mtb_feedback_mode') !== 'false';
+  const feedbackDismissed = localStorage.getItem('mtb_feedback_dismissed') === 'true';
   const coach = getCoach();
 
   const qrSection = s.settingsQR
@@ -415,16 +416,19 @@ export function viewSettings(s) {
           : `<p class="settings-about" style="text-align:center;color:var(--dim)">Generating QR…</p>`}
       </div>
 
-      <div class="settings-section">
-        <span class="settings-section-label">Feedback</span>
+      ${!feedbackDismissed ? `<div class="settings-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span class="settings-section-label" style="margin-bottom:0">Feedback</span>
+          <button data-a="dismiss-feedback" style="background:none;border:none;color:var(--dim);cursor:pointer;font:500 12px/1 var(--font-body);padding:2px 0">Don't show</button>
+        </div>
         <label class="settings-toggle-row">
           <span class="settings-toggle-label">
-            Conference feedback mode
+            Feedback mode
             <span class="settings-toggle-hint">Shows a 💬 button on every screen for collecting coach feedback.</span>
           </span>
           <input type="checkbox" id="inp-feedback-mode" class="settings-toggle-cb" data-a="toggle-feedback" ${feedbackOn ? 'checked' : ''}>
         </label>
-      </div>
+      </div>` : ''}
 
       <div class="settings-section">
         <span class="settings-section-label">About</span>
@@ -1020,6 +1024,24 @@ export function modalReflection(practice, { ending = false } = {}) {
     <div class="fg" style="padding-top:0">
       <button class="btn btn-primary" data-m="save-reflection">${saveLabel}</button>
       ${ending ? `<button class="btn btn-ghost" data-m="skip-end-practice">Skip</button>` : ''}
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+export function modalOnboarding() {
+  return `
+    <div class="modal-head">
+      <span>Welcome</span>
+    </div>
+    <div class="fg">
+      <p style="font:500 14px/1.5 var(--font-body);color:var(--dim);margin-bottom:4px">Add yourself to get started. You'll appear on the roster as a coach.</p>
+      <label class="fl" for="inp-ob-name">Your name</label>
+      <input class="fi" id="inp-ob-name" type="text" placeholder="Your name" autocapitalize="words">
+      <label class="fl" for="inp-ob-team" style="margin-top:8px">Team name <span style="font-weight:400;color:var(--dim)">(optional)</span></label>
+      <input class="fi" id="inp-ob-team" type="text" placeholder="e.g. Idaho League">
+    </div>
+    <div class="fg" style="padding-top:0">
+      <button class="btn btn-primary" data-m="save-onboarding">Get started →</button>
     </div>
     <div style="height:12px"></div>`;
 }

@@ -29,7 +29,7 @@ import {
   viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
-  modalSettings, modalReflection,
+  modalSettings, modalReflection, modalOnboarding,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -132,7 +132,8 @@ function _generateCardQR(athleteId) {
   if (!a) return;
   const conf = getAthleteConfirmedLevels(athleteId);
   const payload = encodeCard(a, conf);
-  QRCode.toDataURL(payload, { width: 200, margin: 2, errorCorrectionLevel: 'Q' })
+  const qrPx = Math.round(160 * Math.min(window.devicePixelRatio || 1, 3));
+  QRCode.toDataURL(payload, { width: qrPx, margin: 2, errorCorrectionLevel: 'Q' })
     .then(qr => {
       s.cardQR[athleteId] = qr;
       if (s.athleteId === athleteId && stackDepth() > 0) refreshCard();
@@ -500,6 +501,12 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'dismiss-feedback') {
+    localStorage.setItem('mtb_feedback_dismissed', 'true');
+    draw();
+    return;
+  }
+
   if (action === 'save-notes') return;
 }
 
@@ -510,6 +517,19 @@ function onSheetClick(e) {
   const action = el.dataset.m;
 
   if (action === 'close') { closeModal(); return; }
+
+  if (action === 'save-onboarding') {
+    const name = document.getElementById('inp-ob-name')?.value?.trim();
+    if (!name) { document.getElementById('inp-ob-name')?.focus(); return; }
+    const team = document.getElementById('inp-ob-team')?.value?.trim();
+    saveCoach({ name });
+    if (team) saveTeamSettings({ name: team });
+    savePerson({ name, role: 'coach', level: 3 });
+    log.info('onboarding.complete', {});
+    closeModal();
+    draw();
+    return;
+  }
 
   if (action === 'role-tab') {
     const role = el.dataset.role;
@@ -877,6 +897,10 @@ window.__test_onQRDetected = onQRDetected;
   _generateSettingsQR();
   log.info('app.init', { people: getPeople().length, observations: getObservations().length });
   draw();
+  if (!getCoach() && getPeople().length === 0) {
+    openModal(modalOnboarding());
+    setTimeout(() => document.getElementById('inp-ob-name')?.focus(), 80);
+  }
   if (FEEDBACK_MODE) {
     import('./feedback.js').then(m => m.initFeedback());
   }
