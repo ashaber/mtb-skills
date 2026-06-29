@@ -284,6 +284,15 @@ def test_import_round_trip(page: Page, base_url: str, tmp_path) -> None:
     export_path = tmp_path / 'backup.json'
     shutil.copy(dl_info.value.path(), export_path)
     page.evaluate('localStorage.clear()')
+    # Re-seed a coach so the first-launch onboarding sheet doesn't reappear
+    # after the deliberate localStorage wipe (the full import below restores
+    # the real coach + athlete from the backup).
+    page.evaluate("""() => {
+        localStorage.setItem('mtb_coach', JSON.stringify({
+            id: 'test-coach', name: 'Test Coach',
+            role: 'coach', team_id: 'test-team'
+        }));
+    }""")
     page.reload()
     expect(page.locator('.empty-title')).to_be_visible()
     open_settings(page)

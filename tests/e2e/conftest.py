@@ -53,6 +53,17 @@ def page(request, base_url: str):
         js_errors: list[str] = []
         pg.on('pageerror', lambda e: js_errors.append(str(e)))
         pg.goto(base_url)
+        # Pre-seed a coach profile so the first-launch onboarding sheet never
+        # appears and blocks pointer events in tests, then reload so the app
+        # boots cleanly with the coach in storage (avoids add_init_script, which
+        # breaks WebKit's dynamic module imports).
+        pg.evaluate("""() => {
+            localStorage.setItem('mtb_coach', JSON.stringify({
+                id: 'test-coach', name: 'Test Coach',
+                role: 'coach', team_id: 'test-team'
+            }));
+        }""")
+        pg.reload()
         try:
             yield pg
             # WebKit rejects SW registration on plain HTTP (expected in test env)
