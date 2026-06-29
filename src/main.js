@@ -56,7 +56,10 @@ let _scanFrame    = null;
 let _pendingImport = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 function ensureDraft(athleteId) {
   if (!s.draft[athleteId]) {
@@ -206,6 +209,13 @@ function confirmOneSkill(athleteId, skill, level) {
   _generateCardQR(athleteId);
 }
 
+function scrollExpandedIntoView() {
+  requestAnimationFrame(() => {
+    const el = document.querySelector('.row-card--open');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  });
+}
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 let _toastTimer;
 function flash(msg) {
@@ -281,6 +291,7 @@ function onAppClick(e) {
     s.expandedId = (s.expandedId === id) ? null : id;
     ensureDraft(id);
     draw();
+    if (s.expandedId) scrollExpandedIntoView();
     return;
   }
 
@@ -296,6 +307,7 @@ function onAppClick(e) {
       flash(`${sk.replace(/_/g, ' ')} Lv ${level} recorded`);
     }
     draw();
+    if (s.expandedId) scrollExpandedIntoView();
     return;
   }
 

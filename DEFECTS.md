@@ -203,3 +203,148 @@ makes gestures possible but did not implement the gesture detection.
 - **Drawing not full width / touch offset:** Fixed — canvas dpr approach applied.
 - **Coordinates offset on Android:** Fixed.
 - **Submit button overlap:** Fixed — footer moved inside the scroll div with `position:sticky; bottom:0`. Footer now sticks to the bottom of the visible scroll viewport regardless of content height or keyboard state. No longer relies on flex child layout which failed on some Android Chrome versions.
+
+## D19 — Enhancement: in-app install prompt
+
+**Status:** Open  
+**Type:** Enhancement  
+**Source:** Phase 2a device testing (2026-06-28)  
+**Symptom:** No visible install affordance in the app. Coaches must discover "Add to Home Screen" via the browser's three-dot menu — non-obvious, especially on iOS where it's buried in the Share sheet.  
+**Fix:** Add "Install App" button in Settings tab, near the share QR code.  
+- **Android/Chrome:** listen for `beforeinstallprompt` event; suppress browser mini-infobar; show "Install App" button that calls `deferredPrompt.prompt()`. Hide button after install or if event never fires (already installed).  
+- **iOS/Safari:** no API available. Show collapsible instruction block: "Tap **Share** → **Add to Home Screen**." Detect iOS via `navigator.userAgent` to show the right variant.  
+**Acceptance:** Coach on Android can tap "Install App" in Settings and gets the native install dialog. Coach on iOS sees clear instructions next to the share QR.
+
+---
+
+## D17 - enhancements and defects from PWA phase 2a build
+
+**Status:** Fixed (commit a9a525f, 2026-06-28)
+
+### D17a — QR code on full rider card is corrupt on high-DPR devices
+
+**Symptom:** Inline QR on the full athlete card renders corrupted/unreadable on real devices.  
+**Root cause:** QR generated at `width: 200` canvas px (`main.js:135`) but displayed at `160×160px` CSS (`index.html:130`, `.card-hero-qr`). On a 3× DPR device the browser needs 480 physical pixels but upscales a 200px source 2.4×, causing blurry/corrupt QR cells.  
+**Fix:** In `_generateCardQR()` in `main.js`, generate at display size × DPR: `width: Math.round(160 * Math.min(window.devicePixelRatio || 1, 3))`. CSS display stays `160×160px`.  
+**Fallback:** If DPR-aware approach still doesn't scan, remove the inline QR and replace with a "Share / Trade" button that opens the existing `modalShareCard` — that QR already works. Keep `⋯` menu share item as-is.
+
+### D17b — Attendance highlight not visible enough
+
+**Symptom:** Attending riders barely distinguishable from absent in roster view.  
+**Current CSS:**  
+- Normal view attending: `.row-card--attending { border-color: rgba(22,163,74,0.3) }` in `index.html:325` — 30% green tint only  
+- Attendance-mode present: `.row-card--present { box-shadow: inset 3px 0 0 var(--l4) }` in `components.css` — 3px left accent  
+**Fix:** Add background tint to both:  
+- `.row-card--attending`: add `background: rgba(22,163,74,0.08)`  
+- `.row-card--present`: increase to `box-shadow: inset 4px 0 0 #16a34a` and add `background: rgba(22,163,74,0.08)`
+
+### D17c — Blank starting page: coach self-add on first launch
+
+**See IDEA-017 in IDEAS.md for full spec.** Trigger: `getCoach()` returns null AND `getPeople().length === 0`. Show onboarding sheet (name required, team optional). On submit: create coach profile + add coach as Coach roster entry. Never shown again after first setup.
+
+### D17d — Default "Allow multiple practices" to enabled
+
+**Symptom:** Setting `allow_multi_practice` defaults to false; coaches shouldn't need to change this.  
+**Fix:** In `getTeamSettings()` in `storage.js`, change the destructuring default from `false` to `true`: `const { allow_multi_practice: multiPrac = true } = getTeamSettings()`.
+
+### D17e — About page: remove "conference" label, make dismissible
+
+**Symptom:** About section in Settings is labeled "conference" which is context-specific. Should be generic feedback. Should have a way to remove/dismiss it.  
+**Fix:** Rename label in `views.js` Settings view from "conference" to "Feedback". Add a dismiss option (small "×" or "Don't show again" link) that sets a localStorage flag; once dismissed, the section hides. Flag key: `mtb_feedback_dismissed`.
+
+### D17f — Long about page hard-coded to GitHub Pages URL
+
+**Symptom:** `public/about.html` links back to `ashaber.github.io/mtb-skills` — breaks when accessed from Vercel preview or any non-GH-Pages deploy.  
+**Fix:** In `about.html`, replace the hardcoded URL with a relative link (`./` or `index.html`) so it resolves correctly from any host.
+
+---
+
+## D18 — Google Fonts render-blocking + offline failure
+
+**Status:** Fixed (commit a9a525f, 2026-06-28)  
+**Type:** Defect — offline reliability + performance  
+**Source:** Lighthouse PWA audit (2026-06-28), phase2/pwa Vercel preview  
+**Symptom:** `index.html` loads `fonts.googleapis.com/css2?family=Barlow...` as a synchronous `<link>` stylesheet. Lighthouse reports 833ms render-blocking delay. On airplane mode, the font CDN is unreachable — app falls back to the browser default font, visual appearance breaks.  
+**Impact:** Directly violates Phase 2a offline DOD: "App loads fully offline after first install — no network calls on open."  
+**Fix:** Remove the Google Fonts `<link>` from `index.html`. Update CSS `font-family` declarations to the system font stack: `-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif`. System fonts are pre-loaded on every target device — zero network calls, zero render-blocking, identical perceived quality on Android and iOS.  
+**Related:** D12 (pinch-to-zoom) — both are viewport/font readability issues on the Guide page. When D12 is revisited with IDEA-015, evaluate font size at the same time.  
+**Acceptance:** Lighthouse render-blocking resources audit: no external font entries. Airplane mode after install: app opens with correct typography, no fallback font visible.
+
+
+## D21 — Scan button absent on empty roster
+
+**Status:** Fixed  
+**Type:** Defect  
+**Source:** Coach feedback, 2026-06-25 — "Scan doesn't show if roster is empty"  
+**Symptom:** When the roster has no entries, the app renders `viewEmpty()` instead of `viewRoster()`. The scan QR button lives in the roster header and is therefore not present on the empty state view. A coach receiving a trading card from another coach would start with an empty roster — they need scan to work *before* adding anyone.  
+**Fix:** Add a scan button to `viewEmpty()` in `src/views.js`, or ensure the empty state view includes the same roster header with the scan action. The scan action is `data-a="open-scan"` on the roster topbar.  
+**Acceptance:** Coach with empty roster can tap Scan and import a trading card from another device.
+
+---
+
+## D22 — Scan hint: mention camera mode as a possible blocker
+
+**Status:** Open  
+**Type:** Minor enhancement  
+**Source:** Coach feedback, 2026-06-28 — "figured out camera was configured to blur anything that is not my face which is why it wouldn't scan QR code"  
+**Symptom:** The scan modal hint says "Point camera at a QR code from another coach's device." If the camera is in portrait/face-blur mode (common Samsung default), the QR code is blurred out and won't scan. Coach has no idea why.  
+**Fix:** Update `views.js` `modalScanCard` hint text to: "Point camera at a QR code from another coach's device. If scan isn't working, check that your camera app isn't set to portrait or face-blur mode."  
+**File:** `src/views.js:984`, `.scan-hint` element.
+
+---
+
+## D20 — App version visible in Settings
+
+**Status:** Fixed  
+**Type:** Enhancement  
+**Source:** Device testing (2026-06-28) — installed PWA has no way to confirm which build is running
+
+### Versioning scheme
+
+Format: `major.minor.patch`
+
+| Segment | Meaning | When to increment |
+|---|---|---|
+| **major** | Product generation | 0 = pre-backend (Phases 1–2); 1 = Phase 3 backend launch |
+| **minor** | Phase | Phase 1 → 0.1.x; Phase 2 → 0.2.x; Phase 3 → 1.0.x |
+| **patch** | Build/defect iteration within phase | Each defect PR or sprint build |
+
+Approximate version history:
+- `0.1.0` — Phase 1 complete (local HTML app)
+- `0.2.0` — Phase 2 initial build (conference sprint)
+- `0.2.1` — Phase 2 defect fixes (PR #13)
+- `0.2.2` — Phase 2a PWA build (current branch)
+- `1.0.0` — Phase 3 launch (Supabase backend)
+
+### Implementation
+
+**Step 1 — Wire version from `package.json` into the build:**  
+In `vite.config.js`, add to `defineConfig`:
+```js
+define: {
+  __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+}
+```
+Vite replaces `__APP_VERSION__` at build time with the `version` field from `package.json`.
+
+**Step 2 — Update `package.json` version** to `0.2.2` (current PWA build).
+
+**Step 3 — Display in Settings view:**  
+In `src/views.js` Settings section, add version string near the bottom of the About section:
+```html
+<p class="settings-about" style="color:var(--dim);font-size:11px">v${__APP_VERSION__}</p>
+```
+
+**Step 4 — Bump patch version on each defect PR** going forward. Minor version bumps on phase completion.
+
+### Acceptance
+- Settings page shows `v0.2.2` (or current version)
+- After a new build is deployed and the installed PWA updates, the version number changes — coach can verify they're on the latest without needing DevTools
+
+## D23 — Roster: expanded card visibility, practice date, attendee highlight
+
+**Status:** Fixed
+
+- **Expanded card scrolls into view** — after toggle-expand and draft-level, `scrollIntoView({ block: 'nearest' })` fires in the next animation frame, overriding the draw() scroll-to-top before paint.
+- **Practice date was UTC** — `today()` in both `main.js` and `storage.js` now uses local date methods (`getFullYear/Month/Date`) instead of `toISOString().slice(0,10)`. Same fix applied to `viewPractice` in `views.js`.
+- **Attendee highlight clears after practice ends** — `attendingIds` set in `viewRoster` is now empty when `practice.status === 'ended'`.

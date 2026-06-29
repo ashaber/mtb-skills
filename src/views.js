@@ -25,6 +25,7 @@ import {
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
+const localDateStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
 // SVG icons
 const BACK  = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 5l-6 6 6 6"/></svg>`;
@@ -54,7 +55,7 @@ export function viewRoster(s) {
 
   if (!people.length && !getPeople().length) return viewEmpty(s);
 
-  const attendingIds = practice ? new Set(
+  const attendingIds = (practice && practice.status !== 'ended') ? new Set(
     getAttendance(practice.id).filter(a => a.status === 'attending').map(a => a.person_id)
   ) : new Set();
 
@@ -238,7 +239,7 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
 
 // ── Practice tab ─────────────────────────────────────────────────────────────
 export function viewPractice(s) {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDateStr();
   const practice = s.today_practice;
   const isEnded  = practice?.status === 'ended';
   const isInAttendance = s.taking_attendance && !isEnded;
@@ -434,7 +435,7 @@ export function viewSettings(s) {
         <span class="settings-section-label">About</span>
         <p class="settings-about">A rubric-based skill assessment tool for NICA MTB coaches — three foundational skills across five levels defined by what breaks, when, and at what threshold. Log observations, confirm levels, and see trail readiness at a glance. Works fully offline. No login required.</p>
         <p class="settings-about" style="margin-top:8px">Want this for your team or league? <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
-        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry</p>
+        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry · v${__APP_VERSION__}</p>
         <a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
       </div>
     </div>`;
@@ -613,6 +614,7 @@ function viewEmpty(s) {
       <div class="hdr-top">
         <span class="hdr-kicker">${esc(teamName)}</span>
         <div class="hdr-actions">
+          <button class="ico-btn" data-a="scan-card" aria-label="Scan athlete card">${SCAN}</button>
           <button class="btn btn-primary btn-sm" data-a="open-add" aria-label="Add person">
             <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
             Add
