@@ -9,7 +9,8 @@
 export function modalSettings(s) {
   return `<div class="modal-sheet">${viewSettings(s)}</div>`;
 }
-import { SKILLS, SKILL_IDS, TRAIL_GUIDE, COACH_NOTES, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
+import { SKILL_IDS, TRAIL_MINIMUMS, TRAIL_LABELS } from './rubric.js';
+import { SKILLS, TRAIL_GUIDE, COACH_NOTES } from './rubric-content.js';
 
 import {
   getPeople, getAthletes, getAthleteConfirmedLevels, getObservations,
@@ -24,6 +25,7 @@ import {
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
+const localDateStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
 // SVG icons
 const BACK  = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 5l-6 6 6 6"/></svg>`;
@@ -53,7 +55,7 @@ export function viewRoster(s) {
 
   if (!people.length && !getPeople().length) return viewEmpty(s);
 
-  const attendingIds = practice ? new Set(
+  const attendingIds = (practice && practice.status !== 'ended') ? new Set(
     getAttendance(practice.id).filter(a => a.status === 'attending').map(a => a.person_id)
   ) : new Set();
 
@@ -237,11 +239,11 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode) {
 
 // ── Practice tab ─────────────────────────────────────────────────────────────
 export function viewPractice(s) {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDateStr();
   const practice = s.today_practice;
   const isEnded  = practice?.status === 'ended';
   const isInAttendance = s.taking_attendance && !isEnded;
-  const { allow_multi_practice: multiPrac = false } = getTeamSettings();
+  const { allow_multi_practice: multiPrac = true } = getTeamSettings();
 
   const todayCard = practice ? _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) : _practiceCardEmpty();
 
@@ -353,8 +355,9 @@ function _practiceCardToday(practice, isEnded, isInAttendance, multiPrac) {
 
 // ── Settings tab ─────────────────────────────────────────────────────────────
 export function viewSettings(s) {
-  const { name: teamName = '', coachName = '', allow_multi_practice: multiPrac = false } = getTeamSettings();
+  const { name: teamName = '', coachName = '', allow_multi_practice: multiPrac = true } = getTeamSettings();
   const feedbackOn = localStorage.getItem('mtb_feedback_mode') !== 'false';
+  const feedbackDismissed = localStorage.getItem('mtb_feedback_dismissed') === 'true';
   const coach = getCoach();
 
   const qrSection = s.settingsQR
@@ -414,22 +417,25 @@ export function viewSettings(s) {
           : `<p class="settings-about" style="text-align:center;color:var(--dim)">Generating QR…</p>`}
       </div>
 
-      <div class="settings-section">
-        <span class="settings-section-label">Feedback</span>
+      ${!feedbackDismissed ? `<div class="settings-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <span class="settings-section-label" style="margin-bottom:0">Feedback</span>
+          <button data-a="dismiss-feedback" style="background:none;border:none;color:var(--dim);cursor:pointer;font:500 12px/1 var(--font-body);padding:2px 0">Don't show</button>
+        </div>
         <label class="settings-toggle-row">
           <span class="settings-toggle-label">
-            Conference feedback mode
+            Feedback mode
             <span class="settings-toggle-hint">Shows a 💬 button on every screen for collecting coach feedback.</span>
           </span>
           <input type="checkbox" id="inp-feedback-mode" class="settings-toggle-cb" data-a="toggle-feedback" ${feedbackOn ? 'checked' : ''}>
         </label>
-      </div>
+      </div>` : ''}
 
       <div class="settings-section">
         <span class="settings-section-label">About</span>
         <p class="settings-about">A rubric-based skill assessment tool for NICA MTB coaches — three foundational skills across five levels defined by what breaks, when, and at what threshold. Log observations, confirm levels, and see trail readiness at a glance. Works fully offline. No login required.</p>
         <p class="settings-about" style="margin-top:8px">Want this for your team or league? <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
-        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry</p>
+        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry · v${__APP_VERSION__}</p>
         <a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
       </div>
     </div>`;
@@ -608,6 +614,7 @@ function viewEmpty(s) {
       <div class="hdr-top">
         <span class="hdr-kicker">${esc(teamName)}</span>
         <div class="hdr-actions">
+          <button class="ico-btn" data-a="scan-card" aria-label="Scan athlete card">${SCAN}</button>
           <button class="btn btn-primary btn-sm" data-a="open-add" aria-label="Add person">
             <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
             Add
@@ -1019,6 +1026,24 @@ export function modalReflection(practice, { ending = false } = {}) {
     <div class="fg" style="padding-top:0">
       <button class="btn btn-primary" data-m="save-reflection">${saveLabel}</button>
       ${ending ? `<button class="btn btn-ghost" data-m="skip-end-practice">Skip</button>` : ''}
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+export function modalOnboarding() {
+  return `
+    <div class="modal-head">
+      <span>Welcome</span>
+    </div>
+    <div class="fg">
+      <p style="font:500 14px/1.5 var(--font-body);color:var(--dim);margin-bottom:4px">Add yourself to get started. You'll appear on the roster as a coach.</p>
+      <label class="fl" for="inp-ob-name">Your name</label>
+      <input class="fi" id="inp-ob-name" type="text" placeholder="Your name" autocapitalize="words">
+      <label class="fl" for="inp-ob-team" style="margin-top:8px">Team name <span style="font-weight:400;color:var(--dim)">(optional)</span></label>
+      <input class="fi" id="inp-ob-team" type="text" placeholder="e.g. Idaho League">
+    </div>
+    <div class="fg" style="padding-top:0">
+      <button class="btn btn-primary" data-m="save-onboarding">Get started →</button>
     </div>
     <div style="height:12px"></div>`;
 }

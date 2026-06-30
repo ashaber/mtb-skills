@@ -2,29 +2,19 @@
 
 **Live app:** https://ashaber.github.io/mtb-skills/
 
-A practical rubric for NICA mountain bike coaches to assess student-athlete skill levels, select appropriate trails, and set measurable goals.
+A coach-facing skill assessment tool for NICA mountain bike coaches. Log observations, confirm skill levels, and know which trails each rider is genuinely ready for — fully offline, no login required.
 
-## What this is
+Rubric by Andrew Shaber, Renee Kline & Tim Curry.
 
-A 1–5 skills assessment rubric across three foundational MTB skills — **Body Position**, **Braking**, and **Cornering** — aligned to trail difficulty ratings (Green/Blue/Black/Double Black).
+## The problem it solves
 
-Built for the [Idaho Interscholastic Cycling League](https://idahomtb.org/) and aligned to NICA OTB-101 and OTB-201 coach training curricula.
+Ask a coach the skill level of their riders and the answer is almost universally: "They're really fast." That's answering the wrong question.
 
-**The core problem it solves:** Coaches make trail selection decisions based on memory ("they were really good last season") or fitness ("they're really fast") rather than current, objective skill assessment. This rubric gives coaches a consistent, observable framework.
+This rubric gives coaches a shared language for skill — three foundational skills (Body Position, Braking, Cornering) across five levels defined by what breaks, when it breaks, and at what threshold. Skills are not binary. A rider corners at Level 1 seated and looking down; at Level 5 at speed on black-plus terrain with near-zero failure. The rubric measures the full progression.
 
 ## Key design principle
 
 The rubric is written from **failure modes** — what breaks, when it breaks, at what threshold — not from teaching points. A coach watching a rider on trail can identify failures faster than they can check for correct technique.
-
-## Outputs
-
-| File | Purpose | Authority |
-|------|---------|-----------|
-| `MTB_Field_Cards.docx` | Pocket field cards (4"×3.125"), one per skill | **Master** |
-| `MTB_Skills_Assessment.docx` | Full reference document with diagnostic detail | Secondary |
-| `IICL_Skills_Assessment.pptx` | 7-slide coach leadership presentation | Derived |
-
-**Content changes start with the field cards. The reference doc and presentation derive from card content.**
 
 ## The scale
 
@@ -40,7 +30,7 @@ Score notation: **Body Position – Braking – Cornering** (e.g. 2-3-2)
 
 Level 5 represents elite skill beyond NICA trail scope. NICA riders ride white, green, blue, and black trails.
 
-## Trail selection
+## Trail readiness minimums
 
 Minimum skill levels are **floors not ceilings**. A trail's rating reflects its hardest feature — match the minimum to that feature, not just the rating.
 
@@ -60,35 +50,62 @@ Short sections can be speed-managed or walked. Assess at the start of every seas
 - **Level 4** is genuinely exceptional
 - **Level 5** exceeds what NICA trails require
 
+## App features
+
+### Roster
+Add athletes and coaches. Each person has a role (athlete / coach), optional photo, and profile stored locally. Filter the list by role. Coach profile (name, team) set in Settings pre-fills observation records.
+
+### Observations
+Tap a level pill (1–5) on any roster row to log an observation immediately — skill, level, and date recorded in one tap. The full rider card shows observation history per skill, a trend sparkline, and the current confirmed level.
+
+### Confirmed levels
+Confirming a level is a coach judgment call — the app surfaces observation history to support that judgment but never auto-promotes. One good rep does not confirm a level; consistency does.
+
+### Trail readiness
+Computed automatically from confirmed levels against rubric minimums. Each rider's card shows which trails they are ready for and which skills are blocking the next tier. The roster row shows trail readiness at a glance.
+
+### Practice management
+Start a practice (coach-initiated, not auto), take attendance (riders sorted to top of roster), run observations during practice, then end practice. Ending practice opens a reflection sheet:
+- **Mood** — 5-point scale (😞 to 😊)
+- **Reflection** — freeform notes (what went well, what to change)
+- **Incidents** — safety concerns, injuries
+
+Reflection is optional — skip ends the practice without saving it. Past practices are viewable from the Practice tab.
+
+### Field Guide
+Full rubric reference, browsable offline. All three skills across all five levels — failure modes, level descriptions, terrain context. No network required on trail.
+
+### Athlete trading card
+Each rider card includes a QR code. Scan it on another device to instantly import that rider's skill data — no manual entry needed when a rider joins your pod from another coach's roster.
+
+### JSON export / import
+Full data backup as a single JSON file. Re-import on any device — all athletes, observations, confirmed levels, and practice records included. Export is in the ⋯ overflow menu and the Settings tab.
+
+### Settings
+- Coach profile (name, team)
+- QR code for sharing the app URL
+- About section with rubric authorship and contact info
+- JSON import
+
+## Extended about page
+
+[https://ashaber.github.io/mtb-skills/about.html](https://ashaber.github.io/mtb-skills/about.html)
+
+Full narrative: origin story, rubric design principles, motor learning alignment, trail readiness rationale, FAQ. Editable on GitHub mobile (pencil icon) for quick updates without a terminal.
+
 ## Status
 
-- v2.0 presented at IICL Coach Leadership Training, May 2026
-- Received well — printed cards used as handouts
-- Feedback form deployed post-presentation
-- Climbing skill excluded from v1 — to be added as separate module
+- v2.0 rubric presented at IICL Coach Leadership Training, May 2026
+- Phase 1 app complete; conference-tested June 2026
+- Climbing skill excluded from v1 — to be added as a separate module
 
-## App — Coach Tool
-
-**Live:** https://ashaber.github.io/mtb-skills/ | Works offline — no login, no server.
-
-### Features (Phase 1)
-
-- **Roster** — add athletes and coaches; filter by role; add photos
-- **Instant observation** — tap a level (1–5) on any roster row to record immediately
-- **Full rider card** — observation history, trend graph, confirmed level, trail readiness detail
-- **Trail readiness** — computed from confirmed levels against rubric minimums; shows which trails each rider is ready for and what's blocking the next tier
-- **Practice attendance** — daily attendance log; attending riders sort to top; exportable JSON
-- **Athlete trading card** — QR-encoded card for sharing skill data between coaches (scan from card to import)
-- **Field Guide** — full rubric reference, browsable offline; failure modes and level descriptions per skill
-- **JSON export / import** — full data backup; re-import on any device
-
-### Roadmap
+## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for the full phased plan:
 - **Phase 1:** ✅ Local HTML app, localStorage, fully offline
 - **Phase 2:** PWA + Google Sheets backend, offline-first sync, Google OAuth
 - **Phase 3:** Native mobile (iOS/Android)
-- **Phase 4:** Multi-tenant backend (league-level visibility)
+- **Phase 4:** Multi-tenant backend (league-level visibility, NICA/HubSpot/PitZone roster integration)
 
 ## Development
 
@@ -100,7 +117,7 @@ Node 20+ and npm.
 npm install
 ```
 
-### Test on your computer
+### Dev server
 
 ```bash
 npm run dev
@@ -108,27 +125,36 @@ npm run dev
 
 Opens at `http://localhost:5173`. Hot reload on every save.
 
-### Test on your phone
+### Dev server on phone
 
 ```bash
 npm run dev -- --host
 ```
 
-Vite prints a **Network** URL (e.g. `http://192.168.1.42:5173`). Open it on any phone connected to the same WiFi — no build, no cable needed. Works for both Android Chrome and iOS Safari.
+Vite prints a **Network** URL (e.g. `http://192.168.1.42:5173`). Open it on any phone on the same WiFi — works for both Android Chrome and iOS Safari.
 
-### Run tests
+### Tests
 
 ```bash
 npm run test          # Vitest unit tests (rubric logic, storage)
-pytest tests/e2e/     # Playwright browser tests (requires npm run build first)
+npm run test:e2e      # Playwright browser tests (Chromium + WebKit)
+npm run test:all      # both
 ```
 
-### Build for production
+### Build
 
 ```bash
 npm run build         # outputs to dist/
-npm run preview       # serve dist/ locally to verify before deploy
+npm run preview       # serve dist/ locally before deploy
 ```
+
+Deploys automatically to GitHub Pages on push to `main` via GitHub Actions.
+
+## Alignment
+
+- NICA OTB-101 Manual (2024)
+- Fitts and Posner motor learning stages (referenced in NICA coach training)
+- IMBA trail difficulty rating system
 
 ## Rubric roadmap
 
@@ -136,9 +162,3 @@ npm run preview       # serve dist/ locally to verify before deploy
 - [ ] Add Climbing skill module
 - [ ] Inter-rater reliability testing with trained coaches
 - [ ] OTB-201 manual integration for Level 4 cornering detail
-
-## Alignment
-
-- NICA OTB-101 Manual (2024)
-- Fitts and Posner motor learning stages (referenced in NICA coach training)
-- IMBA trail difficulty rating system

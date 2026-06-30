@@ -7,6 +7,7 @@ import {
   getCoach, saveCoach, getTeamId,
   getPhoto, savePhoto,
   exportAll, importAll,
+  createPractice, getPractices,
 } from '../../src/storage.js';
 
 beforeEach(() => {
@@ -264,5 +265,27 @@ describe('photos', () => {
     const ok = savePhoto(generateId(), 'data:image/png;base64,LARGE=');
     expect(ok).toBe(false);
     spy.mockRestore();
+  });
+});
+
+describe('local date — practice and observation timestamps', () => {
+  it('createPractice records local calendar date, not UTC', () => {
+    const p = createPractice();
+    const d = new Date();
+    const localDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    expect(p.date).toBe(localDate);
+  });
+
+  it('saveObservation session_date matches local calendar date', () => {
+    const a = saveAthlete({ name: 'Date Test' });
+    const obs = saveObservation({ athlete_id: a.id, skill: 'braking', level_observed: 2 });
+    const d = new Date();
+    const localDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    expect(obs.session_date).toBe(localDate);
+  });
+
+  it('date format is YYYY-MM-DD with zero-padded month and day', () => {
+    const p = createPractice();
+    expect(p.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

@@ -21,6 +21,7 @@ import {
 
 const FEEDBACK_MODE = localStorage.getItem('mtb_feedback_mode') !== 'false';
 import { SKILL_IDS } from './rubric.js';
+import { loadRubricContent } from './rubric-content.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
@@ -28,7 +29,7 @@ import {
   viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
-  modalSettings, modalReflection,
+  modalSettings, modalReflection, modalOnboarding,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -55,7 +56,10 @@ let _scanFrame    = null;
 let _pendingImport = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 function ensureDraft(athleteId) {
   if (!s.draft[athleteId]) {
@@ -131,7 +135,8 @@ function _generateCardQR(athleteId) {
   if (!a) return;
   const conf = getAthleteConfirmedLevels(athleteId);
   const payload = encodeCard(a, conf);
-  QRCode.toDataURL(payload, { width: 200, margin: 2, errorCorrectionLevel: 'Q' })
+  const qrPx = Math.round(160 * Math.min(window.devicePixelRatio || 1, 3));
+  QRCode.toDataURL(payload, { width: qrPx, margin: 2, errorCorrectionLevel: 'Q' })
     .then(qr => {
       s.cardQR[athleteId] = qr;
       if (s.athleteId === athleteId && stackDepth() > 0) refreshCard();
@@ -202,6 +207,13 @@ function confirmOneSkill(athleteId, skill, level) {
   delete s.cardQR[athleteId];
   refreshCard();
   _generateCardQR(athleteId);
+}
+
+function scrollExpandedIntoView() {
+  requestAnimationFrame(() => {
+    const el = document.querySelector('.row-card--open');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  });
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -279,6 +291,7 @@ function onAppClick(e) {
     s.expandedId = (s.expandedId === id) ? null : id;
     ensureDraft(id);
     draw();
+    if (s.expandedId) scrollExpandedIntoView();
     return;
   }
 
@@ -294,6 +307,7 @@ function onAppClick(e) {
       flash(`${sk.replace(/_/g, ' ')} Lv ${level} recorded`);
     }
     draw();
+    if (s.expandedId) scrollExpandedIntoView();
     return;
   }
 
@@ -499,6 +513,12 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'dismiss-feedback') {
+    localStorage.setItem('mtb_feedback_dismissed', 'true');
+    draw();
+    return;
+  }
+
   if (action === 'save-notes') return;
 }
 
@@ -509,6 +529,19 @@ function onSheetClick(e) {
   const action = el.dataset.m;
 
   if (action === 'close') { closeModal(); return; }
+
+  if (action === 'save-onboarding') {
+    const name = document.getElementById('inp-ob-name')?.value?.trim();
+    if (!name) { document.getElementById('inp-ob-name')?.focus(); return; }
+    const team = document.getElementById('inp-ob-team')?.value?.trim();
+    saveCoach({ name });
+    if (team) saveTeamSettings({ name: team });
+    savePerson({ name, role: 'coach', level: 3 });
+    log.info('onboarding.complete', {});
+    closeModal();
+    draw();
+    return;
+  }
 
   if (action === 'role-tab') {
     const role = el.dataset.role;
@@ -863,15 +896,24 @@ document.getElementById('scrim').addEventListener('click', () => { stopCamera();
 window.__test_onQRDetected = onQRDetected;
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-// Close any active practices from previous days (stale sessions)
-getPractices()
-  .filter(p => p.date < today() && p.status !== 'ended')
-  .forEach(p => { endPractice(p.id); log.info('practice.stale.closed', { practice_id: p.id }); });
+(async () => {
+  // Fetch rubric content before first draw; falls back to bundled defaults on failure.
+  await loadRubricContent(import.meta.env.BASE_URL.replace(/\/$/, ''));
 
-s.today_practice = findTodaysPractice();
-_generateSettingsQR();
-log.info('app.init', { people: getPeople().length, observations: getObservations().length });
-draw();
-if (FEEDBACK_MODE) {
-  import('./feedback.js').then(m => m.initFeedback());
-}
+  // Close any active practices from previous days (stale sessions)
+  getPractices()
+    .filter(p => p.date < today() && p.status !== 'ended')
+    .forEach(p => { endPractice(p.id); log.info('practice.stale.closed', { practice_id: p.id }); });
+
+  s.today_practice = findTodaysPractice();
+  _generateSettingsQR();
+  log.info('app.init', { people: getPeople().length, observations: getObservations().length });
+  draw();
+  if (!getCoach() && getPeople().length === 0) {
+    openModal(modalOnboarding());
+    setTimeout(() => document.getElementById('inp-ob-name')?.focus(), 80);
+  }
+  if (FEEDBACK_MODE) {
+    import('./feedback.js').then(m => m.initFeedback());
+  }
+})();

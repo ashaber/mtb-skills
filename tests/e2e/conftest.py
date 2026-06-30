@@ -53,9 +53,24 @@ def page(request, base_url: str):
         js_errors: list[str] = []
         pg.on('pageerror', lambda e: js_errors.append(str(e)))
         pg.goto(base_url)
+        # Pre-seed a coach profile so the first-launch onboarding sheet never
+        # appears and blocks pointer events in tests, then reload so the app
+        # boots cleanly with the coach in storage (avoids add_init_script, which
+        # breaks WebKit's dynamic module imports).
+        pg.evaluate("""() => {
+            localStorage.setItem('mtb_coach', JSON.stringify({
+                id: 'test-coach', name: 'Test Coach',
+                role: 'coach', team_id: 'test-team'
+            }));
+        }""")
+        pg.reload()
         try:
             yield pg
-            assert not js_errors, f'Uncaught JS errors: {js_errors}'
+            # WebKit rejects SW/module loading on plain HTTP (expected in test env)
+            real_errors = [e for e in js_errors
+                           if 'sw.js load failed' not in e
+                           and 'Importing a module script failed' not in e]
+            assert not real_errors, f'Uncaught JS errors: {real_errors}'
         finally:
             ctx.close()
             browser.close()
