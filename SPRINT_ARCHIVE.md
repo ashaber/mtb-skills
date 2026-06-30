@@ -316,3 +316,50 @@ Feedback mode moved from URL-param only (`?feedback=true`) to a toggleable setti
 - IDEA-019: Localization/translation strategy — per-language JSON files as natural extension of IDEA-018
 
 ---
+
+## Phase 2a — PWA: Service Worker, Manifest, Rubric JSON Separation
+
+**Merged:** 2026-06-30 (PR #15)
+**Branch:** `phase2/pwa`
+**Version:** `0.2.2`
+
+**Goal:** App installs to home screen and works reliably offline. Rubric content separated from code for GitHub-editable wording without a build (IDEA-018).
+
+**PWA (`vite-plugin-pwa` + Workbox):**
+- Web manifest: name, short_name, display:standalone, theme_color `#d94626`, icons 192×192 and 512×512 PNG
+- SVG icon: burnt-orange rounded square, white mountain silhouette (`public/icon.svg` + generated PNGs via `scripts/gen-icons.js`)
+- Service worker: pre-caches all JS/CSS bundles, `index.html`, `public/rubric.json`, `public/about.html`, icons; navigation fallback to cached `index.html`
+- App installs to home screen on Android (Chrome) and iOS (Safari); verified on real device; loads fully offline after first install
+
+**IDEA-018 — Rubric content/code separation:**
+- All text content moved from `src/rubric.js` to `public/rubric.json` (descriptions, levels, failure modes, calibration notes, scoring rules, trail guide, coach notes)
+- `src/rubric.js` retains only: `SKILL_IDS`, `TRAIL_MINIMUMS`, `TRAIL_LABELS`, `LV`, `trailReadiness()`
+- Fallback bundled in `src/rubric-default.js` if fetch fails
+- Service worker pre-caches `rubric.json` — offline safe from first install; GitHub pencil-edit → commit → auto-deploy (~60s), no build or terminal needed
+
+**Defects fixed (D17–D23):**
+- **D17a:** QR code generates at `160 × devicePixelRatio` px — readable on high-DPR screens
+- **D17b:** Attendance highlight: `background: rgba(22,163,74,0.08)` on attending/present rows
+- **D17c:** First-launch onboarding sheet — coach self-add on first open (name required, team optional)
+- **D17d:** `allow_multi_practice` defaults to `true`
+- **D17e:** Settings about section renamed "Feedback"; dismissible via `mtb_feedback_dismissed` localStorage flag
+- **D17f:** `public/about.html` relative URL fix — no more hardcoded GitHub Pages hostname
+- **D18:** Google Fonts `<link>` removed; system font stack applied — eliminates render-blocking and offline failure
+- **D19:** In-app install prompt in Settings (Android: native dialog via `beforeinstallprompt`; iOS: Share sheet instructions)
+- **D20:** App version wired from `package.json` via Vite `define(__APP_VERSION__)`; displays `v0.2.2` in Settings About
+- **D21:** Scan button present on empty roster state
+- **D23:** Expanded card scroll-into-view fix; practice date uses local timezone; attendee highlight clears when practice ends
+
+**Tests added:**
+- `tests/e2e/test_pwa.py` — SW registration, offline load, rubric JSON content, install prompt presence
+- `tests/unit/rubric-content.test.js` — fetch + merge + fallback logic
+- `tests/unit/storage.test.js` — multi-practice default, practice date
+- Conftest: pre-seed coach profile before each test fixture to bypass onboarding sheet; WebKit plain-HTTP module-import error filtered in teardown
+
+**Open defects carried forward to Phase 2b:**
+- D12: Pinch-to-zoom on Guide page (deferred to IDEA-015 guide redesign)
+- D22: Scan hint — mention camera portrait/face-blur mode as possible blocker
+- D24: Analytics `page_view` fires on every `draw()` call, not just tab switches
+- D25: Git commit hash alongside version in Settings
+
+---

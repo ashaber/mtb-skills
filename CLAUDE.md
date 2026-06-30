@@ -90,16 +90,18 @@ The navigation, routing, and all view-transition code follows a three-tier model
 
 ---
 
-## Phase 2 — PWA + Google Sheets Roster Import (branch: phase2/pwa)
+## Phase 2 — PWA + Google Sheets Roster Import (branch: phase2/sheets)
 
 **Goal:** Two independent deliverables, both client-side (no backend required).
 
-- **2a — PWA:** App installs to home screen; service worker pre-caches all assets and rubric content for reliable offline use. Bundle IDEA-018 (rubric JSON) here since the service worker is required for offline safety.
+- **2a — PWA:** ✅ Complete (PR #15, 2026-06-30). App installs to home screen; service worker pre-caches all assets and rubric content for reliable offline use. IDEA-018 (rubric JSON) shipped with 2a.
 - **2b — Google Sheets roster import:** Head coach pastes a share link to their team Google Sheet; app fetches the roster CSV and merges it into local storage. No OAuth, no backend — works with any sheet set to "anyone with link can view."
 
 ---
 
 ### Deliverable 2a — PWA: service worker + installability + rubric JSON (IDEA-018)
+
+**Status: ✅ Complete — see SPRINT_ARCHIVE.md for full record.**
 
 **Package:** `vite-plugin-pwa` (Workbox-based, zero-config for Vite)
 
@@ -189,33 +191,32 @@ After generating `rubric.json`, output the top-level keys so the schema can be r
 
 ### Phase 2 Definition of Done
 
-- [ x] App installable from Chrome (Android) and Safari (iOS) — "Add to Home Screen" works
-- [ ] Service worker pre-caches all app assets and `public/rubric.json`
-- [ x] App loads fully offline after first install — no network calls on open
-- [ ] `public/rubric.json` contains all rubric text content; `src/rubric.js` has structural constants only
-- [ ] Wording edit in `rubric.json` on GitHub.com deploys without a build
+**2a — complete:**
+- [x] App installable from Chrome (Android) and Safari (iOS) — "Add to Home Screen" works
+- [x] Service worker pre-caches all app assets and `public/rubric.json`
+- [x] App loads fully offline after first install — no network calls on open
+- [x] `public/rubric.json` contains all rubric text content; `src/rubric.js` has structural constants only
+- [x] Wording edit in `rubric.json` on GitHub.com deploys without a build
+- [x] Lighthouse PWA audit passes
+- [x] Real-device test: Android install + offline; iOS install + offline
+- [x] Playwright: offline load, install prompt (`tests/e2e/test_pwa.py`)
+
+**2b — remaining:**
 - [ ] Settings: Google Sheets URL input; import parses and merges roster
 - [ ] Import shows summary (added / existing / skipped counts)
 - [ ] Re-import preserves existing observations and confirmed levels
 - [ ] Private sheet shows actionable error; malformed URL shows inline validation
-- [ ] Vitest: rubric JSON fetch + fallback, CSV parser, merge logic
-- [ ] Playwright: install prompt present, offline load, import flow, error states
-- [ ] Lighthouse PWA audit passes
-- [ ] Real-device test: Android install + offline; iOS install + offline
+- [ ] Vitest: CSV parser, merge logic
+- [ ] Playwright: import flow, error states
 
-### Current open defects on branch `phase2/pwa` (fix before merge to main)
+### Current open defects on branch `phase2/sheets`
 
-All items tracked in `DEFECTS.md`. Priority order for the next build:
+All items tracked in `DEFECTS.md`. Address opportunistically during Phase 2b:
 
-1. **D18** — Remove Google Fonts `<link>` from `index.html`; switch `font-family` to system font stack (`-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif`). Offline DOD blocker.
-2. **D17a** — Fix QR on full rider card: generate at `160 * devicePixelRatio` px, display 160px CSS. Fallback: replace with Share button.
-3. **D17b** — Attendance highlight: add `background: rgba(22,163,74,0.08)` to `.row-card--attending` and `.row-card--present`.
-4. **D17f** — `public/about.html`: replace hardcoded `ashaber.github.io/mtb-skills` URL with relative link.
-5. **D17e** — Settings about section: rename "conference" label to "Feedback"; add dismiss option.
-6. **D17d** — Default `allow_multi_practice` to `true` in `getTeamSettings()`.
-7. **D20** — App version in Settings: wire `__APP_VERSION__` from `package.json` via Vite `define`; display `v{version}` in Settings About section; bump `package.json` to `0.2.2`. See DEFECTS.md D20 for versioning scheme.
-8. **D19** — Install prompt in Settings tab (enhancement; can be separate PR).
-9. **D17c** — First-launch coach onboarding (IDEA-017; can be separate PR).
+1. **D22** — Scan hint: mention camera portrait/face-blur mode as possible blocker (`src/views.js:984`)
+2. **D24** — Analytics: `page_view` fires on every `draw()` call — move tracking into `switchTab()` only
+3. **D25** — Settings: show git commit hash alongside version to distinguish deployments
+4. **D12** — Pinch-to-zoom on Guide page (deferred to IDEA-015 guide redesign)
 
 ---
 

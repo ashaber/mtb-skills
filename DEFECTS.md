@@ -341,6 +341,61 @@ In `src/views.js` Settings section, add version string near the bottom of the Ab
 - Settings page shows `v0.2.2` (or current version)
 - After a new build is deployed and the installed PWA updates, the version number changes — coach can verify they're on the latest without needing DevTools
 
+## D25 — Settings: show git commit hash alongside version to distinguish deployments
+
+**Status:** Open  
+**Context:** Multiple deployment targets (GitHub Pages main, Vercel branch previews) share the same `package.json` version number. No way to tell which build is running from the UI.  
+**Enhancement:** Append short git SHA to the version string in Settings About: `v0.2.2 (a3f91c2)`. Each CI build bakes in the commit it was built from, so the hash differs between deployments even when the version is the same.
+
+**Implementation:**
+
+In `vite.config.js`, add alongside `__APP_VERSION__`:
+```js
+import { execSync } from 'child_process'
+
+define: {
+  __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+  __GIT_HASH__: JSON.stringify(
+    execSync('git rev-parse --short HEAD').toString().trim()
+  ),
+}
+```
+
+In `src/views.js` Settings About section (same line as D20 version display):
+```html
+<p class="settings-about" style="color:var(--dim);font-size:11px">v${__APP_VERSION__} (${__GIT_HASH__})</p>
+```
+
+**Acceptance:** Settings shows e.g. `v0.2.2 (a3f91c2)`; hash differs between a Vercel branch build and a GitHub Pages main build of the same version.
+
+---
+
+## D24 — Analytics: `page_view` fires on every `draw()` call, not just tab switches
+
+**Status:** Open  
+**Observed:** 2026-06-29 — analytics data shows bursts of 10–13 `roster` page_view events within 20–30 seconds in a single session. No actual tab changes occurred.  
+**Root cause:** `draw()` in `src/main.js:115` fires `MTB_TRACK('page_view', ...)` unconditionally on every call. `draw()` is called for all state mutations — expand/collapse roster card, toggle attendance, draft observation, QR generation, etc. — not only on tab navigation.  
+**Impact:** Page view counts are inflated by an order of magnitude; funnel data (settings → roster → action) is unreliable. Any engagement metric derived from `page_view` is currently meaningless.  
+**Fix:** Track `page_view` only when the tab actually changes. Move the tracking call into `switchTab()` (already the sole function that changes `s.tab`), and remove it from `draw()`. The call in `draw()` at line 115 fires even for same-tab redraws.
+
+```js
+// switchTab() — add tracking here
+function switchTab(tab) {
+  clearStack();
+  s.tab = tab;
+  if (tab === 'settings' && !s.settingsQR) _generateSettingsQR();
+  if (FEEDBACK_MODE) window.MTB_TRACK?.('page_view', { page: tab }); // ← move here
+  draw();
+}
+
+// draw() — remove tracking from here
+// line 115: delete the MTB_TRACK call
+```
+
+**Acceptance:** Re-open app, switch between all four tabs — exactly 4 `page_view` events recorded. Then expand/collapse roster cards, record attendance, toggle settings — zero additional `page_view` events.
+
+---
+
 ## D23 — Roster: expanded card visibility, practice date, attendee highlight
 
 **Status:** Fixed
