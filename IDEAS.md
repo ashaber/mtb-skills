@@ -206,4 +206,32 @@ On submit:
 
 **Why this helps:** Removes the Settings-first dependency. Coach sees their own card immediately, which also demonstrates the roster UI and makes the + Add flow for athletes obvious by example.
 
+---
+
+### IDEA-020 — AI coaching-correction agent (observe → diagnose → correct → drill)
+
+**Problem:** A coach can already look up rubric levels in the Guide, but going from "here's what I saw on the trail" to "here's the fix and the drill to run" is still entirely manual and experience-dependent. Two use modes:
+1. **Guided lookup** — coach picks a skill/level and sees correction + drill content. Mostly a content/UI problem, not an AI problem.
+2. **Free-text diagnosis** — coach describes what they observed ("dropping heel and looking down through corners") and gets back a likely level/failure mode plus correction and drill guidance. This is the AI/LLM piece.
+
+**Content prerequisite (do this regardless of whether the AI piece ever ships):** The current rubric content in `public/rubric.json` (`detail`, `failure_modes`, `when_breaks`) is a short-form derivative of a fuller ~10-page reference document that exists outside the repo. That document needs to be mined to add **error → correction** mappings and **practice drill** guidance — fields the schema doesn't have yet. This is not a new gap: [[IDEA-015]] already called for `progression_drills` and `recommended_games` fields for the Guide redesign. IDEA-015 and this idea should share one schema, authored once from the source document — not two competing shapes. Landing this content alone improves the Guide with zero AI involved, and it's also the knowledge base a future agent would read from.
+
+**Why RAG is likely overkill:** Per [[IDEA-018]]'s own numbers, all current rubric content is ~26KB / a few thousand words total — small enough to pass a whole skill's JSON block directly into an LLM prompt as context. A future implementer shouldn't reach for embeddings/a vector store by default. Revisit only if content grows a lot (many sports, many skills) or if athlete-history personalization gets added to the context.
+
+**Architecture blocker — no backend exists yet:** The app is a static GitHub Pages site today — zero server code, zero API-key handling anywhere in the repo. Calling a real LLM safely requires a backend to hold the key. That's Phase 3 (FastAPI/Cloud Run), which is currently unbuilt — aspirational text only in ROADMAP.md, no `backend/` directory exists yet. This idea is **blocked on Phase 3 backend existing**, not just "nice to build later." A client-only prototype calling an LLM directly with an exposed key is explicitly not recommended, even as a demo — this is a public static site.
+
+**Sketch of the eventual shape** (Phase 3+, not a commitment):
+- New backend endpoint, e.g. `POST /api/coach-assist` — takes `{ skill_id (optional), observation_text }`, returns `{ likely_level, failure_mode, correction, drill, confidence_caveat }`.
+- Backend stuffs the relevant skill's full rubric JSON (detail, failure_modes, when_breaks, corrections, drills) into the prompt — simple context-stuffing, no embeddings/vector store (see above).
+- Advisory only — never auto-writes a confirmed level; the coach must explicitly confirm, same as the existing manual observation flow.
+- UI hook: a new `pushSheet` surface (matching the existing three-tier nav pattern in `src/nav.js`), reachable from `viewRubric`'s per-skill tab in `src/views.js` and/or from the observation-logging flow — "Ask for coaching help" with a free-text box.
+- Offline behavior: must degrade explicitly (disabled/greyed with a message) when offline, consistent with the app's offline-first requirement — this would be the one feature allowed to require connectivity, but it must fail visibly and gracefully, not silently.
+
+**Open questions:**
+- Does free-text diagnosis output get logged as an observation candidate, or is it purely advisory/ephemeral (not persisted)?
+- Should the eventual endpoint be NICA-specific (three skills) or built generically enough to extend to other sports' rubrics later?
+- Cost/rate-limiting model once a real LLM call exists per coach action.
+
+**Related:** [[IDEA-015]] (shared schema fields, same content source), [[IDEA-018]] (why rubric content is already small/portable enough to avoid RAG infra). Architectural prerequisite: ROADMAP.md Phase 3 backend.
+
 
