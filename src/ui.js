@@ -237,6 +237,42 @@ export const ICON_SKILL_INCREASE = `
   <polygon points="18.5,8.5 21,3.5 23.5,8.5" fill="currentColor" stroke="none"/>
 </svg>`;
 
+// ── Level progression strip (IDEA-015) ────────────────────────────────────
+// Renders what changed at a level vs the level below, in three categories:
+//   adds     → skill gained            (green ↑)
+//   resolves → failure modes dropped   (red ↓)
+//   terrain  → trail class unlocked    (green ↑)
+// One icon per category. `how_to` is deliberately not rendered here — it
+// belongs to the Guide's "How to progress" expander.
+const escProg = v => String(v ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+export function progressionStripHTML(prog) {
+  if (!prog) return '';
+
+  const row = (kind, icon, color, label, items) => {
+    const list = (items || []).filter(Boolean);
+    if (!list.length) return '';
+    const text = list.map(t => `<span class="prog-item">${escProg(t)}</span>`).join('');
+    return `<li class="prog-line prog-line--${kind}">
+      <span class="prog-icon" style="color:${color}">${icon}</span>
+      <span class="prog-body">
+        <span class="prog-label">${label}</span>
+        <span class="prog-items">${text}</span>
+      </span>
+    </li>`;
+  };
+
+  const rows = [
+    row('adds',     ICON_SKILL_INCREASE,   LV[4], 'Adds',           prog.adds),
+    row('resolves', ICON_FAIL_DECREASE,    LV[1], 'Fewer failures', prog.resolves),
+    row('terrain',  ICON_TERRAIN_INCREASE, LV[4], 'Terrain',        prog.terrain ? [prog.terrain] : []),
+  ].join('');
+
+  if (!rows) return '';
+  return `<ul class="prog-strip">${rows}</ul>`;
+}
+
 export function scoreChip(label, lv) {
   const unset = !lv;
   const bg = unset ? 'var(--border)' : LV[lv];

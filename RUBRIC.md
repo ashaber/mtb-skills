@@ -2,6 +2,13 @@
 Master content source. Card content is authoritative. Reference doc and app derive from this.
 Last updated: v2.0, May 2026
 
+**Per-level progression content** (what a rider gains at each level, which failure
+modes drop away, which terrain opens up, and the drills that develop each level)
+lives in `public/rubric.json` under each level's `progression` key — it is not
+duplicated here. `public/rubric.json` is the single source of truth; the offline
+fallback imports it directly, so edit that file and nothing else. Long-form
+coaching background lives in `public/rubric-reference.md`.
+
 ---
 
 ## Scoring Rules
@@ -17,11 +24,11 @@ Last updated: v2.0, May 2026
 
 | Level | Trail Rating | Consistency Gate |
 |-------|-------------|-----------------|
-| 1 | Paved / no rating | Breaks on anything beyond flat |
-| 2 | Green ● — Easy | Breaks with distraction or challenge |
-| 3 | Blue ■ — More Difficult | Breaks when over-challenged |
-| 4 | Black ◆ — Very Difficult | Breaks only at extreme consequence |
-| 5 | Dbl Black ◆◆ | Essentially does not break |
+| 1 | Paved / no rating | Falls apart on anything beyond flat |
+| 2 | Green ● — Easy | Falls apart with distraction or challenge |
+| 3 | Blue ■ — More Difficult | Falls apart when over-challenged |
+| 4 | Black ◆ — Very Difficult | Falls apart only at extreme consequence |
+| 5 | Dbl Black ◆◆ | Essentially never falls apart |
 
 Level 5 = Beyond NICA trail scope. NICA riders ride white, green, blue, and black trails.
 
@@ -38,13 +45,13 @@ Foundation for front wheel lifts (OTB-201) and wheelies/manuals (OTB-301).
 
 ### Card Content (master)
 
-| Level | When it breaks | What breaks — any of: |
+| Level | Consistency | Any one of these = not this level |
 |-------|---------------|----------------------|
-| 1 | Breaks on anything beyond flat | Seated or knees pinch saddle · rigid · looks at front wheel · no ready · 3 Key Essentials absent |
-| 2 | Breaks with distraction or challenge | Standing but rigid · weight shifts fwd or back · BBS absent · loses ready with distraction |
-| 3 | Breaks when over-challenged | BBS breaks under pressure · pressure control only emerging on features · 3 Key Essentials reliable |
-| 4 | Breaks only at extreme consequence | BBS always · pressure control consistent · intentional loading for features · largely autonomous |
-| 5 | Essentially does not break | Full tactical pressure control any terrain · Beyond NICA trail scope |
+| 1 | Falls apart on anything beyond flat | Seated or knees pinch saddle · rigid · looks at front wheel · no ready · 3 Key Essentials absent |
+| 2 | Falls apart with distraction or challenge | Standing but rigid · weight shifts fwd or back · BBS absent · loses ready with distraction |
+| 3 | Falls apart when over-challenged | BBS falls apart under pressure · pressure control only emerging on features · 3 Key Essentials reliable |
+| 4 | Falls apart only at extreme consequence | BBS always · pressure control consistent · intentional loading for features · largely autonomous |
+| 5 | Essentially never falls apart | Full tactical pressure control any terrain · Beyond NICA trail scope |
 
 ### Reference Doc Detail (by level)
 
@@ -67,7 +74,7 @@ Low ready automatic under all conditions. Full pumping / pressure control automa
 
 **Fitts and Posner stages:**
 - Levels 1–2: Cognitive — conscious, inconsistent, fails under distraction
-- Level 3: Associative — reliable but breaks under pressure
+- Level 3: Associative — reliable but falls apart under pressure
 - Level 4: Largely autonomous — attention freed for terrain and tactics
 - Level 5: Fully autonomous — tactical application
 
@@ -80,17 +87,19 @@ Three accumulated steps: (1) both brakes with modulation, (2) bracing leg and hi
 
 Grabbing brakes rather than squeezing is the most fundamental Level 1 failure.
 
-**Gary Test** (reference doc only, not on card): An unexpected obstacle placed in rider's path. Coach observes both brakes, heel drop, bracing leg, ready position maintained. Tests whether correct braking survives surprise. Level 4 requires passing consistently on trail.
+**Emergency braking test** (formerly called the "Gary Test" — that term is retired, do not use it).
+
+Emergency braking test: An unexpected or surprise obstacle placed in rider's path. Coach observes both brakes, heel drop, bracing leg, ready position maintained. Tests whether correct braking survives surprise. Level 4 requires passing consistently on trail.
 
 ### Card Content (master)
 
-| Level | When it breaks | What breaks — any of: |
+| Level | Consistency | Any one of these = not this level |
 |-------|---------------|----------------------|
-| 1 | Breaks on anything beyond flat | Rear brake only · 2-3 fingers · grabs and skids · afraid to brake hard · brakes in corners |
-| 2 | Breaks in unexpected stops | Yanks rear under surprise · skids · body shifts forward · brakes in corners when scared |
-| 3 | Breaks at extreme surprise | Rarely skids · bracing leg lost at extreme surprise · hips back and down: learning, not yet reliable |
-| 4 | Breaks only at extreme consequence | Never skids · hips back and down automatic · always braces leg · brakes before corners · correct braking when surprised |
-| 5 | Essentially does not break | Full tactical braking · precise modulation + timing · front/rear intentional · Beyond NICA trail scope |
+| 1 | Falls apart on anything beyond flat | Rear brake only · 2-3 fingers · grabs and skids · afraid to brake hard · brakes in corners |
+| 2 | Falls apart in unexpected stops | Yanks rear under surprise · skids · body shifts forward · brakes in corners when scared |
+| 3 | Falls apart at extreme surprise | Rarely skids · bracing leg lost at extreme surprise · hips back and down: learning, not yet reliable |
+| 4 | Falls apart only at extreme consequence | Never skids · hips back and down automatic · always braces leg · brakes before corners · correct braking when surprised |
+| 5 | Essentially never falls apart | Full tactical braking · precise modulation + timing · front/rear intentional · Beyond NICA trail scope |
 
 ### Reference Doc Detail (by level)
 
@@ -104,7 +113,7 @@ Even front/rear braking under perfect conditions. Unexpected stop yanks rear onl
 Good modulation — rarely skids. Powerful braking, short stopping distance. Bracing leg consistent except most extreme surprise stops. Hips back and down introduced — learning the movement, present sometimes in normal stops, not yet reliable under pressure or surprise. Maintains body position enabling transition to cornering.
 
 **Level 4:**
-Never skids. Both brakes always consistent. Braking always solid on any terrain — planned and emergency stops. Hips back and down automatic. Always braces leg including emergency situations. Brakes before corners consistently. Correct braking maintained in unexpected stops — passes Gary Test on trail.
+Never skids. Both brakes always consistent. Braking always solid on any terrain — planned and emergency stops. Hips back and down automatic. Always braces leg including emergency situations. Brakes before corners consistently. Correct braking maintained in unexpected stops — passes the emergency braking test on trail.
 
 **Level 5:**
 All foundational braking always correct. Precise modulation, timing, and intentional front/rear pressure for any conditions. Carries speed to last second before corner — brakes hard to precise entry speed — releases front first, trails rear to settle suspension. Holds rear brake through steep corners to manage speed. Senses traction loss on slippery surfaces and modulates in real time. Times braking to high-traction zones. Foundation for nose wheelies and other advanced brake-based skills. Beyond NICA trail scope.
@@ -134,13 +143,13 @@ OTB-201 movements assessed on execution — not whether rider has attended OTB-2
 
 ### Card Content (master)
 
-| Level | When it breaks | What breaks — any of: |
+| Level | Consistency | Any one of these = not this level |
 |-------|---------------|----------------------|
-| 1 | Breaks on anything beyond flat | Steers all corners · no lean or leans outside · seated · no ready · pedals uneven |
-| 2 | Breaks at faster or unpredictable corners | Body-bike locked same lean · knees squeezed · steers under pressure · eyes on threat · weight off |
-| 3 | Breaks at higher speed or consequence | BBS lean breaks under pressure · hip rotation only in ideal conditions · ready erodes · weight shifts |
-| 4 | Breaks only at extreme consequence | Hip rotation breaks at extreme consequence · pressure control only on consistent banked corners · largely autonomous |
-| 5 | Essentially does not break | Full sequence any terrain · pumps the apex · Beyond NICA trail scope |
+| 1 | Falls apart on anything beyond flat | Steers all corners · no lean or leans outside · seated · no ready · pedals uneven |
+| 2 | Falls apart at faster or unpredictable corners | Body-bike locked same lean · knees squeezed · steers under pressure · eyes on threat · weight off |
+| 3 | Falls apart at higher speed or consequence | BBS lean falls apart under pressure · hip rotation only in ideal conditions · ready erodes · weight shifts |
+| 4 | Falls apart only at extreme consequence | Hip rotation falls apart at extreme consequence · pressure control only on consistent banked corners · largely autonomous |
+| 5 | Essentially never falls apart | Full sequence any terrain · pumps the apex · Beyond NICA trail scope |
 
 ### Reference Doc Detail (by level)
 
@@ -198,7 +207,7 @@ Weight back, braking in corner, squeezing bike and steering — common at all le
 
 **Fitts and Posner stages:**
 - Levels 1–2: Cognitive — steers consciously, BBS S/S requires deliberate effort
-- Level 3: Associative — BBS and Low-Look-Lean present but break under pressure
+- Level 3: Associative — BBS and Low-Look-Lean present but fall apart under pressure
 - Level 4: Largely autonomous — full sequence requires no conscious thought, rider focuses on line choice and speed
 - Level 5: Fully autonomous — tactical pumping
 
@@ -242,5 +251,5 @@ Short sections can be speed-managed or walked.
 | Low-Look-Lean | OTB-101 cornering sequence |
 | Pumping / pressure control | Dynamic tire loading — NOT static "weighted" |
 | Pump the apex | Dynamic load through corner peak, momentum-dependent |
-| Gary Test | Unexpected obstacle in path — braking form under surprise. Reference doc only, not on cards. |
+| Emergency braking test | Unexpected obstacle in path — braking form under surprise. Reference doc only, not on cards. (Formerly "Gary Test" — retired.) |
 | Beyond NICA trail scope | Level 5 label — rider CAN achieve, NICA events don't use these trails |

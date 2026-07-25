@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'rubric.json', 'about.html'],
+      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'rubric.json', 'about.html', 'rubric-reference.md'],
       manifest: {
         name: 'MTB Skills Assessment',
         short_name: 'MTB Skills',

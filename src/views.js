@@ -21,6 +21,7 @@ import {
 import {
   LV, pName, initials, readyRowHTML, readyRowDetailHTML, trendSVG, postureSVG,
   levelSelectorHTML, scoreChip, suggestLevel, TRAIL_META, trailMarkSVG, readyTrails,
+  progressionStripHTML,
 } from './ui.js';
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -472,8 +473,17 @@ export function viewCard(s) {
     const trend      = trendSVG(history, confirmedLv, 160, 44);
     const hasObs     = history.length > 0;
 
-    const failureItems = SKILLS[sk].levels[lv].failure_modes
-      .map(f => `<li class="sb-fail-item">${esc(f)}</li>`).join('');
+    // IDEA-015: what changed vs the level below. Level 1 is the baseline.
+    // This replaces the old consistency/failure columns — those live in the
+    // Field Guide now, one tap away via "More info".
+    const prog = SKILLS[sk].levels[lv].progression;
+    const progBlock = prog
+      ? `<div class="sb-prog">
+          <span class="sb-col-hdr">WHAT IMPROVES AT LEVEL ${lv}</span>
+          ${progressionStripHTML(prog)}
+          <button class="sb-prog-more" data-a="go-rubric-level" data-sk="${sk}" data-n="${lv}">More info →</button>
+        </div>`
+      : `<button class="sb-guide-link" data-a="go-rubric-level" data-sk="${sk}" data-n="${lv}">Level ${lv} in the Field Guide →</button>`;
 
     return `<div class="skill-block">
       <div class="skill-block-head">
@@ -481,16 +491,7 @@ export function viewCard(s) {
         <span class="skill-block-lv" style="color:${LV[lv]}">LEVEL ${lv}</span>
       </div>
       ${levelSelectorHTML(sk, lv, a.id, 'full')}
-      <div class="sb-rubric-row">
-        <div class="sb-col">
-          <span class="sb-col-hdr">WHEN IT BREAKS</span>
-          <p class="sb-when">${esc(SKILLS[sk].levels[lv].when_breaks)}</p>
-        </div>
-        <div class="sb-col sb-col-right">
-          <span class="sb-col-hdr">WHAT BREAKS — ANY OF:</span>
-          <ul class="sb-fail-list">${failureItems}</ul>
-        </div>
-      </div>
+      ${progBlock}
       <div class="trend-row">
         <div class="trend-spark-wrap">
           <span class="section-micro">RECENT TREND</span>
@@ -503,7 +504,6 @@ export function viewCard(s) {
             : `<span class="trend-stable">● Holding at level</span>`}
         </div>
       </div>
-      <button class="sb-guide-link" data-a="go-rubric-skill" data-sk="${sk}">Full rubric in Field Guide →</button>
     </div>`;
   }).join('');
 
@@ -716,14 +716,48 @@ function rubricSkillBody(skillId) {
       ? `<a class="rc-video-link" href="${esc(lvData.video_url)}" target="_blank" rel="noopener">▶ Video</a>`
       : '';
 
+    // IDEA-015: what changed vs the level below (level 1 is the baseline).
+    const progBlock = lvData.progression
+      ? `<div class="rc-prog">
+          <span class="rc-prog-hdr">What improves at Level ${lv}</span>
+          ${progressionStripHTML(lvData.progression)}
+        </div>`
+      : '';
+
+    // Forward-looking: the drills that develop a rider INTO the next level.
+    const nextHow = skill.levels[lv + 1]?.progression?.how_to || [];
+    const howTo = nextHow.length
+      ? `<details class="progress-details">
+          <summary class="progress-summary">
+            <span>How to progress to Level ${lv + 1}</span>
+            <span class="progress-chevron">▾</span>
+          </summary>
+          <ul class="progress-list">${nextHow.map(h => `<li>${esc(h)}</li>`).join('')}</ul>
+        </details>`
+      : '';
+
+    // Disqualifier list — moved here from the rider card so the card can stay
+    // scannable. Any single item means the rider has not earned this level.
+    const failList = (lvData.failure_modes || [])
+      .map(f => `<li class="rc-fail-item">${esc(f)}</li>`).join('');
+    const failBlock = failList
+      ? `<div class="rc-fails">
+          <span class="rc-fails-hdr">Any one of these = not this level</span>
+          <ul class="rc-fail-list">${failList}</ul>
+        </div>`
+      : '';
+
     return `<div class="rubric-card" data-lv="${lv}">
       <div class="rc-head">
         <div class="rc-badge" style="background:${color}">${lv}</div>
         <div class="rc-head-info">
-          <div class="rc-gate">${esc(lvData.when_breaks)}</div>
+          <div class="rc-gate">${esc(lvData.consistency)}</div>
         </div>
       </div>
       <div class="rc-dims">${dimRows}</div>
+      ${failBlock}
+      ${progBlock}
+      ${howTo}
       ${videoLink}
     </div>`;
   }).join('');
@@ -732,7 +766,8 @@ function rubricSkillBody(skillId) {
     <p class="rubric-skill-desc">${esc(skill.description)}</p>
     <p class="rc-calibration">${esc(skill.calibration_note)}</p>
     ${notes}
-    <div class="rubric-cards">${cards}</div>`;
+    <div class="rubric-cards">${cards}</div>
+    <a class="rc-reference-link" href="rubric-reference.md" target="_blank" rel="noopener">Full written reference →</a>`;
 }
 
 function rubricGuideBody() {

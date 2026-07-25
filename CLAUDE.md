@@ -99,62 +99,6 @@ The navigation, routing, and all view-transition code follows a three-tier model
 
 ---
 
-### Deliverable 2a — PWA: service worker + installability + rubric JSON (IDEA-018)
-
-**Status: ✅ Complete — see SPRINT_ARCHIVE.md for full record.**
-
-**Package:** `vite-plugin-pwa` (Workbox-based, zero-config for Vite)
-
-**Manifest fields:**
-- `name`: "MTB Skills Assessment"
-- `short_name`: "MTB Skills"
-- `display`: "standalone"
-- `theme_color`: `#d94626` (matches `--accent` in index.html)
-- `background_color`: `#f4f2ec` (matches `--bg` in index.html)
-- `icons`: 192×192 and 512×512 PNG, both `purpose: "any maskable"`
-- **No existing logo asset in the repo.** Generate a simple SVG icon: burnt-orange (`#d94626`) rounded square background, white mountain silhouette. Save source as `public/icon.svg`; generate PNGs at 192 and 512px into `public/` using a build script or sharp. Name them `icon-192.png` and `icon-512.png`.
-
-**Service worker strategy:**
-- Pre-cache: all JS/CSS bundles, `index.html`, `public/rubric.json`, `public/about.html`, icons
-- Navigation fallback: serve cached `index.html` for any navigation request (SPA routing)
-- Runtime cache: none needed (app has no runtime network calls in Phase 2)
-- Update flow: new SW installs in background, activates on next page load (no "Update available" prompt needed yet)
-
-**IDEA-018 — Rubric content/code separation (bundle with 2a):**
-- Move all text content (`detail`, `failure_modes`, `when_breaks`, level descriptions) from `src/rubric.js` to `public/rubric.json`
-- `src/rubric.js` retains only structural constants: `SKILL_IDS`, `TRAIL_MINIMUMS`, `TRAIL_LABELS`, `LV` color map
-- App fetches `rubric.json` at startup; falls back to bundled defaults in `src/rubric-default.js` if fetch fails
-- Service worker pre-caches `rubric.json` — offline safe from first install
-- GitHub-editable: wording changes go through pencil → commit → auto-deploy (~60s), no build or terminal needed
-- Structural changes (new fields like `progression_drills`) still require a code PR to add the render logic, but content for those fields lives in JSON once the field exists
-
-**`public/rubric.json` — deriving the schema:**
-Do not invent a new schema. Read `src/rubric.js` in full, then extract the content fields into JSON preserving the existing object shape exactly — same keys, same nesting, same array structures. The views already read these fields by name; changing the shape breaks the views.
-
-What moves to JSON (text content — no code implications):
-- `SKILLS[skill].description`, `.calibration_note`, `.notes`
-- `SKILLS[skill].dimensions[].label`, `.sublabel`, `.levels[1..5]`
-- `SKILLS[skill].levels[1..5].when_breaks`, `.failure_modes`, `.detail`
-- `SCORING_RULES` (array of strings)
-- `SCALE` (array of `{ level, trail, consistency }`)
-- `TRAIL_GUIDE` (all string fields)
-- `COACH_NOTES` (all string and array fields)
-
-What stays in `src/rubric.js` (structural — has code implications):
-- `SKILL_IDS`, `TRAIL_MINIMUMS`, `TRAIL_LABELS`
-- `SKILLS[skill].id`, `.name` — used as keys in view logic
-- `trailReadiness()` function
-
-After generating `rubric.json`, output the top-level keys so the schema can be reviewed before wiring up the fetch.
-
-**Test targets:**
-- Lighthouse PWA audit passes (installable, service worker, manifest)
-- Install to home screen on real Android (Chrome) and iOS (Safari)
-- Airplane mode after install → app opens fully, rubric loads from cache
-- Hard refresh after SW install → rubric content loads from `rubric.json` cache, not bundled JS
-
----
-
 ### Deliverable 2b — Google Sheets roster import
 
 **UX:** Settings tab → "Import roster from Google Sheet" section
@@ -180,6 +124,18 @@ After generating `rubric.json`, output the top-level keys so the schema can be r
 | Role, Type | `role` ("athlete" / "coach") |
 | Grade, Year | `meta.grade` |
 | Category, Cat | `meta.category` |
+| ID, NICA ID, Registration ID, GUID | `external_id` (stored, not displayed) |
+| Ride Group, Group, Lead Coach | `ride_group` (used as import filter; stored on athlete record) |
+
+**Ride group filtering:** If the sheet contains a `Ride Group` / `Lead Coach` column, the import UI shows a picker of unique values — coach selects their group and only those rows are imported. If no such column exists, all rows are imported (fallback).
+
+**Merge key priority:**
+1. `external_id` match (exact) — used when PitZone/NICA ID is present in the sheet
+2. Name match (case-insensitive) — fallback when no ID column exists
+
+**Identity model notes (forward-looking):**
+- **PitZone** is NICA's master user registry; PitZone email is the family-level identifier, not the individual-level identifier. A parent coach and their student athlete can share the same PitZone email. Email alone is therefore not a safe unique key — always prefer a NICA registration ID/GUID when available.
+- **Authenticated Sheets access (Phase 3):** Phase 2b uses "anyone with link can view" — no OAuth, no backend. Phase 3 should add Google OAuth so the app can fetch private sheets on behalf of the signed-in coach. Implement the fetch layer as a swappable abstraction (`src/sheets.js`) so the parser and merge logic are unchanged when the auth layer is added. Never store OAuth tokens in localStorage — requires a backend (Phase 3+).
 
 **Test targets:**
 - Import from a public sheet → athletes appear on roster

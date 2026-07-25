@@ -206,4 +206,20 @@ On submit:
 
 **Why this helps:** Removes the Settings-first dependency. Coach sees their own card immediately, which also demonstrates the roster UI and makes the + Add flow for athletes obvious by example.
 
+---
 
+### IDEA-020 — Identity: PitZone as NICA master user registry
+
+**Context:** PitZone is NICA's authoritative user system. It issues a registration ID per person and uses email as the family-level login — not the individual-level identifier. A parent coach and their student athlete can share the same PitZone account and email address.
+
+**Implications for this app:**
+
+- **Email is not a safe unique key.** Never use PitZone email alone to identify an individual athlete or coach. Always prefer a NICA registration GUID when available.
+- **Roster import (Phase 2b):** If the Google Sheet includes a NICA ID / Registration ID column, use it as the primary merge key. Fall back to name-match only when no ID is present. Store the ID as `external_id` on the athlete record — not displayed in UI but used for merge and future sync.
+- **Phase 3 auth:** When backend auth is added, the login identity will be PitZone email (family account). The app must resolve from family email → individual person records, not treat the email as a person identifier. A coach logging in as `family@example.com` may have both a coach record and one or more athlete records associated with that PitZone account.
+- **Two-way sync (Phase 3+):** `external_id` (PitZone GUID) is the join key between local records and the NICA backend. Design the data model to carry it from Phase 2b onward so no migration is needed when sync is added.
+
+**Open questions:**
+- Does PitZone expose a public API for roster lookup, or is export-to-sheet the intended integration path?
+- Can individual athletes have their own PitZone login, or is the family account always the entry point?
+- What GUID format does PitZone use — numeric, UUID, other?

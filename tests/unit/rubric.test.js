@@ -21,12 +21,12 @@ describe('SKILLS data shape', () => {
     for (const id of SKILL_IDS) {
       for (let n = 1; n <= 5; n++) {
         const level = SKILLS[id].levels[n];
-        expect(level).toHaveProperty('when_breaks');
+        expect(level).toHaveProperty('consistency');
         expect(level).toHaveProperty('failure_modes');
         expect(level).toHaveProperty('detail');
         expect(Array.isArray(level.failure_modes)).toBe(true);
         expect(level.failure_modes.length).toBeGreaterThan(0);
-        expect(level.when_breaks.length).toBeGreaterThan(0);
+        expect(level.consistency.length).toBeGreaterThan(0);
         expect(level.detail.length).toBeGreaterThan(0);
       }
     }
