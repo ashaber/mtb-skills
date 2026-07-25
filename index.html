@@ -143,14 +143,44 @@
     .skill-block-name { font: 700 18px/1 var(--font-disp); text-transform: uppercase; }
     .skill-block-lv { font: 700 13px/1 var(--font-body); }
 
-    .sb-rubric-row { display: grid; grid-template-columns: 2fr 3fr; gap: 0; margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-    .sb-col { padding: 9px 11px; }
-    .sb-col-right { border-left: 1px solid var(--border); background: var(--bg); }
     .sb-col-hdr { display: block; font: 700 9px/1 var(--font-disp); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; }
-    .sb-when { font: 500 12.5px/1.45 var(--font-body); color: var(--ink); margin: 0; }
-    .sb-fail-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
-    .sb-fail-item { font: 400 12px/1.4 var(--font-body); color: var(--ink); padding-left: 10px; position: relative; }
-    .sb-fail-item::before { content: '·'; position: absolute; left: 0; color: var(--dim); }
+
+    /* ── Level progression strip (IDEA-015) ──────────────────────────────── */
+    .prog-strip { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+    .prog-line { display: flex; align-items: flex-start; gap: 8px; }
+    .prog-icon { flex-shrink: 0; display: inline-flex; margin-top: 1px; }
+    .prog-icon svg { width: 28px; height: 16px; display: block; }
+    .prog-body { flex: 1; min-width: 0; }
+    .prog-label { display: block; font: 700 9px/1 var(--font-disp); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: 4px; }
+    .prog-items { display: flex; flex-direction: column; gap: 3px; }
+    .prog-item { font: 400 12px/1.4 var(--font-body); color: var(--ink); }
+    .prog-strip .prog-item { font-size: 13px; line-height: 1.5; }
+
+    /* card tier — concise */
+    .sb-prog { margin-top: 12px; padding: 10px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+    /* guide tier — full */
+    .rc-prog { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .rc-prog-hdr { display: block; font: 700 10px/1 var(--font-disp); letter-spacing: .07em; text-transform: uppercase; color: var(--dim); margin-bottom: 9px; }
+
+    /* "How to progress" expander — native <details>, same pattern as safety info */
+    .progress-details { margin-top: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); overflow: hidden; }
+    .progress-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 11px; cursor: pointer; list-style: none; user-select: none; font: 700 12px/1 var(--font-disp); color: var(--ink); }
+    .progress-summary::-webkit-details-marker { display: none; }
+    .progress-chevron { transition: transform .2s; color: var(--dim); }
+    .progress-details[open] .progress-chevron { transform: rotate(180deg); }
+    .progress-list { margin: 0; padding: 0 11px 11px 27px; display: flex; flex-direction: column; gap: 6px; }
+    .progress-list li { font: 400 12.5px/1.45 var(--font-body); color: var(--ink); }
+
+    .sb-prog-more { background: none; border: none; padding: 10px 0 0; font: 600 12px/1 var(--font-body); color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: block; }
+
+    /* disqualifier list — moved from the rider card into the guide */
+    .rc-fails { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+    .rc-fails-hdr { display: block; font: 700 10px/1 var(--font-disp); letter-spacing: .07em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; }
+    .rc-fail-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .rc-fail-item { font: 400 13px/1.45 var(--font-body); color: var(--ink); padding-left: 12px; position: relative; }
+    .rc-fail-item::before { content: '·'; position: absolute; left: 0; color: var(--dim); }
+
+    .rc-reference-link { display: inline-block; margin-top: 14px; font: 600 13px/1 var(--font-body); color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
     .trend-row { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0ede5; }
     .trend-spark-wrap { flex-shrink: 0; }

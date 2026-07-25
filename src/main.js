@@ -377,10 +377,16 @@ function onAppClick(e) {
     return;
   }
 
-  if (action === 'go-rubric-skill') {
+  // Deep-link into the Field Guide at a specific skill AND level, so "More
+  // info" on a rider card lands on the level the coach is looking at.
+  if (action === 'go-rubric-level') {
     s.rubricSkill = sk;
-    log.info('nav.rubric', { skill: sk });
+    log.info('nav.rubric', { skill: sk, level: +n });
     pushSheet(() => viewRubric(s, { sheet: true }));
+    requestAnimationFrame(() => {
+      const target = document.querySelector(`#sheet .rubric-card[data-lv="${n}"]`);
+      if (target) target.scrollIntoView({ block: 'start' });
+    });
     return;
   }
 

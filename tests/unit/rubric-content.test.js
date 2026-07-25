@@ -21,7 +21,7 @@ describe('rubric-content defaults', () => {
     for (const skill of Object.values(SKILLS)) {
       for (let n = 1; n <= 5; n++) {
         const lv = skill.levels[n];
-        expect(lv).toHaveProperty('when_breaks');
+        expect(lv).toHaveProperty('consistency');
         expect(lv).toHaveProperty('failure_modes');
         expect(lv).toHaveProperty('detail');
         expect(Array.isArray(lv.failure_modes)).toBe(true);
@@ -65,9 +65,9 @@ describe('loadRubricContent — fetch success', () => {
   it('updates SKILLS from fetched JSON', async () => {
     const patched = {
       SKILLS: {
-        body_position: { description: 'PATCHED', levels: { 1: { when_breaks: 'x', failure_modes: ['x'], detail: 'x' }, 2: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 3: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 4: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 5: { when_breaks: 'x', failure_modes: [], detail: 'x' } }, dimensions: [] },
-        braking:       { description: 'PATCHED', levels: { 1: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 2: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 3: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 4: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 5: { when_breaks: 'x', failure_modes: [], detail: 'x' } }, dimensions: [] },
-        cornering:     { description: 'PATCHED', levels: { 1: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 2: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 3: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 4: { when_breaks: 'x', failure_modes: [], detail: 'x' }, 5: { when_breaks: 'x', failure_modes: [], detail: 'x' } }, dimensions: [] },
+        body_position: { description: 'PATCHED', levels: { 1: { consistency: 'x', failure_modes: ['x'], detail: 'x' }, 2: { consistency: 'x', failure_modes: [], detail: 'x' }, 3: { consistency: 'x', failure_modes: [], detail: 'x' }, 4: { consistency: 'x', failure_modes: [], detail: 'x' }, 5: { consistency: 'x', failure_modes: [], detail: 'x' } }, dimensions: [] },
+        braking:       { description: 'PATCHED', levels: { 1: { consistency: 'x', failure_modes: [], detail: 'x' }, 2: { consistency: 'x', failure_modes: [], detail: 'x' }, 3: { consistency: 'x', failure_modes: [], detail: 'x' }, 4: { consistency: 'x', failure_modes: [], detail: 'x' }, 5: { consistency: 'x', failure_modes: [], detail: 'x' } }, dimensions: [] },
+        cornering:     { description: 'PATCHED', levels: { 1: { consistency: 'x', failure_modes: [], detail: 'x' }, 2: { consistency: 'x', failure_modes: [], detail: 'x' }, 3: { consistency: 'x', failure_modes: [], detail: 'x' }, 4: { consistency: 'x', failure_modes: [], detail: 'x' }, 5: { consistency: 'x', failure_modes: [], detail: 'x' } }, dimensions: [] },
       },
       SCORING_RULES: ['patched rule'],
     };

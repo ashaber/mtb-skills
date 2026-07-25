@@ -58,8 +58,9 @@ def test_rubric_content_in_guide(page: Page) -> None:
 def test_rubric_failure_modes_visible(page: Page) -> None:
     """Failure mode text from rubric.json renders in guide skill cards."""
     page.click('[data-a="switch-tab"][data-tab="guide"]')
-    # 'Seated or knees pinch saddle' is a Level 1 failure mode in rubric.json
-    expect(page.get_by_text('Seated', exact=False)).to_be_visible()
+    # Level 1 'Standing Ready' dimension text from rubric.json. Scoped to
+    # .rc-dim-text — progression content also mentions the saddle.
+    expect(page.locator('.rc-dim-text').filter(has_text='Knees pinch saddle').first).to_be_visible()
 
 
 # ── Offline load (Chromium only — SW needs a secure context + reliable SW API) ──
