@@ -124,6 +124,18 @@ The navigation, routing, and all view-transition code follows a three-tier model
 | Role, Type | `role` ("athlete" / "coach") |
 | Grade, Year | `meta.grade` |
 | Category, Cat | `meta.category` |
+| ID, NICA ID, Registration ID, GUID | `external_id` (stored, not displayed) |
+| Ride Group, Group, Lead Coach | `ride_group` (used as import filter; stored on athlete record) |
+
+**Ride group filtering:** If the sheet contains a `Ride Group` / `Lead Coach` column, the import UI shows a picker of unique values — coach selects their group and only those rows are imported. If no such column exists, all rows are imported (fallback).
+
+**Merge key priority:**
+1. `external_id` match (exact) — used when PitZone/NICA ID is present in the sheet
+2. Name match (case-insensitive) — fallback when no ID column exists
+
+**Identity model notes (forward-looking):**
+- **PitZone** is NICA's master user registry; PitZone email is the family-level identifier, not the individual-level identifier. A parent coach and their student athlete can share the same PitZone email. Email alone is therefore not a safe unique key — always prefer a NICA registration ID/GUID when available.
+- **Authenticated Sheets access (Phase 3):** Phase 2b uses "anyone with link can view" — no OAuth, no backend. Phase 3 should add Google OAuth so the app can fetch private sheets on behalf of the signed-in coach. Implement the fetch layer as a swappable abstraction (`src/sheets.js`) so the parser and merge logic are unchanged when the auth layer is added. Never store OAuth tokens in localStorage — requires a backend (Phase 3+).
 
 **Test targets:**
 - Import from a public sheet → athletes appear on roster
