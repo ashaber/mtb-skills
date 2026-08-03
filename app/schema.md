@@ -101,3 +101,27 @@ Computed client-side from ConfirmedLevels — never stored. Source of truth is `
 - ConfirmedLevel uses last-write-wins by `athlete_id + skill`; `confirmed_at` timestamp resolves conflicts
 - All UUID keys are globally unique — no renaming needed when moving to a shared backend
 - Add a `teams` table referencing `team_id` to enable multi-tenant in Phase 4; existing data needs no column changes
+
+---
+
+## Phase 3 addendum — team-visibility backend
+
+> This documents the *current* v1 client model above. Phase 3 introduces a Supabase Postgres backend. Full design: `docs/PHASE3_TEAM_VISIBILITY_PLAN.md`. Summary of the schema delta:
+
+**New tables** (Supabase Postgres, UUID PKs, RLS on every table):
+
+| Table | Purpose |
+|---|---|
+| `league` | League (e.g. "Idaho") |
+| `team` | Team, `→ league_id` |
+| `ride_group` | `→ team_id`, `lead_coach_id` — first-class (no longer a string tag) |
+| `person` | `→ team_id`, `ride_group_id`, `role ∈ {league_staff, head_coach, team_director, coach, athlete}`, `external_id` (PitZone GUID) |
+| `auth_person` | Links Supabase `auth.users` (email) → `person` (role). One email may map to a coach *and* an athlete (shared family PitZone email); login always assumes the coach persona |
+
+**Changed:** `observation` / `confirmed_level` keep their v1 shape (already carry `team_id` + `coach_id`) and gain a denormalized `ride_group_id` for RLS performance.
+
+**Not modeled server-side (pilot):** medical notes + emergency contacts (IDEA-005) stay device-local — only roster identity + skill/observation data syncs.
+
+**Access:** enforced by Postgres Row-Level Security keyed off `auth.uid() → person → {role, team_id, ride_group_id}` — see the design doc's RLS matrix. Cutover is reversible per-team via a store-factory flag (`local | db`) behind `src/storage.js`; local data is never deleted.
+
+**Correction to the note above:** Phase 3 (not 4) is where the backend lands, and it *adds tables + a real DB* — existing fields need no migration, but the "no column changes" phrasing understates the addition of the tables listed here.
