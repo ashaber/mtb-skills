@@ -1,0 +1,76 @@
+# Deploy the Phase 3 backend to Cloud Run.
+#
+# DORMANT until the infra runbook (docs/PHASE3_INFRA_SETUP.md) is done and the
+# GCP_* secrets + VITE_GOOGLE_CLIENT_ID variable exist. It is workflow_dispatch
+# ONLY for now so it never auto-runs and red-X'es CI before the stack exists.
+# Once secrets are in place, wire ITG to auto-deploy on push to main:
+#     on:
+#       push: { branches: [main] }        # -> deploy ITG
+#       workflow_dispatch: { inputs: env } # -> manual promote to prod
+# Prod stays a gated manual promote (swim-coach's manual-prod discipline).
+#
+# Pattern mirrors swim-coach/.github/workflows/deploy-backend.yml (WIF auth,
+# Artifact Registry, Cloud Run min-instances=0, SHA+latest tags), extended to
+# a two-environment (itg/prod) stack.
+
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        options: [itg, prod]
+        default: itg
+
+env:
+  GCP_REGION: us-central1
+  ARTIFACT_REPO: mtb-skills-repo
+  IMAGE_NAME: api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve environment
+        id: env
+        run: |
+          ENV="${{ inputs.environment }}"
+          echo "service=mtb-api-${ENV}" >> "$GITHUB_OUTPUT"
+          echo "db_secret=DATABASE_URL_${ENV^^}" >> "$GITHUB_OUTPUT"
+          echo "session_secret=SESSION_SECRET_${ENV^^}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Build & push image (sha + latest)
+        run: |
+          IMG=${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}
+          docker build -f backend/Dockerfile -t "$IMG:${{ github.sha }}" -t "$IMG:latest" .
+          docker push "$IMG:${{ github.sha }}"
+          docker push "$IMG:latest"
+
+      - name: Deploy to Cloud Run (${{ steps.env.outputs.service }})
+        run: |
+          IMG=${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/${{ env.IMAGE_NAME }}
+          gcloud run deploy ${{ steps.env.outputs.service }} \
+            --image "$IMG:${{ github.sha }}" \
+            --region ${{ env.GCP_REGION }} --platform managed \
+            --min-instances=0 --max-instances=2 --allow-unauthenticated \
+            --set-env-vars=STORE_BACKEND=db,GIT_SHA=${{ github.sha }},GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }},ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }} \
+            --set-secrets=DATABASE_URL=${{ steps.env.outputs.db_secret }}:latest,SESSION_SECRET=${{ steps.env.outputs.session_secret }}:latest

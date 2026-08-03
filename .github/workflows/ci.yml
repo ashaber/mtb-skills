@@ -33,3 +33,61 @@ jobs:
       - run: pip install -r tests/e2e/requirements.txt
       - run: playwright install chromium webkit --with-deps
       - run: pytest tests/e2e/ -v
+
+  # Phase 3 backend API tests — no real DB/network, placeholder secrets.
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements.txt
+      - name: Run backend API tests (fail-fast config + health/version)
+        working-directory: backend
+        run: python -m pytest ../tests/api -v
+        env:
+          DATABASE_URL: postgresql://ci-placeholder
+          SESSION_SECRET: ci-placeholder-not-real
+          GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+
+  # Phase 3 DB layer — apply migrations to a throwaway postgres, re-apply for
+  # idempotency, then run the RLS matrix. Mirrors scripts/db_test.sh.
+  db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust   # lets non-owner app_user connect (RLS is tested as a non-owner)
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres" --health-interval=5s
+          --health-timeout=5s --health-retries=10
+    env:
+      PGURL: postgresql://postgres@localhost:5432/postgres
+      MTB_TEST_DB_URL: postgresql://postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install psql client + test deps
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          pip install -r tests/db/requirements.txt
+      - name: Apply test auth shim
+        run: psql "$PGURL" -v ON_ERROR_STOP=1 -f tests/db/setup_test_auth.sql
+      - name: Apply migrations (first pass)
+        run: for f in supabase/migrations/*.sql; do echo "applying $f"; psql "$PGURL" -v ON_ERROR_STOP=1 -f "$f"; done
+      - name: Grant app_user table access
+        run: psql "$PGURL" -v ON_ERROR_STOP=1 -c "grant select, insert, update on all tables in schema public to app_user;"
+      - name: Apply migrations again (idempotency check — must be a clean no-op)
+        run: for f in supabase/migrations/*.sql; do echo "re-applying $f"; psql "$PGURL" -v ON_ERROR_STOP=1 -f "$f"; done
+      - name: Grant app_user table access (re-grant after 2nd apply)
+        run: psql "$PGURL" -v ON_ERROR_STOP=1 -c "grant select, insert, update on all tables in schema public to app_user;"
+      - name: Run RLS matrix
+        run: python -m pytest tests/db -v
