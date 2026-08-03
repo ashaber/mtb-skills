@@ -21,7 +21,9 @@ Living checklist for the 3.0 (foundations & environments) build. **Updated after
 | A | Backend FastAPI skeleton | `backend/` | `.venv/bin/pytest tests/api -v` | ✅ done `479ab8d` — verified 13/13 |
 | C | Frontend store factory (flag OFF) | `src/store/`, `src/storage.js`, `tests/unit/` | `npm run test` (all pass; zero behavior change when flag off) | ✅ done `a31f1ab` — verified 173/173, build clean |
 | D | CI/CD (orchestrator does this) | `.github/workflows/ci.yml` (+`deploy-backend.yml`, GCS deploy — dormant) | workflows lint; `npm run test:all` green | ✅ done `10875eb` — YAML valid; db-job mirrors db_test.sh; deploys dormant |
-| — | Integration + PR | — | `npm run test:all` green; update PR #17 title/desc; **do not merge** | ⬜ not started |
+| — | Integration + PR | — | `npm run test:all` green; update PR #17 title/desc; **do not merge** | ✅ CI green (unit/e2e/backend/db) run 30783721662; PR #17 updated |
+
+**3.0 build COMPLETE — awaiting Andrew's review & merge of PR #17.** All workstreams verified locally and in CI. Nothing deployed (deploy workflows dormant). Live app unchanged (store flag off).
 
 ## Scope guardrails
 - 3.0 is **additive only**; the store-factory flag **defaults OFF** → live pilot app behaves exactly as today.
