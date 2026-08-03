@@ -9,6 +9,7 @@
  */
 
 import log, { STORAGE_KEY as LOG_KEY } from './log.js';
+import { getStore } from './store/index.js';
 
 const KEYS = {
   athletes:       'mtb_athletes',      // preserved for backward compat
@@ -46,16 +47,11 @@ export function gradeToCategory(grade) {
 // ---------------------------------------------------------------------------
 
 function load(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key) ?? 'null') ?? [];
-  } catch (e) {
-    log.error('storage.read.error', { key, error: e.message });
-    return [];
-  }
+  return getStore().readCollection(key);
 }
 
 function save(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  getStore().writeCollection(key, value);
 }
 
 export function generateId() {
@@ -76,7 +72,7 @@ function today() {
 
 export function getCoach() {
   try {
-    return JSON.parse(localStorage.getItem(KEYS.coach) ?? 'null');
+    return getStore().readObject(KEYS.coach);
   } catch {
     return null;
   }
@@ -91,17 +87,17 @@ export function saveCoach(fields) {
     ...existing,
     ...fields,
   };
-  localStorage.setItem(KEYS.coach, JSON.stringify(coach));
+  getStore().writeObject(KEYS.coach, coach);
   return coach;
 }
 
 export function getTeamId() {
   try {
-    const team = JSON.parse(localStorage.getItem(KEYS.team) ?? 'null');
+    const team = getStore().readObject(KEYS.team);
     if (team?.id) return team.id;
   } catch { /* fall through */ }
   const id = generateId();
-  localStorage.setItem(KEYS.team, JSON.stringify({ id }));
+  getStore().writeObject(KEYS.team, { id });
   return id;
 }
 
@@ -198,11 +194,11 @@ export function deleteAthlete(id) {
 // ---------------------------------------------------------------------------
 
 export function getRosterFilter() {
-  return localStorage.getItem(KEYS.rosterFilter) ?? 'all';
+  return getStore().readRaw(KEYS.rosterFilter) ?? 'all';
 }
 
 export function saveRosterFilter(filter) {
-  localStorage.setItem(KEYS.rosterFilter, filter);
+  getStore().writeRaw(KEYS.rosterFilter, filter);
 }
 
 // ---------------------------------------------------------------------------
@@ -401,7 +397,7 @@ export function exportAll() {
     confirmed_levels: getConfirmedLevels(),
     practices:        getPractices(),
     attendance:       load(KEYS.attendance),
-    log:              JSON.parse(localStorage.getItem(LOG_KEY) || '[]'),
+    log:              getStore().readObject(LOG_KEY) ?? [],
   }, null, 2);
 }
 
@@ -425,7 +421,7 @@ export function importAll(jsonString) {
 
   if (data.observations)     save(KEYS.observations, data.observations);
   if (data.confirmed_levels) save(KEYS.confirmedLevels, data.confirmed_levels);
-  if (data.coach)            localStorage.setItem(KEYS.coach, JSON.stringify(data.coach));
+  if (data.coach)            getStore().writeObject(KEYS.coach, data.coach);
   if (data.practices)        save(KEYS.practices, data.practices);
   if (data.attendance)       save(KEYS.attendance, data.attendance);
 }
@@ -436,14 +432,14 @@ export function importAll(jsonString) {
 const PHOTO_KEY = 'mtb_photos';
 
 export function getPhoto(athleteId) {
-  try { return (JSON.parse(localStorage.getItem(PHOTO_KEY) || '{}'))[athleteId] || null; }
+  try { return (getStore().readObject(PHOTO_KEY) ?? {})[athleteId] || null; }
   catch { return null; }
 }
 export function savePhoto(athleteId, dataUrl) {
   try {
-    const photos = JSON.parse(localStorage.getItem(PHOTO_KEY) || '{}');
+    const photos = getStore().readObject(PHOTO_KEY) ?? {};
     photos[athleteId] = dataUrl;
-    localStorage.setItem(PHOTO_KEY, JSON.stringify(photos));
+    getStore().writeObject(PHOTO_KEY, photos);
     return true;
   } catch (e) {
     log.error('photo.save.failed', { athlete_id: athleteId, error: String(e) });
@@ -457,12 +453,12 @@ export function savePhoto(athleteId, dataUrl) {
 const TEAM_SETTINGS_KEY = 'mtb_team_settings';
 
 export function getTeamSettings() {
-  try { return JSON.parse(localStorage.getItem(TEAM_SETTINGS_KEY) || '{}'); }
+  try { return getStore().readObject(TEAM_SETTINGS_KEY) ?? {}; }
   catch { return {}; }
 }
 export function saveTeamSettings(settings) {
   const existing = getTeamSettings();
-  localStorage.setItem(TEAM_SETTINGS_KEY, JSON.stringify({ ...existing, ...settings }));
+  getStore().writeObject(TEAM_SETTINGS_KEY, { ...existing, ...settings });
 }
 
 // ---------------------------------------------------------------------------
