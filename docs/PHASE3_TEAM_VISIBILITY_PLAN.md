@@ -205,7 +205,35 @@ Mirrors the swim-coach working pattern:
 
 ---
 
-## Open questions for the Tim review session
+## Cutover moments & fallback discipline
+
+Cutovers are where risk concentrates — steady-state read/write is low-risk; the transitions are not. Each cutover below gets: a **pre-cutover snapshot**, a **rehearsal in ITG on copied data**, a **verified rollback**, and **one-unit-at-a-time** rollout. No cutover is performed without its rollback demonstrated first.
+
+| Cutover moment | Increment | Risk | Fallback (rollback) |
+|---|---|---|---|
+| Store flag flip `local → db` for **one coach** | 3.2 | Sync writes to the wrong place / partial push | Flip flag → `local`; local data untouched (never deleted) |
+| Roster **reconciliation** (local ids → canonical) | 3.2 | Duplicate or mis-mapped athletes | Reconciliation is additive (no deletes); keep the `id→canonical` map + pre-cutover local snapshot; revert = ignore the map |
+| **Enable a team** (cross-coach visibility on) | 3.3 | A coach sees wrong scope / RLS hole | Disable team flag → every coach reverts to client-only local |
+| **Prod promote** (ITG → prod deploy) | 3.0–3.5 | Bad image/migration reaches prod | SHA-pinned Cloud Run rollback; frontend redeploy prior GCS build; migrations forward-only + rehearsed |
+| **Enable backend for a consented team** | 3.3+ | Consent/scope mismatch | Consent gates *enablement*, not the build; un-consented teams stay client-only |
+
+The reversible per-team flag is the backbone: at every one of these points, "off" is a safe, tested state that returns the affected coach/team to exactly today's behavior on their own local data.
+
+---
+
+## Open questions
+
+**Resolved with Andrew (2026-08) — not blocking the 3.0–3.3 build:**
+1. **Shared PitZone email (coach = parent).** ✅ Login = coach persona; picker if an email maps to >1 coach persona (rare).
+6. **Multi-team coaches.** ✅ Pilot assumes **one team per coach**; `auth_person` stays many-to-many so multi-team is an additive change later (no migration).
+8. **Minors' PII / consent.** ✅ Medical/emergency stays device-local. Parental/NICA consent to centralize *identity* data gates **per-team enablement**, not the build — un-consented teams stay client-only. Retention + hard-delete path: define during 3.5.
+
+**Deferred to the Tim session — all Phase 3.4 (post-launch), so Tim's availability does not block the pilot:**
+2. **Staleness window** — how many practices/days without a level change triggers "falling behind"? Vary by skill or by current level?
+3. **Ride-group-lead recommendation flow** — simple note/flag to HC/TD, or an explicit accept/reject request?
+4. **Temporary move UX** — does the receiving coach confirm anything, or does the athlete just appear for that practice via the override?
+5. **Progress view granularity** — recommend **per-skill**; confirm vs a composite trail-readiness trend.
+7. **League staff onboarding** (Phase 5) — PitZone-export-driven, or separate provisioning?
 
 1. **Shared PitZone email (coach = parent).** Proposed approach above (login = coach persona; picker if >1 coach persona) — validate it covers the real cases.
 2. **Staleness window** — how many practices/days without a level change triggers "falling behind"? Vary by skill or by current level?
