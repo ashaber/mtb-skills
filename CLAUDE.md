@@ -178,6 +178,22 @@ All items tracked in `DEFECTS.md`. Address opportunistically during Phase 2b:
 
 ## Build Guidelines
 
+### Build orchestration (multi-agent) — standing pattern for all builds
+
+This mirrors the working pattern used in the `swim-coach` repo. Apply it to any non-trivial build (a phase increment, a multi-file feature):
+
+- **Opus orchestrates and verifies; Sonnet builds.** The orchestrating agent (Opus) decomposes the work into workstreams, dispatches **Sonnet** (`claude-sonnet-5`) build subagents to implement each, then **Opus verifies** — reads the diff, runs the tests, checks against the increment's acceptance criteria — before integrating. Verification stays in the orchestrator's own loop, never delegated.
+- **Cheap model for grunt work:** exploration/research subagents also run on Sonnet to conserve tokens; reserve Opus for orchestration, judgment, and verification.
+- **Every increment lands as a PR:** commit to a feature branch, get CI green, then **Andrew reviews and merges.** Do **not** auto-merge builds — Andrew is the reviewer/merger.
+- **TDD throughout** (see below): tests written first, all green before a PR is opened.
+
+### CI/CD & backend deploy (Phase 3+)
+
+Backend deploy is wired into CI on the `swim-coach` pattern, adjusted for a **true ITG (staging) + prod** stack (swim-coach is single-prod). See `docs/PHASE3_TEAM_VISIBILITY_PLAN.md` → "Environments & CI/CD":
+- FastAPI on **Cloud Run** (scales to zero), image in **Artifact Registry**, deployed via **WIF** from GitHub Actions.
+- **Two Supabase projects** (ITG/prod), **two Cloud Run services**, **GCS bucket per env** for the frontend (the shift off GitHub Pages).
+- CI gains `db` (postgres:16 service, apply + idempotency-re-apply `supabase/migrations/*.sql`, RLS/contract tests) and `backend` jobs. CD: merge to `main` → auto-deploy **ITG**; **prod is a gated manual promote**.
+
 ### Test-driven workflow
 - Every module requires test cases before shipping
 - Write tests first — confirm they fail — then code until passing

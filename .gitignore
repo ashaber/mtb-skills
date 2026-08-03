@@ -5,7 +5,10 @@ node_modules/
 __pycache__/
 .pytest_cache/
 *.Identifier
-docs/
+# Track markdown design docs under docs/, but keep the sanitized athlete
+# CSVs and .docx source files out of git.
+docs/*
+!docs/*.md
 .venv/
 coverage/
 .vite/

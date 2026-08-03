@@ -85,34 +85,39 @@ Real-time roster distribution (head coach pushes, ride group coaches pull) requi
 
 ---
 
-## Phase 3 — Supabase Multi-Tenant Backend
+## Phase 3 — Supabase Multi-Tenant Backend (Team Visibility)
 
-**Goal:** Head coach maintains one roster; ride group coaches authenticate and see their assigned group. Eliminates manual roster entry on each device.
+**Goal:** Head coach maintains one roster; ride group coaches authenticate and see their assigned group — and *each other's* ratings within the group. Eliminates manual roster entry on each device and closes the multi-coach visibility gap.
+
+> **Full design:** `docs/PHASE3_TEAM_VISIBILITY_PLAN.md` (org/access model, AuthN/AuthZ, cutover, schema, environments, build phases, execution model, stability gates). This section is the summary.
 
 ### Problem solved
-A team has one head coach and multiple ride group coaches. Today: each coach's app is a silo. A head coach imports the roster into their app; ride group coaches still enter athletes manually or scan QR codes one by one. Phase 3 connects them.
+A team has one head coach and multiple ride group coaches. Today each coach's app is a `localStorage` silo — a real coach reached out: *"each coach has their roster with scores but I can't see them."* Phase 3 connects them, with server-enforced access control.
 
-### Features
-- **Supabase (managed PostgreSQL)** — do not self-host Postgres
-- Head coach imports Google Sheet roster → Supabase seeds `team_id`-scoped athlete records
-- Ride group coaches authenticate (Google OAuth or magic link) → pull their assigned group
-- Observations written locally (offline-first) → synced to Supabase on reconnect
-- Sync strategy: observations are immutable append-only (no conflict); ConfirmedLevel uses last-write-wins
-- All records already carry `team_id` and `coach_id` from Phase 1 — no schema migration
+### Org & access model
+`League → Team → Ride Group → coaches/athletes`. A ride-group coach sees all ratings in their group (collaborative); HC/TD see the whole team; league staff see all teams in their league (read-only — dashboard is Phase 5). Cross-team is denied.
 
-### Architecture
-- **FastAPI backend** (Python 3.12-slim) — REST API on GCP Cloud Run, scales to zero
-- **GCP Artifact Registry** — Docker image storage
-- **Frontend** — same Vite build; deploy target shifts from GitHub Pages to GCS bucket or Firebase Hosting
+### AuthN / AuthZ (critical path)
+- **AuthN:** Supabase Auth — **Google OAuth first**, email magic link as a fast-follow. Verified email is the access-control key: an email present in the imported roster is authorized as that coach.
+- **AuthZ:** Postgres **Row-Level Security**, server-enforced on every read/write (not just merge). Identity model separates `auth.users` (email) from `person` (role) so a shared family PitZone email doesn't collapse a coach and their child.
 
-### Data flow
-```
-Google Sheet (head coach) → Phase 2b import → head coach's app
-                                                     ↓ push to Supabase
-ride group coach → authenticate → pull assigned group → local cache
-                                                              ↓ observe on trail (offline)
-                                                              ↓ sync to Supabase on reconnect
-```
+### Non-destructive, reversible cutover
+- **Store factory behind `src/storage.js`** (`local` | `db`), flag-gated **per team**, defaulting off — mirrors swim-coach's `STORE_BACKEND` cutover. Local data is never deleted; rollback = flip the flag back to client-only local operation.
+- Sync: observations append-only (union by id); ConfirmedLevel last-write-wins. Duplicate-athlete reconciliation uses the Phase 2b merge keys (`external_id` → name).
+
+### Architecture & environments (true ITG/prod)
+- **FastAPI** (Python 3.12-slim) on **Cloud Run** (scales to zero), image in **Artifact Registry**, deployed via **WIF** from CI — patterned on `swim-coach`, adjusted from its single-prod setup to **staging (ITG) + prod**: two Supabase projects, two Cloud Run services, a **GCS bucket per env** for the frontend (the shift off GitHub Pages).
+- **CI** gains `db` (spin up `postgres:16`, apply `supabase/migrations/*.sql`, idempotency re-apply, RLS/contract tests) and `backend` jobs. **CD:** merge to `main` → auto-deploy to ITG; prod is a gated manual promote.
+
+### Build-phase layout
+- **3.0** foundations & environments · **3.1** AuthN + identity · **3.2** non-destructive sync + reconciliation · **3.3** team seed + cross-coach read view *(launch-critical — minimum that unblocks the coach's request)*
+- **3.4** HC dashboard (moves, per-skill progress, falling-behind) · **3.5** hardening, retention/delete, magic link, staged rollout *(post-launch)*
+
+### PII posture
+Medical notes + emergency contacts (IDEA-005) **stay device-local for the pilot** — only roster identity + skill/observation data syncs. Never log PII in backend logs.
+
+### Migration note
+Existing *fields* need no migration, but Phase 3 **adds tables + a real DB** (`league`, `team`, `ride_group`, `person`, `auth_person`; `observation`/`confirmed_level` gain a denormalized `ride_group_id`).
 
 ---
 
