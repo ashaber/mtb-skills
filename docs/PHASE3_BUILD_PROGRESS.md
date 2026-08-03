@@ -21,9 +21,11 @@ Living checklist for the 3.0 (foundations & environments) build. **Updated after
 | A | Backend FastAPI skeleton | `backend/` | `.venv/bin/pytest tests/api -v` | ✅ done `479ab8d` — verified 13/13 |
 | C | Frontend store factory (flag OFF) | `src/store/`, `src/storage.js`, `tests/unit/` | `npm run test` (all pass; zero behavior change when flag off) | ✅ done `a31f1ab` — verified 173/173, build clean |
 | D | CI/CD (orchestrator does this) | `.github/workflows/ci.yml` (+`deploy-backend.yml`, GCS deploy — dormant) | workflows lint; `npm run test:all` green | ✅ done `10875eb` — YAML valid; db-job mirrors db_test.sh; deploys dormant |
-| — | Integration + PR | — | `npm run test:all` green; update PR #17 title/desc; **do not merge** | ✅ CI green (unit/e2e/backend/db) run 30783721662; PR #17 updated |
+| — | Integration + PR | — | `npm run test:all` green; open clean PR; **do not merge** | ✅ CI green (unit/e2e/backend/db); opened as **PR #18** off main |
 
-**3.0 build COMPLETE — awaiting Andrew's review & merge of PR #17.** All workstreams verified locally and in CI. Nothing deployed (deploy workflows dormant). Live app unchanged (store flag off).
+**3.0 build COMPLETE — awaiting Andrew's review & merge of PR #18.** All workstreams verified locally and in CI. Nothing deployed (deploy workflows dormant). Live app unchanged (store flag off).
+
+> History note: the design PR #17 was squash-merged to `main` mid-build, so 3.0 lives on a clean branch `phase3/3.0-foundations` (off main) as **PR #18** — the old `phase3/team-visibility-design` branch is now redundant (its 3.0 commits were cherry-picked here).
 
 ## Scope guardrails
 - 3.0 is **additive only**; the store-factory flag **defaults OFF** → live pilot app behaves exactly as today.
