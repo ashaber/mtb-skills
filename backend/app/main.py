@@ -1,0 +1,106 @@
+"""FastAPI app factory: JSON-logging middleware, CORS, /health, /version,
+global exception handling, fail-fast config.
+
+Phase 3.0 skeleton -- NO business/DB routes yet (see
+docs/PHASE3_TEAM_VISIBILITY_PLAN.md's build-phase layout: auth routes land in
+3.1, the DB layer/store wiring in 3.1-3.2). This module only needs to stand
+up cleanly, expose health/version, and be container-ready.
+
+`create_app()` runs once per process (module-level `app` below, for
+`uvicorn app.main:app`) and once per test (tests build their own app after
+monkeypatching env vars via `Settings.from_env`/`get_settings`, so each test
+gets an independently-configured `Settings`). Mirrors swim-coach's
+`backend/app/main.py`, trimmed to the routes this skeleton actually has.
+"""
+
+from __future__ import annotations
+
+import os
+import time
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.config import Settings
+from app.logging import get_logger
+
+log = get_logger("app.main")
+
+# Bumped by hand per release; `GIT_SHA` (set at build/deploy time -- see
+# backend/Dockerfile / the future deploy workflow) is what actually
+# distinguishes individual deployments of the same version (D25 in
+# CLAUDE.md's open-defects list requests exactly this pairing on the
+# frontend's Settings screen; /version gives the backend equivalent).
+APP_VERSION = "3.0.0"
+
+
+def create_app() -> FastAPI:
+    # Fails fast: Settings.from_env() raises ConfigError (a RuntimeError
+    # subclass) if DATABASE_URL, SESSION_SECRET, or GOOGLE_CLIENT_ID is
+    # missing, or if STORE_BACKEND/LOG_LEVEL is set to something invalid --
+    # this must happen before the app can serve anything, so a
+    # misconfigured deploy never accepts a single request.
+    settings = Settings.from_env()
+
+    app = FastAPI(title="mtb-skills-api")
+    app.state.settings = settings
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins_list,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        start = time.monotonic()
+        response = await call_next(request)
+        duration_ms = round((time.monotonic() - start) * 1000, 2)
+        log.info(
+            "request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            duration_ms=duration_ms,
+        )
+        return response
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        # Never HTML -- per the global HTTP-services standard, error
+        # responses are always JSON.
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        log.error("unhandled exception", error=str(exc), path=request.url.path)
+        return JSONResponse(status_code=500, content={"error": "internal server error"})
+
+    @app.get("/health")
+    async def health() -> dict:
+        return {"status": "ok"}
+
+    @app.get("/version")
+    async def version() -> dict:
+        return {
+            "version": os.environ.get("APP_VERSION", APP_VERSION),
+            # Set by the deploy workflow (Cloud Run --set-env-vars=GIT_SHA=...,
+            # per docs/PHASE3_TEAM_VISIBILITY_PLAN.md's "Deploy pins the SHA
+            # tag for inspectable rollbacks"). "dev" locally / when unset.
+            "commit": os.environ.get("GIT_SHA", "dev"),
+        }
+
+    log.info(
+        "service start",
+        port=settings.port,
+        store_backend=settings.store_backend,
+        environment=os.environ.get("ENVIRONMENT", "dev"),
+    )
+    return app
+
+
+app = create_app()
