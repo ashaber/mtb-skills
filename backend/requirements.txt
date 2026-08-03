@@ -1,0 +1,15 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32,<1.0
+pydantic>=2.8,<3.0
+pydantic-settings>=2.5,<3.0
+python-dotenv>=1.0,<2.0
+# DB driver for the connection helper (app/db.py). Not opened in 3.0 --
+# 3.0 only stands up the config/accessor; the pool itself lands with the
+# first real query in a later increment. Shipped now so the file->DB wiring
+# is a code change only, not a dependency change. Mirrors swim-coach's
+# psycopg[binary] note in backend/requirements.txt.
+psycopg[binary]>=3.1,<4.0
+
+# --- test-only (also installed in CI's backend job) ------------------------
+pytest>=8.0,<9.0
+httpx>=0.27,<1.0

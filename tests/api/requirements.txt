@@ -1,0 +1,4 @@
+# Superset of backend/requirements.txt (which already includes pytest +
+# httpx for TestClient) -- kept as a separate file so `tests/api` documents
+# its own dependency surface, same convention as tests/db/requirements.txt.
+-r ../../backend/requirements.txt
