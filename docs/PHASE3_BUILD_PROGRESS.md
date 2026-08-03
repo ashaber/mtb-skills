@@ -19,7 +19,7 @@ Living checklist for the 3.0 (foundations & environments) build. **Updated after
 |---|---|---|---|---|
 | B | DB schema + RLS | `supabase/migrations/`, `tests/db/`, `scripts/db_test.sh` | `bash scripts/db_test.sh` (docker postgres:16; migrations apply twice; RLS matrix passes) | ✅ done `8718aac` — verified 22/22 |
 | A | Backend FastAPI skeleton | `backend/` | `.venv/bin/pytest tests/api -v` | ✅ done `479ab8d` — verified 13/13 |
-| C | Frontend store factory (flag OFF) | `src/store/`, `src/storage.js`, `tests/unit/` | `npm run test` (all pass; zero behavior change when flag off) | ⏳ building (Sonnet agent) |
+| C | Frontend store factory (flag OFF) | `src/store/`, `src/storage.js`, `tests/unit/` | `npm run test` (all pass; zero behavior change when flag off) | ✅ done `a31f1ab` — verified 173/173, build clean |
 | D | CI/CD (orchestrator does this) | `.github/workflows/ci.yml` (+`deploy-backend.yml`, GCS deploy — dormant) | workflows lint; `npm run test:all` green | ✅ done `10875eb` — YAML valid; db-job mirrors db_test.sh; deploys dormant |
 | — | Integration + PR | — | `npm run test:all` green; update PR #17 title/desc; **do not merge** | ⬜ not started |
 
