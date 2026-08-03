@@ -17,8 +17,8 @@ Living checklist for the 3.0 (foundations & environments) build. **Updated after
 
 | # | Workstream | Paths | Verify command | Status |
 |---|---|---|---|---|
-| B | DB schema + RLS | `supabase/migrations/`, `tests/db/`, `scripts/db_test.sh` | `bash scripts/db_test.sh` (docker postgres:16; migrations apply twice; RLS matrix passes) | ⏳ building (Sonnet agent) |
-| A | Backend FastAPI skeleton | `backend/` | `.venv/bin/pytest tests/api -v` | ⬜ not started |
+| B | DB schema + RLS | `supabase/migrations/`, `tests/db/`, `scripts/db_test.sh` | `bash scripts/db_test.sh` (docker postgres:16; migrations apply twice; RLS matrix passes) | ✅ done `8718aac` — verified 22/22 |
+| A | Backend FastAPI skeleton | `backend/` | `.venv/bin/pytest tests/api -v` | ⏳ building (Sonnet agent) |
 | C | Frontend store factory (flag OFF) | `src/store/`, `src/storage.js`, `tests/unit/` | `npm run test` (all pass; zero behavior change when flag off) | ⬜ not started |
 | D | CI/CD (orchestrator does this) | `.github/workflows/ci.yml` (+`deploy-backend.yml`, GCS deploy — dormant) | workflows lint; `npm run test:all` green | ⬜ not started |
 | — | Integration + PR | — | `npm run test:all` green; update PR #17 title/desc; **do not merge** | ⬜ not started |
@@ -29,4 +29,4 @@ Living checklist for the 3.0 (foundations & environments) build. **Updated after
 - Auth architecture: **Supabase-Auth + RLS** (confirmed with Andrew).
 
 ## Notes / decisions log
-- (append per-workstream verification results, commit SHAs, and anything Andrew should review)
+- **WS-B (DB+RLS) `8718aac`** — verified independently, 22/22 RLS tests pass, migrations idempotent. Flags for Andrew's review: (1) `league_staff` uses `person.team_id` (NOT NULL) as an admin anchor, real scope via `team.league_id`; (2) no DELETE policies (append-only) — revisit if HC roster mgmt needs deletes; (3) `db_test.sh` applies SQL via docker-exec psql (host psql unavailable) — CI job will install its own client.
