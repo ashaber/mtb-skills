@@ -146,6 +146,8 @@ For **each** of `mtb-itg` and `mtb-prod`:
    - **Transaction pooler** (port `6543`) → app traffic. `postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:6543/postgres`
    - **Direct** (port `5432`) → migrations/DDL only.
 2. **Project URL + anon key** (Settings → API) → become `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` for that env (GitHub Environment `itg` / `prod`, step 9).
+   - itg: https://ccnjlamsvbaivoozupls.supabase.co/sb_publishable_-6NUmKe3cAPsvSVMw1iEGQ_zJRbBdPu
+   - prod:  https://ppjswjfrhaadgdeqezev.supabase.co/sb_publishable_j1s0wFpJIwfg4yaBpcMlPA_EZ7dJglX
 3. **Enable Google auth** (Authentication → Providers → Google → enable): paste the OAuth **client id + secret** from step 6. Add this project's callback `https://<ref>.supabase.co/auth/v1/callback` to the OAuth client's redirect URIs (step 6). *(Supabase-Auth path — see the note at the bottom.)*
 4. **Run migrations** against the **direct** URL:
    ```bash
@@ -178,10 +180,27 @@ printf '%s' "$(openssl rand -hex 32)" | gcloud secrets create SESSION_SECRET_PRO
 
 ## 6. Google OAuth client (new — becomes VITE_GOOGLE_CLIENT_ID)
 
-GCP Console → APIs & Services → Credentials → **Create OAuth client ID** → Web application:
+> **No new GCP project needed.** The OAuth client is owned by the project you
+> created in step 1 (`mtb-skills-ashaber`). There is also no separate "API" to
+> enable — basic Google Sign-In (OIDC) uses only the `email`/`profile`/`openid`
+> scopes. The one prerequisite step 6a below (the consent screen) is the "app"
+> registration that owns the credential.
+
+### 6a. Configure the OAuth consent screen (prerequisite — do this first)
+GCP Console → **APIs & Services → OAuth consent screen** (newer console: **Google Auth Platform → Get started**), for project `mtb-skills-ashaber`:
+- **User type: External** — coaches are ordinary Google users, not members of a Workspace org.
+- **App name:** e.g. `Idaho MTB Skills` (this is what coaches see on the Google sign-in screen). **User support email** + developer contact: your email. *(These are pulled from the account owning the GCP project — personal, for now; a nonprofit address is a nice-to-have, not a blocker.)*
+- **Scopes:** add only the non-sensitive basics — `openid`, `.../auth/userinfo.email`, `.../auth/userinfo.profile`. (Supabase's Google provider requests exactly these.)
+- **Publishing status → Publish to Production.** Because the app uses **only non-sensitive scopes**, publishing needs **no Google verification** and shows coaches **no "unverified app" warning** — the smooth pilot path, with no per-user test list.
+  - *Alternative:* leave it in **Testing** and add each coach's Google email as a **test user** (cap 100) if you deliberately want a closed login list. More friction; only pick this if you want the allowlist.
+
+### 6b. Create the client
+GCP Console → **APIs & Services → Credentials → Create Credentials → OAuth client ID → Web application**:
 - **Authorized JavaScript origins:** `http://localhost:5173`, the ITG GCS URL, the prod GCS URL (step 7).
-- **Authorized redirect URIs:** each Supabase project's callback: `https://<itg-ref>.supabase.co/auth/v1/callback` and `https://<prod-ref>.supabase.co/auth/v1/callback` (Supabase-Auth path).
-- Copy the **client id** → `VITE_GOOGLE_CLIENT_ID` (GitHub repo **variable**); paste **id + secret** into each Supabase project's Google provider (step 4.2).
+- **Authorized redirect URIs:** each Supabase project's callback: `https://<itg-ref>.supabase.co/auth/v1/callback` and `https://<prod-ref>.supabase.co/auth/v1/callback` (Supabase-Auth path — the refs come from step 4).
+- Copy the **client id** → `VITE_GOOGLE_CLIENT_ID` (GitHub repo **variable**); paste **id + secret** into each Supabase project's Google provider (step 4c.3).
+
+> **Ordering note:** 6b's redirect URIs need the Supabase project refs (step 4), and step 4c.3's "enable Google auth" needs this client's id+secret. So the clean order is: **step 4a/4b (create Supabase projects) → step 6 (consent screen + client) → finish step 4c.3 (paste id+secret into Supabase)**.
 
 ## 7. GCS buckets for the frontend (one per env)
 
