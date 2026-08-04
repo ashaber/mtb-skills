@@ -95,7 +95,7 @@ retry gcloud iam service-accounts describe "$SA" --project "$PROJECT_ID" >/dev/n
 echo "[wif] granting deploy roles to $SA"
 for ROLE in roles/run.admin roles/artifactregistry.writer \
             roles/iam.serviceAccountUser roles/secretmanager.secretAccessor \
-            roles/storage.admin; do
+            roles/firebasehosting.admin; do
   retry gcloud projects add-iam-policy-binding "$PROJECT_ID" \
     --member="serviceAccount:${SA}" --role="$ROLE" --condition=None >/dev/null
   echo "    + $ROLE"

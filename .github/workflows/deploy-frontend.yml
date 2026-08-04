@@ -1,0 +1,58 @@
+# Deploy the frontend to Firebase Hosting (Phase 3 target — replaces GitHub Pages).
+#
+# DORMANT until the infra runbook (docs/PHASE3_INFRA_SETUP.md) is done and the
+# GCP_* secrets + per-env VITE_* variables exist. workflow_dispatch ONLY for
+# now so it never auto-runs before the Firebase sites exist. The existing
+# GitHub Pages deploy (deploy.yml) keeps serving the pilot until Phase 3 cuts
+# over. Once secrets/sites exist, wire ITG to auto-deploy on push to main.
+#
+# Auth: the WIF service account (roles/firebasehosting.admin — see
+# scripts/setup-wif.sh). firebase-tools picks up the credentials that
+# google-github-actions/auth writes (GOOGLE_APPLICATION_CREDENTIALS), so no
+# long-lived FIREBASE_TOKEN is needed.
+
+name: Deploy frontend (Firebase Hosting)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment (Firebase Hosting target = itg|prod)
+        type: choice
+        options: [itg, prod]
+        default: itg
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Build with env-specific config
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+
+      - name: Authenticate to GCP (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Firebase Hosting (${{ inputs.environment }})
+        run: |
+          npx --yes firebase-tools deploy \
+            --only hosting:${{ inputs.environment }} \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --non-interactive

@@ -14,7 +14,7 @@ One-time setup Andrew runs to stand up the ITG + prod stack for the team-visibil
 | **Supabase** project | swim-coach's | **New ×2** (itg + prod) — a project is one app's schema+RLS |
 | **Anthropic** API key | used for coach-chat | **Not needed** — this backend has no LLM |
 | **Google OAuth** client | swim-coach's client id | **New** client (its own authorized origins/redirects); becomes this app's `VITE_GOOGLE_CLIENT_ID` |
-| Artifact Registry / Cloud Run / GCS | swim-coach's | **New**, mtb-namespaced |
+| Artifact Registry / Cloud Run / Firebase Hosting | swim-coach's | **New**, mtb-namespaced |
 
 ## Account ownership (decided 2026-08)
 
@@ -23,7 +23,7 @@ Resources are split across two Google accounts:
 | Layer | Account | Why |
 |---|---|---|
 | **Supabase** (ITG + prod) | **`andrew@idahomtb.org`** (the 501(c)3) | fresh free-tier 2-project allotment; nonprofit infra under the nonprofit account (step 4) |
-| **GCP** (WIF, Cloud Run, GCS, Artifact Registry) | personal (`mtb-skills-ashaber`) **for now** | already stood up; **future cleanup:** move under the org via Google for Nonprofits (also brings GCP credits). Do NOT block the pilot on this. |
+| **GCP + Firebase** (WIF, Cloud Run, Firebase Hosting, Artifact Registry) | personal (`mtb-skills-ashaber`) **for now** | already stood up; **future cleanup:** move under the org via Google for Nonprofits (also brings GCP credits). Do NOT block the pilot on this. |
 | **Google OAuth client** | wherever the GCP project lives (step 6) | client id is public; account owning it doesn't affect coaches |
 
 ## The values you'll end up with (fill these in as you go)
@@ -96,7 +96,7 @@ export SA="github-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
 # Roles the deploy workflow needs
 for ROLE in roles/run.admin roles/artifactregistry.writer \
             roles/iam.serviceAccountUser roles/secretmanager.secretAccessor \
-            roles/storage.admin; do
+            roles/firebasehosting.admin; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${SA}" --role="$ROLE"
 done
 
@@ -198,40 +198,77 @@ GCP Console → **APIs & Services → OAuth consent screen** (newer console: **G
 > **One client serves BOTH environments — do not create a separate client per env.** You register both envs' origins and both Supabase callbacks on this single client, and both Supabase projects use the same client id + secret. (`VITE_GOOGLE_CLIENT_ID` is therefore one repo-level variable, same value for both builds.) A stricter shop splits into two clients for blast-radius isolation; unnecessary for the pilot.
 
 GCP Console → **APIs & Services → Credentials → Create Credentials → OAuth client ID → Web application**:
-- **Authorized JavaScript origins:** `http://localhost:5173`, the ITG GCS URL, the prod GCS URL (step 7).
+- **Authorized JavaScript origins:** `http://localhost:5173`, and the two Firebase URLs `https://mtb-skills-itg.web.app` / `https://mtb-skills-prod.web.app` (step 7 — add these once the sites exist; localhost alone is enough to start).
 - **Authorized redirect URIs:** *both* Supabase projects' callbacks: `https://<itg-ref>.supabase.co/auth/v1/callback` and `https://<prod-ref>.supabase.co/auth/v1/callback` (Supabase-Auth path — the refs come from step 4).
 - Copy the **client id** → `VITE_GOOGLE_CLIENT_ID` (GitHub repo **variable**); paste **id + secret** into *each* Supabase project's Google provider (step 4c.3).
 
 ### The env topology (why the counts differ)
-> **One GCP project holds the whole stack for BOTH envs.** Buckets (`mtb-web-itg/-prod`), Cloud Run services (`mtb-api-itg/-prod`), and secrets (`..._ITG/_PROD`) live in the single project `mtb-skills-ashaber`, separated by **naming**, not by separate projects. The OAuth client is shared too (above).
+> **One GCP/Firebase project holds the whole stack for BOTH envs.** Firebase Hosting sites (`mtb-skills-itg/-prod`), Cloud Run services (`mtb-api-itg/-prod`), and secrets (`..._ITG/_PROD`) live in the single project `mtb-skills-ashaber`, separated by **naming**, not by separate projects. The OAuth client is shared too (above).
 >
-> **The ITG↔prod isolation boundary is the two Supabase projects** — two separate databases, so staging never touches real minors' data. That's the separation that matters; GCP hosting both envs in one project is fine and cost-effective for a pilot.
+> **The ITG↔prod isolation boundary is the two Supabase projects** — two separate databases, so staging never touches real minors' data. That's the separation that matters; hosting both envs in one project is fine and cost-effective for a pilot.
 >
-> Summary: **1 GCP project · 1 OAuth client · 2 GCS buckets · 2 Cloud Run services · 2 Supabase projects.**
+> Summary: **1 GCP/Firebase project · 1 OAuth client · 2 Firebase Hosting sites · 2 Cloud Run services · 2 Supabase projects.**
 
 > **Ordering note:** 6b's redirect URIs need the Supabase project refs (step 4), and step 4c.3's "enable Google auth" needs this client's id+secret. So the clean order is: **step 4a/4b (create Supabase projects) → step 6 (consent screen + client) → finish step 4c.3 (paste id+secret into Supabase)**.
 
-## 7. GCS buckets for the frontend (one per env)
+## 7. Firebase Hosting for the frontend (HTTPS, one site per env)
 
+> **Why not GCS:** a raw GCS bucket website endpoint serves **HTTP only** (HTTPS needs a load balancer + cert + domain), and Google OAuth requires **HTTPS** origins — so coaches couldn't sign in. **Firebase Hosting** gives HTTPS out of the box, SPA rewrites, and a `*.web.app` domain for free, with no LB/domain setup. It attaches to the **same GCP project**, so the "1 project" model holds; two Hosting **sites** give the two envs.
+
+### 7a. Attach Firebase + create the two sites
 ```bash
-for ENV in itg prod; do
-  gcloud storage buckets create gs://mtb-web-$ENV --project "$PROJECT_ID" --location="$REGION" --uniform-bucket-level-access
-  gcloud storage buckets update gs://mtb-web-$ENV --web-main-page-suffix=index.html --web-error-page=index.html   # SPA fallback
-  gcloud storage buckets add-iam-policy-binding gs://mtb-web-$ENV --member=allUsers --role=roles/storage.objectViewer
-done
+npm i -g firebase-tools            # or prefix commands with: npx firebase-tools
+firebase login                     # the account that owns the GCP project (personal, for now)
+
+firebase projects:addfirebase "$PROJECT_ID"     # add Firebase to the existing GCP project
+
+# Two Hosting sites. The site id IS the .web.app subdomain — globally unique,
+# so adjust if taken. These become your two frontend URLs.
+firebase hosting:sites:create mtb-skills-itg  --project "$PROJECT_ID"
+firebase hosting:sites:create mtb-skills-prod --project "$PROJECT_ID"
+# -> https://mtb-skills-itg.web.app   and   https://mtb-skills-prod.web.app
 ```
-(Public read for a static site. Front with an HTTPS load balancer + custom domain when ready; bucket website endpoint is fine for the pilot.)
+(Hosting multisite is available on the free **Spark** plan — no billing upgrade needed for the pilot.)
+
+### 7b. `firebase.json` (repo root) — SPA rewrites + per-env targets
+```json
+{
+  "hosting": [
+    { "target": "itg",  "public": "dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }] },
+    { "target": "prod", "public": "dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "rewrites": [{ "source": "**", "destination": "/index.html" }] }
+  ]
+}
+```
+Map targets → sites (writes `.firebaserc`):
+```bash
+firebase target:apply hosting itg  mtb-skills-itg  --project "$PROJECT_ID"
+firebase target:apply hosting prod mtb-skills-prod --project "$PROJECT_ID"
+```
+
+### 7c. Deploy (CI does this per env via WIF; manual form:)
+```bash
+npm run build
+firebase deploy --only hosting:itg --project "$PROJECT_ID"     # or hosting:prod
+```
+
+> **These two `https://mtb-skills-{itg,prod}.web.app` URLs are what you add** to the OAuth client's JavaScript origins (step 6b) and to each Cloud Run service's `ALLOWED_ORIGINS` (step 8). Add them to the OAuth client once the sites exist — editing the client anytime is fine.
+>
+> **CI note:** the deploy workflow authenticates with the WIF service account, so that SA needs `roles/firebasehosting.admin` — already included in `scripts/setup-wif.sh` (re-run it once to pick up the role if you ran an earlier version).
 
 ## 8. Cloud Run services
 
 Created on first deploy by CI (`.github/workflows/deploy-backend.yml`, built in increment 3.0). Each env's service (`mtb-api-itg`, `mtb-api-prod`) runs `min-instances=0`, `--allow-unauthenticated`, with:
-- env vars: `GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID`, `ALLOWED_ORIGINS=<that env's GCS URL>`, `STORE_BACKEND=db`
+- env vars: `GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID`, `ALLOWED_ORIGINS=https://mtb-skills-<env>.web.app` (that env's Firebase URL), `STORE_BACKEND=db`
 - secrets: `DATABASE_URL=DATABASE_URL_<ENV>:latest`, `SESSION_SECRET=SESSION_SECRET_<ENV>:latest`
 
 ## 9. GitHub repo config (Settings → Secrets and variables → Actions)
 
 - **Secrets:** `GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT` (from step 3).
-- **Variables:** `VITE_GOOGLE_CLIENT_ID` (public), plus per-env `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (from step 4.3). Use GitHub **Environments** (`itg`, `prod`) to scope the per-env values.
+- **Variables:** `VITE_GOOGLE_CLIENT_ID` (public), plus per-env `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (from step 4c/4d). Use GitHub **Environments** (`itg`, `prod`) to scope the per-env values.
 
 ---
 
@@ -241,4 +278,4 @@ This runbook is written for the **Supabase-Auth + RLS** path (Google login handl
 
 **Recommendation: take the RLS path** for this app — multi-tenant *minors'* data warrants DB-enforced authorization (a backstop if app code has a bug), and it means less custom token code. The trade is a divergence from swim-coach's exact pattern.
 
-If you'd rather mirror swim-coach exactly (app-layer authz, backend verifies Google ID-token `aud`, no `auth.uid()` RLS): the GCP/WIF/bucket/Cloud Run steps above are **identical**; only two things change — skip the Supabase Google-provider enable (step 4.2) and the OAuth redirect URIs become the app origins (GIS ID-token flow) rather than the Supabase callback. This decision affects increment 3.1's backend code, **not** the 3.0 infra, so setup can proceed either way.
+If you'd rather mirror swim-coach exactly (app-layer authz, backend verifies Google ID-token `aud`, no `auth.uid()` RLS): the GCP/WIF/Firebase/Cloud Run steps above are **identical**; only two things change — skip the Supabase Google-provider enable (step 4c.3) and the OAuth redirect URIs become the app origins (GIS ID-token flow) rather than the Supabase callback. This decision affects increment 3.1's backend code, **not** the 3.0 infra, so setup can proceed either way.
