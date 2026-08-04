@@ -16,6 +16,16 @@ One-time setup Andrew runs to stand up the ITG + prod stack for the team-visibil
 | **Google OAuth** client | swim-coach's client id | **New** client (its own authorized origins/redirects); becomes this app's `VITE_GOOGLE_CLIENT_ID` |
 | Artifact Registry / Cloud Run / GCS | swim-coach's | **New**, mtb-namespaced |
 
+## Account ownership (decided 2026-08)
+
+Resources are split across two Google accounts:
+
+| Layer | Account | Why |
+|---|---|---|
+| **Supabase** (ITG + prod) | **`andrew@idahomtb.org`** (the 501(c)3) | fresh free-tier 2-project allotment; nonprofit infra under the nonprofit account (step 4) |
+| **GCP** (WIF, Cloud Run, GCS, Artifact Registry) | personal (`mtb-skills-ashaber`) **for now** | already stood up; **future cleanup:** move under the org via Google for Nonprofits (also brings GCP credits). Do NOT block the pilot on this. |
+| **Google OAuth client** | wherever the GCP project lives (step 6) | client id is public; account owning it doesn't affect coaches |
+
 ## The values you'll end up with (fill these in as you go)
 
 | GitHub setting (per the deploy workflows) | Kind | Value |
@@ -24,6 +34,7 @@ One-time setup Andrew runs to stand up the ITG + prod stack for the team-visibil
 | `GCP_WORKLOAD_IDENTITY_PROVIDER` | secret | `projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
 | `GCP_SERVICE_ACCOUNT` | secret | `github-deployer@<PROJECT_ID>.iam.gserviceaccount.com` |
 | `VITE_GOOGLE_CLIENT_ID` | **variable** (public) | `<clientid>.apps.googleusercontent.com` |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | **variables**, per env | from the `andrew@idahomtb.org` Supabase projects (step 4) |
 
 ---
 
@@ -99,16 +110,56 @@ echo "GCP_SERVICE_ACCOUNT = $SA"
 echo "GCP_WORKLOAD_IDENTITY_PROVIDER = projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
 ```
 
-## 4. Supabase — two projects (ITG + prod)
+## 4. Supabase — two projects (ITG + prod) under the 501(c)3 account
 
-In the Supabase dashboard, create **two** projects: `mtb-itg` and `mtb-prod` (free tier). For each:
+> **Account choice (decided 2026-08):** Supabase for mtb-skills lives under the
+> **nonprofit's** Google account — **`andrew@idahomtb.org`** — NOT the personal
+> account that hosts swim-coach. Two reasons: (1) the free tier allows 2 projects
+> per account, and the personal account's slots are already partly used by
+> swim-coach; a fresh account gives a clean 2-project allotment for `mtb-itg` +
+> `mtb-prod`. (2) A 501(c)3's infrastructure belongs under the org's account for
+> ownership, accounting, and handoff — independent of the free-tier math.
+>
+> Everything downstream (project names, connection strings, secrets) is identical
+> regardless of which account owns it — only the login differs.
 
-1. **Connection strings** (Project Settings → Database):
+### 4a. Create the account + organization
+1. Sign out of any personal Supabase session (or use a separate browser profile / incognito to avoid clashing with the swim-coach account).
+2. Go to https://supabase.com → **Sign in with Google** → choose **`andrew@idahomtb.org`**.
+3. On first sign-in Supabase creates an **organization**. Name it e.g. **`Idaho MTB`** (Free plan). This org's free tier is what gives the 2 projects.
+   - Optional: **Organization → Team → invite** your personal gmail as a member so you can administer both without switching accounts. (Ownership stays with the org account.)
+
+### 4b. Create the two projects
+In the `Idaho MTB` org, **New project** twice (same region as GCP — `us-central1` ≈ Supabase **`us-central1` / Iowa**, keeps DB↔Cloud Run latency low):
+
+| Project name | Role | DB password |
+|---|---|---|
+| `mtb-itg`  | staging | generate a strong one, save it |
+| `mtb-prod` | production | generate a **different** strong one, save it |
+
+Save both DB passwords in your password manager — Supabase shows the password only at creation time; you can reset it later under Settings → Database, but the connection strings embed it.
+
+### 4c. Per project — collect strings, enable auth, migrate
+For **each** of `mtb-itg` and `mtb-prod`:
+
+1. **Connection strings** (Project Settings → Database → Connection string):
    - **Transaction pooler** (port `6543`) → app traffic. `postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:6543/postgres`
    - **Direct** (port `5432`) → migrations/DDL only.
-2. **Enable Google auth** (Authentication → Providers → Google): paste the OAuth **client id + secret** from step 6. (This is the Supabase-Auth path — see the auth-architecture note at the bottom.)
-3. Note the **Project URL** and **anon key** (Settings → API) → become `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` per env.
-4. **Run migrations** against the **direct** URL: `for f in supabase/migrations/*.sql; do psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f "$f"; done` (CI's `db` job does this too, against a throwaway `postgres:16`).
+2. **Project URL + anon key** (Settings → API) → become `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` for that env (GitHub Environment `itg` / `prod`, step 9).
+3. **Enable Google auth** (Authentication → Providers → Google → enable): paste the OAuth **client id + secret** from step 6. Add this project's callback `https://<ref>.supabase.co/auth/v1/callback` to the OAuth client's redirect URIs (step 6). *(Supabase-Auth path — see the note at the bottom.)*
+4. **Run migrations** against the **direct** URL:
+   ```bash
+   DIRECT_URL='postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:5432/postgres'
+   for f in supabase/migrations/*.sql; do psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f "$f"; done
+   ```
+   (CI's `db` job runs the same migrations against a throwaway `postgres:16` on every push, so this should apply cleanly.)
+
+### 4d. Record which strings feed which secret/variable
+- `mtb-itg` **pooler** URL → `DATABASE_URL_ITG` secret (step 5)
+- `mtb-prod` **pooler** URL → `DATABASE_URL_PROD` secret (step 5)
+- each project's **URL + anon key** → `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` in the matching GitHub Environment (step 9)
+
+> **Free-tier note:** unused free projects **pause after ~1 week idle**. During the pilot both stay active from real traffic; if `mtb-itg` ever pauses between test sessions, open its dashboard to resume (a few seconds). Not a concern for `mtb-prod` once teams are live.
 
 ## 5. Secret Manager (per env)
 
