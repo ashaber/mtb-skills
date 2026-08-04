@@ -159,6 +159,12 @@ For **each** of `mtb-itg` and `mtb-prod`:
    ```
    Apply only `supabase/migrations/*.sql` — **not** `tests/db/setup_test_auth.sql` (that's a test-only shim; Supabase provides the real `auth.uid()`).
 
+   > **Expected (not an error):** `0002_rls.sql` prints `NOTICE: policy "…" does not exist, skipping` on a first apply — that's the idempotent `DROP POLICY IF EXISTS` finding nothing to drop before the `CREATE POLICY` that follows. `ON_ERROR_STOP=1` halts only on a real `ERROR:`. Verify success with:
+   > ```sql
+   > select tablename, rowsecurity from pg_tables where schemaname='public';   -- 7 tables, rls = true
+   > select count(*) from pg_policies where schemaname='public';               -- ~15 policies
+   > ```
+
    > **If `psql` errors with "install at least one postgresql-client-<version> package"** (a WSL/Debian `pg_wrapper` stub with no real client): either `sudo apt-get update && sudo apt-get install -y postgresql-client`, **or** run it through the Docker image you already have —
    > ```bash
    > for f in supabase/migrations/*.sql; do docker run --rm -i postgres:16 psql "$DIRECT_URL" -v ON_ERROR_STOP=1 < "$f"; done
