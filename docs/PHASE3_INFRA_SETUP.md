@@ -152,12 +152,20 @@ For **each** of `mtb-itg` and `mtb-prod`:
    - **Google → Supabase:** paste the **Client ID** + **Client Secret** from your step-6 OAuth client into the top two fields.
    - **Supabase → Google:** Supabase *generates* a **Callback URL** (`https://<ref>.supabase.co/auth/v1/callback`, shown at the bottom of the form). **Copy it** and add it to the step-6 OAuth client's **Authorized redirect URIs**, then Save the Google client.
    - Save the Supabase form. Repeat for the other project — its callback URL has a different `<ref>`, and it *also* goes into the same one OAuth client's redirect URIs (so the client ends up listing both). *(Supabase-Auth path — see the note at the bottom.)*
-4. **Run migrations** against the **direct** URL:
+4. **Run migrations.** Use the **session pooler** string (port **5432** on `<region>.pooler.supabase.com`) — it handles DDL and is IPv4 (Supabase's true direct `db.<ref>.supabase.co:5432` is IPv6-only without the paid add-on). Do **not** use the transaction pooler (6543) for migrations.
    ```bash
    DIRECT_URL='postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:5432/postgres'
    for f in supabase/migrations/*.sql; do psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f "$f"; done
    ```
-   (CI's `db` job runs the same migrations against a throwaway `postgres:16` on every push, so this should apply cleanly.)
+   Apply only `supabase/migrations/*.sql` — **not** `tests/db/setup_test_auth.sql` (that's a test-only shim; Supabase provides the real `auth.uid()`).
+
+   > **If `psql` errors with "install at least one postgresql-client-<version> package"** (a WSL/Debian `pg_wrapper` stub with no real client): either `sudo apt-get update && sudo apt-get install -y postgresql-client`, **or** run it through the Docker image you already have —
+   > ```bash
+   > for f in supabase/migrations/*.sql; do docker run --rm -i postgres:16 psql "$DIRECT_URL" -v ON_ERROR_STOP=1 < "$f"; done
+   > ```
+   > **or** just paste the two files into the Supabase **SQL Editor** and Run (zero local tooling).
+
+   (CI's `db` job runs the same migrations against a throwaway `postgres:16` on every push, so they apply cleanly there too.)
 
 ### 4d. Record which strings feed which secret/variable
 - `mtb-itg` **pooler** URL → `DATABASE_URL_ITG` secret (step 5)
@@ -170,6 +178,16 @@ For **each** of `mtb-itg` and `mtb-prod`:
 
 This backend needs only the DB URL and a session-signing secret — **no `ANTHROPIC_API_KEY`** (no LLM), unlike swim-coach.
 
+**Scripted (idempotent, safe re-run):**
+```bash
+PROJECT_ID=mtb-skills-ashaber \
+ITG_POOLER_URL='<mtb-itg transaction pooler, :6543>' \
+PROD_POOLER_URL='<mtb-prod transaction pooler, :6543>' \
+  bash scripts/setup-secrets.sh
+```
+(Creates the four secrets; leaves any that already exist untouched — it will **not** regenerate a `SESSION_SECRET` on re-run, which would log everyone out. Note: app traffic uses the **transaction** pooler `:6543`, unlike migrations which use the session pooler `:5432`.)
+
+**Manual equivalent:**
 ```bash
 # DB pooler URL, one secret per env
 printf '%s' "$ITG_POOLER_URL"  | gcloud secrets create DATABASE_URL_ITG  --data-file=- --project "$PROJECT_ID"
