@@ -142,9 +142,10 @@ Save both DB passwords in your password manager — Supabase shows the password 
 ### 4c. Per project — collect strings, enable auth, migrate
 For **each** of `mtb-itg` and `mtb-prod`:
 
-1. **Connection strings** (Project Settings → Database → Connection string):
-   - **Transaction pooler** (port `6543`) → app traffic. `postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:6543/postgres`
-   - **Direct** (port `5432`) → migrations/DDL only.
+1. **Connection strings** — click the green **`Connect`** button at the top of the dashboard (the strings moved out of Settings into this dialog). Supabase's pooler is branded **"Supavisor"**; both strings you need have `pooler.supabase.com` in the host:
+   - **Transaction pooler** (port `6543`) → **app traffic / `DATABASE_URL`** (step 5). `postgresql://postgres.<ref>:<pw>@aws-0-<region>.pooler.supabase.com:6543/postgres`
+   - **Session pooler** (port `5432`) → **migrations only** (step 4c.4; IPv4, handles DDL).
+   - Substitute your DB password for `[YOUR-PASSWORD]` (reset under Settings → Database → Database password if lost). *Ignore the `db.<ref>.supabase.co` **direct** string — it's IPv6-only.*
 2. **Project URL + anon key** (Settings → API) → become `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` for that env (GitHub Environment `itg` / `prod`, step 9).
    - itg: https://ccnjlamsvbaivoozupls.supabase.co/sb_publishable_-6NUmKe3cAPsvSVMw1iEGQ_zJRbBdPu
    - prod:  https://ppjswjfrhaadgdeqezev.supabase.co/sb_publishable_j1s0wFpJIwfg4yaBpcMlPA_EZ7dJglX
