@@ -148,7 +148,10 @@ For **each** of `mtb-itg` and `mtb-prod`:
 2. **Project URL + anon key** (Settings → API) → become `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` for that env (GitHub Environment `itg` / `prod`, step 9).
    - itg: https://ccnjlamsvbaivoozupls.supabase.co/sb_publishable_-6NUmKe3cAPsvSVMw1iEGQ_zJRbBdPu
    - prod:  https://ppjswjfrhaadgdeqezev.supabase.co/sb_publishable_j1s0wFpJIwfg4yaBpcMlPA_EZ7dJglX
-3. **Enable Google auth** (Authentication → Providers → Google → enable): paste the OAuth **client id + secret** from step 6. Add this project's callback `https://<ref>.supabase.co/auth/v1/callback` to the OAuth client's redirect URIs (step 6). *(Supabase-Auth path — see the note at the bottom.)*
+3. **Enable Google auth** (Authentication → Providers → Google → enable). Data flows **both ways** across this form:
+   - **Google → Supabase:** paste the **Client ID** + **Client Secret** from your step-6 OAuth client into the top two fields.
+   - **Supabase → Google:** Supabase *generates* a **Callback URL** (`https://<ref>.supabase.co/auth/v1/callback`, shown at the bottom of the form). **Copy it** and add it to the step-6 OAuth client's **Authorized redirect URIs**, then Save the Google client.
+   - Save the Supabase form. Repeat for the other project — its callback URL has a different `<ref>`, and it *also* goes into the same one OAuth client's redirect URIs (so the client ends up listing both). *(Supabase-Auth path — see the note at the bottom.)*
 4. **Run migrations** against the **direct** URL:
    ```bash
    DIRECT_URL='postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:5432/postgres'
