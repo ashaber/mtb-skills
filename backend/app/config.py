@@ -26,7 +26,7 @@ try:
 except ImportError:  # pragma: no cover - python-dotenv is a listed dependency
     pass
 
-_REQUIRED_VARS = ("DATABASE_URL", "SESSION_SECRET", "GOOGLE_CLIENT_ID")
+_REQUIRED_VARS = ("DATABASE_URL", "SESSION_SECRET", "GOOGLE_CLIENT_ID", "SUPABASE_JWT_SECRET")
 _VALID_STORE_BACKENDS = ("db", "local")
 _VALID_LOG_LEVELS = ("debug", "info", "warn", "error")
 
@@ -71,6 +71,15 @@ class Settings(BaseSettings):
     # now so 3.1 doesn't need a new deploy just to add this var.
     google_client_id: str
 
+    # Signing secret for Supabase's own auth JWTs (HS256) -- verified
+    # server-side by app/auth.py::verify_supabase_jwt() once a coach's
+    # Supabase session token is presented to this backend (3.1). SECRET --
+    # Supabase project settings -> API -> JWT Secret. Required now (not
+    # deferred to whichever increment adds the first auth-checked route) so
+    # 3.1 is a code change, not a config/deploy change -- same rationale as
+    # `session_secret`/`google_client_id` above.
+    supabase_jwt_secret: str
+
     # --- optional, sensible defaults shown ----------------------------------
 
     # HTTP port uvicorn binds to (Cloud Run injects PORT itself).
@@ -95,7 +104,7 @@ class Settings(BaseSettings):
     # Structured-logger level (app/logging.py). One of debug/info/warn/error.
     log_level: str = "info"
 
-    @field_validator("database_url", "session_secret", "google_client_id")
+    @field_validator("database_url", "session_secret", "google_client_id", "supabase_jwt_secret")
     @classmethod
     def _strip_secret(cls, value: str) -> str:
         # Secret managers and printf/echo pipelines routinely leave a

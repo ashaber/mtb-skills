@@ -27,6 +27,7 @@ PLACEHOLDER_ENV = {
     "DATABASE_URL": "postgresql://placeholder",
     "SESSION_SECRET": "placeholder",
     "GOOGLE_CLIENT_ID": "ci-placeholder.apps.googleusercontent.com",
+    "SUPABASE_JWT_SECRET": "ci-placeholder-jwt-secret",
 }
 
 

@@ -1,0 +1,5 @@
+# Superset of backend/requirements.txt (psycopg, pytest, pyjwt, etc.) --
+# kept as a separate file so tests/backend documents its own dependency
+# surface, same convention as tests/api/requirements.txt and
+# tests/db/requirements.txt.
+-r ../../backend/requirements.txt

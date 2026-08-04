@@ -34,10 +34,18 @@ Everything in this branch is **needed in both** (the grants, the authenticated-r
 4. Continue from the first unchecked item; commit each verified piece; do **not** merge.
 
 ## Checklist
-- [ ] `0003_grants.sql` + `authenticated` role in the test shim
-- [ ] authenticated-role RLS integration test green (isolation holds under SET ROLE authenticated + request.jwt.claims)
-- [ ] `backend/app/auth.py` (+ `SUPABASE_JWT_SECRET` config, requirements: pyjwt) + unit tests
-- [ ] `backend/app/db.py` RLS-enforcing session helper + integration test
-- [ ] `backend/app/identity.py` persona resolution + tests
-- [ ] full suites green (`scripts/db_test.sh`, `pytest tests/api backend`, `npm run test` unaffected)
-- [ ] draft PR opened, not merged
+- [x] `0003_grants.sql` + `authenticated` role in the test shim
+- [x] authenticated-role RLS integration test green (18 tests; isolation holds under SET ROLE authenticated + request.jwt.claims). **Orchestrator independently proved the linchpin**: owner sees all, `SET ROLE authenticated` + stranger sub → 0 rows, + own sub → own rows only.
+- [x] `backend/app/auth.py` (+ `SUPABASE_JWT_SECRET` config, requirements: pyjwt) + unit tests
+- [x] `backend/app/db.py` RLS-enforcing session helper + integration test
+- [x] `backend/app/identity.py` persona resolution + tests
+- [x] full suites green: `scripts/db_test.sh` **43**, `pytest tests/api` **22**, `pytest tests/backend` **12**, `npm run test` **173** (unaffected)
+- [x] draft PR opened, not merged
+
+## Security finding fixed during verification
+**`auth_person` had RLS disabled** — 0002 enabled RLS on the six domain tables but missed `auth_person`, and 0003 granted `authenticated` SELECT on it, so any logged-in user could read the whole `auth_user_id → person_id` mapping (UUIDs only; `person` names stayed protected — low severity, but a least-privilege gap). **Fixed** in `supabase/migrations/0004_auth_person_rls.sql` (RLS on, own-rows-only SELECT, writes default-denied; the security-definer helpers bypass it so persona resolution is unaffected) + 3 new tests. Verified `resolve_personas` still works under the new policy.
+
+## Deploy-wiring follow-ups (when we deploy 3.1 — not now)
+- `SUPABASE_JWT_SECRET` is now a **required** backend config field. Before deploy, add `SUPABASE_JWT_SECRET_ITG/PROD` to Secret Manager (extend `scripts/setup-secrets.sh`), and mount it in `deploy-backend.yml` (`--set-secrets`). Source: Supabase → Settings → API → JWT Secret, per project.
+- `supabase/migrations/0003` + `0004` still need to be applied to the real Supabase projects (only 0001+0002 were applied during infra setup).
+- The **architecture fork** (frontend→Supabase direct vs frontend→FastAPI→Supabase) is still open — decides which business endpoints get built next.
