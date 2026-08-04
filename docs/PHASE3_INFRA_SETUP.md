@@ -195,10 +195,19 @@ GCP Console → **APIs & Services → OAuth consent screen** (newer console: **G
   - *Alternative:* leave it in **Testing** and add each coach's Google email as a **test user** (cap 100) if you deliberately want a closed login list. More friction; only pick this if you want the allowlist.
 
 ### 6b. Create the client
+> **One client serves BOTH environments — do not create a separate client per env.** You register both envs' origins and both Supabase callbacks on this single client, and both Supabase projects use the same client id + secret. (`VITE_GOOGLE_CLIENT_ID` is therefore one repo-level variable, same value for both builds.) A stricter shop splits into two clients for blast-radius isolation; unnecessary for the pilot.
+
 GCP Console → **APIs & Services → Credentials → Create Credentials → OAuth client ID → Web application**:
 - **Authorized JavaScript origins:** `http://localhost:5173`, the ITG GCS URL, the prod GCS URL (step 7).
-- **Authorized redirect URIs:** each Supabase project's callback: `https://<itg-ref>.supabase.co/auth/v1/callback` and `https://<prod-ref>.supabase.co/auth/v1/callback` (Supabase-Auth path — the refs come from step 4).
-- Copy the **client id** → `VITE_GOOGLE_CLIENT_ID` (GitHub repo **variable**); paste **id + secret** into each Supabase project's Google provider (step 4c.3).
+- **Authorized redirect URIs:** *both* Supabase projects' callbacks: `https://<itg-ref>.supabase.co/auth/v1/callback` and `https://<prod-ref>.supabase.co/auth/v1/callback` (Supabase-Auth path — the refs come from step 4).
+- Copy the **client id** → `VITE_GOOGLE_CLIENT_ID` (GitHub repo **variable**); paste **id + secret** into *each* Supabase project's Google provider (step 4c.3).
+
+### The env topology (why the counts differ)
+> **One GCP project holds the whole stack for BOTH envs.** Buckets (`mtb-web-itg/-prod`), Cloud Run services (`mtb-api-itg/-prod`), and secrets (`..._ITG/_PROD`) live in the single project `mtb-skills-ashaber`, separated by **naming**, not by separate projects. The OAuth client is shared too (above).
+>
+> **The ITG↔prod isolation boundary is the two Supabase projects** — two separate databases, so staging never touches real minors' data. That's the separation that matters; GCP hosting both envs in one project is fine and cost-effective for a pilot.
+>
+> Summary: **1 GCP project · 1 OAuth client · 2 GCS buckets · 2 Cloud Run services · 2 Supabase projects.**
 
 > **Ordering note:** 6b's redirect URIs need the Supabase project refs (step 4), and step 4c.3's "enable Google auth" needs this client's id+secret. So the clean order is: **step 4a/4b (create Supabase projects) → step 6 (consent screen + client) → finish step 4c.3 (paste id+secret into Supabase)**.
 
