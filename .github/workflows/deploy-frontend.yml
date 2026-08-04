@@ -1,18 +1,23 @@
-# Deploy the frontend to a GCS bucket (Phase 3 target — replaces GitHub Pages).
+# Deploy the frontend to Firebase Hosting (Phase 3 target — replaces GitHub Pages).
 #
 # DORMANT until the infra runbook (docs/PHASE3_INFRA_SETUP.md) is done and the
 # GCP_* secrets + per-env VITE_* variables exist. workflow_dispatch ONLY for
-# now so it never auto-runs before the buckets exist. The existing GitHub Pages
-# deploy (deploy.yml) keeps serving the pilot until Phase 3 cuts over.
-# Once secrets/buckets exist, wire ITG to auto-deploy on push to main.
+# now so it never auto-runs before the Firebase sites exist. The existing
+# GitHub Pages deploy (deploy.yml) keeps serving the pilot until Phase 3 cuts
+# over. Once secrets/sites exist, wire ITG to auto-deploy on push to main.
+#
+# Auth: the WIF service account (roles/firebasehosting.admin — see
+# scripts/setup-wif.sh). firebase-tools picks up the credentials that
+# google-github-actions/auth writes (GOOGLE_APPLICATION_CREDENTIALS), so no
+# long-lived FIREBASE_TOKEN is needed.
 
-name: Deploy frontend (GCS)
+name: Deploy frontend (Firebase Hosting)
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Target environment
+        description: Target environment (Firebase Hosting target = itg|prod)
         type: choice
         options: [itg, prod]
         default: itg
@@ -44,9 +49,10 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-      - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Sync dist/ to gs://mtb-web-${{ inputs.environment }}
+      - name: Deploy to Firebase Hosting (${{ inputs.environment }})
         run: |
-          gcloud storage rsync dist gs://mtb-web-${{ inputs.environment }} \
-            --recursive --delete-unmatched-destination-objects
+          npx --yes firebase-tools deploy \
+            --only hosting:${{ inputs.environment }} \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --non-interactive

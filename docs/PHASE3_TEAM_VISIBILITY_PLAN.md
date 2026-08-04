@@ -4,7 +4,7 @@
 
 **Decisions locked with Andrew (2026-08):**
 - **Team-visibility is required at pilot launch** (a few-team pilot starts within ~1–2 weeks). The design is built around a *reversible, additive* cutover so stability never depends on the backend staying up — a team can always fall back to fully-offline client-only operation.
-- **Environments:** proper but lightweight **staging (ITG) + prod** — two Supabase projects, two Cloud Run services, GCS bucket per env. (Vercel-vs-Pages was rejected: it isolates only the frontend, not the DB/auth.)
+- **Environments:** proper but lightweight **staging (ITG) + prod** — two Supabase projects, two Cloud Run services, a Firebase Hosting site per env. (Vercel-vs-Pages was rejected: it isolates only the frontend, not the DB/auth.)
 - **AuthN:** **Google OAuth first**, email magic link as a fast-follow (both eventually).
 - **AuthZ:** Supabase **Row-Level Security (RLS)**, server-enforced.
 - **Pattern source:** mirrors the `swim-coach` repo (Supabase + FastAPI on Cloud Run + WIF CI deploy + a store-factory cutover flag), adjusted from swim-coach's single-prod setup to a true ITG/prod stack.
@@ -161,9 +161,9 @@ swim-coach runs a single prod environment (`swim-coach/.github/workflows/deploy-
 
 - **Two Supabase projects** — `mtb-itg` and `mtb-prod` (free tier). App traffic via the **transaction pooler** (port 6543, prepared statements disabled); **direct** connection (5432) for migrations only.
 - **Two Cloud Run services** — `mtb-api-itg`, `mtb-api-prod` (one GCP project, WIF auth, Artifact Registry, `min-instances=0` → ~$0 idle). `backend/Dockerfile` built with the repo root as context (mirrors swim-coach).
-- **Frontend → GCS bucket per env** — `mtb-web-itg`, `mtb-web-prod` (the ROADMAP-noted shift off GitHub Pages). Each build bakes env-specific `VITE_SUPABASE_URL` / `VITE_GOOGLE_CLIENT_ID` / `VITE_BACKEND_URL`; the store-factory flag defaults **off** (client-only) so nothing changes for a coach until their team is enabled.
+- **Frontend → Firebase Hosting site per env** — `mtb-skills-itg`, `mtb-skills-prod` (the shift off GitHub Pages; Firebase over raw GCS because Google OAuth needs HTTPS, which GCS buckets don't serve without a load balancer). Each build bakes env-specific `VITE_SUPABASE_URL` / `VITE_GOOGLE_CLIENT_ID` / `VITE_BACKEND_URL`; the store-factory flag defaults **off** (client-only) so nothing changes for a coach until their team is enabled.
 - **CI (`ci.yml`)** — extend the current unit+e2e matrix with a **`db` job** (spin up `postgres:16`, apply `supabase/migrations/*.sql`, **re-apply for idempotency**, run RLS/contract tests) and a **`backend` job** (FastAPI tests with externals mocked + placeholder secrets), matching swim-coach's job layout.
-- **CD** — merge to `main` → **auto-deploy to ITG** (frontend GCS + backend Cloud Run). **Prod is a gated manual `workflow_dispatch` promote** (swim-coach's manual-prod discipline). Deploy pins the SHA tag for inspectable rollbacks. GCP creds via WIF secrets (`GCP_WORKLOAD_IDENTITY_PROVIDER` / `GCP_SERVICE_ACCOUNT` / `GCP_PROJECT_ID`).
+- **CD** — merge to `main` → **auto-deploy to ITG** (frontend Firebase Hosting + backend Cloud Run). **Prod is a gated manual `workflow_dispatch` promote** (swim-coach's manual-prod discipline). Deploy pins the SHA tag for inspectable rollbacks. GCP creds via WIF secrets (`GCP_WORKLOAD_IDENTITY_PROVIDER` / `GCP_SERVICE_ACCOUNT` / `GCP_PROJECT_ID`).
 
 ---
 
