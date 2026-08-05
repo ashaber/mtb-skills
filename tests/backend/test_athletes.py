@@ -154,6 +154,7 @@ def test_ride_group_coach_adds_athlete_to_own_group(
     assert body["role"] == "athlete"
     assert body["team_id"] == str(seed["team_a"])
     assert body["ride_group_id"] == str(seed["group_a1"])
+    assert body["ride_group_name"] == "A1"  # denormalized from the group
     assert body["grade"] == 7
     assert body["category"] == "7th"
     assert body["tags"] == []
@@ -402,3 +403,16 @@ def test_imported_row_with_no_tags_defaults_to_empty_list(
 
     row = owner_conn.execute("select tags from person where team_id = %s and name = %s", (seed["team_a"], name)).fetchone()
     assert row[0] == []
+
+
+def test_roster_carries_ride_group_name_and_null_for_ungrouped(client, seed: dict[str, Any]) -> None:
+    # GET /api/roster denormalizes each person's ride_group name so the
+    # frontend can show/filter by group without a second round-trip. The HC
+    # (ride_group_id null) must come back with ride_group_name null, not an
+    # error or a stray name.
+    roster = {p["name"]: p for p in client.get("/api/roster", headers=_auth_header(seed["hc_a_auth"])).json()}
+
+    assert roster["Coach A1"]["ride_group_name"] == "A1"  # grouped -> group name
+    assert roster["Coach A2"]["ride_group_name"] == "A2"
+    assert roster["HC A"]["ride_group_id"] is None
+    assert roster["HC A"]["ride_group_name"] is None  # ungrouped -> null, no error

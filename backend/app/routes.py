@@ -88,12 +88,21 @@ def _confirmed_level_row_to_dict(row: tuple) -> dict[str, Any]:
     }
 
 
-def _person_row_to_dict(row: tuple) -> dict[str, Any]:
+def _person_row_to_dict(row: tuple, ride_group_name: str | None = None) -> dict[str, Any]:
+    # `row` is always the 9-column person tuple; `ride_group_name` is the
+    # denormalized name of that person's ride_group (LEFT JOINed in
+    # list_roster / looked up in create_athlete) so the frontend can show
+    # and filter by group without a second round-trip. It is None for a
+    # person with no ride_group (HC/TD/league_staff rows whose
+    # ride_group_id is null), and is itself RLS-coherent: a ride_group is
+    # visible exactly when the person on it is (person_select and
+    # ride_group_select share the same group/team scoping in 0002_rls.sql).
     (person_id, team_id, ride_group_id, role, name, external_id, grade, category, tags) = row
     return {
         "id": str(person_id),
         "team_id": str(team_id),
         "ride_group_id": _uuid_or_none(ride_group_id),
+        "ride_group_name": ride_group_name,
         "role": role,
         "name": name,
         "external_id": external_id,
@@ -353,14 +362,21 @@ def list_roster(
     settings: Settings = Depends(get_settings_dep),
 ) -> list[dict[str, Any]]:
     with rls_connection(settings.database_url, caller.sub) as conn:
+        # LEFT JOIN ride_group so each person carries its group's name (or
+        # null). Under RLS the join can only surface a ride_group the caller
+        # is already allowed to see (ride_group_select shares person_select's
+        # scoping), so this never leaks a group name the caller couldn't
+        # otherwise read.
         rows = conn.execute(
             """
-            select id, team_id, ride_group_id, role, name, external_id, grade, category, tags
-            from person
-            order by name
+            select p.id, p.team_id, p.ride_group_id, p.role, p.name,
+                   p.external_id, p.grade, p.category, p.tags, rg.name
+            from person p
+            left join ride_group rg on rg.id = p.ride_group_id
+            order by p.name
             """
         ).fetchall()
-    return [_person_row_to_dict(row) for row in rows]
+    return [_person_row_to_dict(row[:9], ride_group_name=row[9]) for row in rows]
 
 
 # ==========================================================================
@@ -386,14 +402,14 @@ def create_athlete(
         # above -- indistinguishable from this backend's point of view, and
         # deliberately so.
         group_row = conn.execute(
-            "select team_id from ride_group where id = %s",
+            "select team_id, name from ride_group where id = %s",
             (body.ride_group_id,),
         ).fetchone()
         if group_row is None:
             log.warn("athletes.ride_group_not_in_scope", ride_group_id=str(body.ride_group_id), sub=caller.sub)
             raise HTTPException(status_code=403, detail="cannot add to that group")
 
-        team_id = group_row[0]
+        team_id, ride_group_name = group_row
         person_id = uuid.uuid4()
 
         try:
@@ -429,7 +445,7 @@ def create_athlete(
     if row is None:  # pragma: no cover - RETURNING always yields a row on a successful INSERT
         raise HTTPException(status_code=403, detail="cannot add athlete to that group")
 
-    return _person_row_to_dict(row)
+    return _person_row_to_dict(row, ride_group_name=ride_group_name)
 
 
 # ==========================================================================
