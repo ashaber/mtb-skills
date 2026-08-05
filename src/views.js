@@ -24,6 +24,7 @@ import {
   progressionStripHTML,
 } from './ui.js';
 import { isAuthConfigured } from './auth.js';
+import { mapRows } from './roster-import.js';
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
@@ -431,6 +432,12 @@ export function viewSettings(s) {
           <p class="settings-about" style="margin-bottom:10px">Sign in to sync your roster and observations with your team.</p>
           <button class="btn btn-primary" data-a="sign-in-google">Sign in with Google</button>
         `}
+      </div>` : ''}
+
+      ${isAuthConfigured() && s.authUser ? `<div class="settings-section">
+        <span class="settings-section-label">Roster Import</span>
+        <p class="settings-about" style="margin-bottom:10px">Head coaches and team directors can bulk-import a roster from a NICA PitZone CSV export (coach or athlete file). Requires head-coach/team-director access on the backend.</p>
+        <button class="btn btn-outline" data-a="open-roster-import">Import roster from CSV</button>
       </div>` : ''}
 
       <div class="settings-section">
@@ -1146,6 +1153,104 @@ export function modalImportPreview(payload, existingAthlete) {
         ? `<button class="btn btn-primary" data-m="confirm-merge">Update existing roster entry</button>
            <button class="btn btn-outline" data-m="confirm-import">Add as separate athlete</button>`
         : `<button class="btn btn-primary" data-m="confirm-import">Add to roster</button>`}
+      <button class="btn btn-ghost" data-m="close">Cancel</button>
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+// ── Roster import (HC/TD, column-mapping CSV wizard, Phase 3.2) ──────────────
+// `state` (module-level `_rosterImport` in main.js) drives which step
+// renders: 'upload' (pick a file) -> 'mapping' (column-mapping form +
+// live preview, src/roster-import.js's mapRows) -> 'summary' (POST
+// /api/roster/import's result). See src/roster-import.js for the parsing/
+// mapping logic this view only renders.
+const RI_FIELDS = [
+  ['firstNameCol', 'First name'],
+  ['lastNameCol', 'Last name'],
+  ['emailCol', 'Email'],
+  ['roleCol', 'Coach role (leave unmapped for an athlete-only file)'],
+  ['rideGroupCol', 'Ride group'],
+  ['gradeCol', 'Grade'],
+  ['categoryCol', 'Racing category'],
+];
+
+export function modalRosterImport(state) {
+  if (!state) return '';
+  const closeBtn = `<button class="ico-btn" data-m="close">✕</button>`;
+
+  if (state.step === 'summary' && state.summary) {
+    const sum = state.summary;
+    const skipped = sum.skipped || [];
+    const skippedList = skipped.length
+      ? `<div class="import-preview-safety" style="margin-top:10px">
+          ${skipped.map(sk => `<div class="safety-row"><span class="safety-lbl">${esc(sk.name || '—')}</span><span class="safety-val">${esc(sk.reason || '')}</span></div>`).join('')}
+        </div>`
+      : '';
+    return `
+      <div class="modal-head"><span>Import Complete</span>${closeBtn}</div>
+      <div class="fg">
+        <div class="import-preview">
+          <div class="import-preview-name">${sum.people_created} added · ${sum.people_updated} updated</div>
+          <div class="import-preview-meta">${sum.groups_created} ride group${sum.groups_created === 1 ? '' : 's'} created${skipped.length ? ` · ${skipped.length} skipped` : ''}</div>
+          ${skippedList}
+        </div>
+      </div>
+      <div class="fg" style="padding-top:0">
+        <button class="btn btn-primary" data-m="close">Done</button>
+      </div>
+      <div style="height:12px"></div>`;
+  }
+
+  const errorBanner = state.error
+    ? `<div class="import-merge-warn"><strong>Couldn't import</strong> — ${esc(state.error)}</div>`
+    : '';
+
+  if (state.step !== 'mapping') {
+    return `
+      <div class="modal-head"><span>Import Roster</span>${closeBtn}</div>
+      <div class="fg">
+        ${errorBanner}
+        <p class="settings-about" style="margin-bottom:10px">Choose a NICA PitZone CSV export (coach roster or athlete roster). You'll map columns and preview before anything is imported.</p>
+        <label class="btn btn-outline" style="cursor:pointer;text-align:center">
+          Choose CSV file
+          <input id="roster-import-file" type="file" accept=".csv,text/csv" style="display:none">
+        </label>
+      </div>
+      <div style="height:12px"></div>`;
+  }
+
+  // 'mapping' step
+  const columnOptions = state.columns || [];
+  const selects = RI_FIELDS.map(([field, label]) => `
+    <label class="fl" for="ri-map-${field}" style="margin-top:8px">${esc(label)}</label>
+    <select class="fi ri-map-select" id="ri-map-${field}" data-field="${field}">
+      <option value="">— not mapped —</option>
+      ${columnOptions.map(c => `<option value="${esc(c)}"${state.mapping?.[field] === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}
+    </select>`).join('');
+
+  const mapped = mapRows(state.rows || [], state.mapping || {});
+  const previewRows = mapped.slice(0, 5);
+  const previewTable = previewRows.length
+    ? `<div class="import-preview" style="margin-top:12px">
+        ${previewRows.map(r => `
+          <div class="safety-row">
+            <span class="safety-lbl">${esc(r.name)}</span>
+            <span class="safety-val">${esc(r.role)}${r.ride_group ? ' · ' + esc(r.ride_group) : ''}${r.grade ? ' · Gr ' + esc(r.grade) : ''}${r.category ? ' · ' + esc(r.category) : ''}</span>
+          </div>`).join('')}
+       </div>`
+    : `<p class="settings-about" style="margin-top:10px;color:var(--dim)">No rows have a name yet — map at least First name (or Last name).</p>`;
+
+  return `
+    <div class="modal-head"><span>Map Columns</span>${closeBtn}</div>
+    <div class="fg">
+      ${errorBanner}
+      <p class="settings-about">${esc(state.fileName || 'CSV')} — ${state.rows?.length ?? 0} row${state.rows?.length === 1 ? '' : 's'} found. Confirm which column is which.</p>
+      ${selects}
+      <p class="fl" style="margin-top:14px">Preview (${mapped.length} row${mapped.length === 1 ? '' : 's'} will import)</p>
+      ${previewTable}
+    </div>
+    <div class="fg" style="padding-top:0;gap:8px">
+      <button class="btn btn-primary" data-m="roster-import-confirm"${state.importing || !mapped.length ? ' disabled' : ''}>${state.importing ? 'Importing…' : `Import ${mapped.length} row${mapped.length === 1 ? '' : 's'}`}</button>
       <button class="btn btn-ghost" data-m="close">Cancel</button>
     </div>
     <div style="height:12px"></div>`;
