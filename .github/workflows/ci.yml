@@ -91,3 +91,9 @@ jobs:
         run: psql "$PGURL" -v ON_ERROR_STOP=1 -c "grant select, insert, update on all tables in schema public to app_user;"
       - name: Run RLS matrix
         run: python -m pytest tests/db -v
+      - name: Install backend deps for HTTP-stack RLS tests
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r tests/backend/requirements.txt
+      - name: Run backend integration tests (RLS enforced end-to-end over HTTP)
+        run: python -m pytest tests/backend -v
