@@ -23,6 +23,7 @@ import {
   levelSelectorHTML, scoreChip, suggestLevel, TRAIL_META, trailMarkSVG, readyTrails,
   progressionStripHTML,
 } from './ui.js';
+import { isAuthConfigured } from './auth.js';
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
@@ -406,6 +407,31 @@ export function viewSettings(s) {
           </label>
         </div>
       </div>
+
+      ${isAuthConfigured() ? `<div class="settings-section">
+        <span class="settings-section-label">Account</span>
+        ${s.authUser ? `
+          <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:12px">
+            <span class="settings-about" style="color:var(--dim)">Signed in as</span>
+            <span style="font:700 15px/1.3 var(--font-body)">${esc(s.authUser.name || s.authUser.email || 'Coach')}</span>
+            ${s.authUser.name && s.authUser.email ? `<span class="settings-about">${esc(s.authUser.email)}</span>` : ''}
+          </div>
+          <p class="settings-about" style="margin-bottom:10px">${
+            s.syncing
+              ? 'Syncing…'
+              : s.syncSummary
+                ? `Last synced ${s.syncAt ? new Date(s.syncAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : ''} — ${s.syncSummary.pulled} pulled, ${s.syncSummary.pushed} pushed${s.syncSummary.error ? ' (with errors)' : ''}`
+                : 'Not synced yet.'
+          }</p>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-outline" data-a="sync-now"${s.syncing ? ' disabled' : ''}>${s.syncing ? 'Syncing…' : 'Sync now'}</button>
+            <button class="btn btn-outline" data-a="sign-out">Sign out</button>
+          </div>
+        ` : `
+          <p class="settings-about" style="margin-bottom:10px">Sign in to sync your roster and observations with your team.</p>
+          <button class="btn btn-primary" data-a="sign-in-google">Sign in with Google</button>
+        `}
+      </div>` : ''}
 
       <div class="settings-section">
         <span class="settings-section-label">Share App</span>
