@@ -1,10 +1,12 @@
 """FastAPI app factory: JSON-logging middleware, CORS, /health, /version,
-global exception handling, fail-fast config.
+global exception handling, fail-fast config, and (Phase 3.1) the
+RLS-enforced `/api/*` data routes.
 
-Phase 3.0 skeleton -- NO business/DB routes yet (see
-docs/PHASE3_TEAM_VISIBILITY_PLAN.md's build-phase layout: auth routes land in
-3.1, the DB layer/store wiring in 3.1-3.2). This module only needs to stand
-up cleanly, expose health/version, and be container-ready.
+Phase 3.0 stood this module up with no business/DB routes (see
+docs/PHASE3_TEAM_VISIBILITY_PLAN.md's build-phase layout). Phase 3.1
+workstream A mounts app/routes.py's `router` here -- every one of those
+routes requires an authenticated caller (app/deps.py's `get_caller`) and
+queries the database exclusively through app.db.rls_connection.
 
 `create_app()` runs once per process (module-level `app` below, for
 `uvicorn app.main:app`) and once per test (tests build their own app after
@@ -19,12 +21,15 @@ import os
 import time
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import Settings
 from app.logging import get_logger
+from app.routes import router as api_router
 
 log = get_logger("app.main")
 
@@ -75,6 +80,20 @@ def create_app() -> FastAPI:
         # responses are always JSON.
         return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        # FastAPI's default for a bad request body/query/path param is 422;
+        # the global HTTP-services standard here is "validate inputs at
+        # service boundaries" with a plain `{"error": ...}` JSON body, and
+        # the app/routes.py data endpoints' contract specifically calls for
+        # 400 on bad input (skill outside the enum, level outside 1-5, a
+        # malformed athlete_id, etc.) -- so this overrides FastAPI's default
+        # status code, not just its body shape.
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid request", "detail": jsonable_encoder(exc.errors())},
+        )
+
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         log.error("unhandled exception", error=str(exc), path=request.url.path)
@@ -93,6 +112,12 @@ def create_app() -> FastAPI:
             # tag for inspectable rollbacks"). "dev" locally / when unset.
             "commit": os.environ.get("GIT_SHA", "dev"),
         }
+
+    # Phase 3.1 workstream A: the RLS-enforced `/api/*` data routes
+    # (app/routes.py) -- every route on this router requires
+    # Depends(get_caller) (app/deps.py) and queries exclusively through
+    # app.db.rls_connection, never a privileged connection.
+    app.include_router(api_router)
 
     log.info(
         "service start",

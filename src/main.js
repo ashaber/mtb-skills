@@ -23,6 +23,8 @@ const FEEDBACK_MODE = localStorage.getItem('mtb_feedback_mode') !== 'false';
 import { SKILL_IDS } from './rubric.js';
 import { loadRubricContent } from './rubric-content.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
+import { isAuthConfigured, signInWithGoogle, signOut, getUser, onAuthChange } from './auth.js';
+import { syncNow } from './sync.js';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
@@ -48,6 +50,10 @@ const s = {
   settingsQR:      null,
   feedbackQR:      null,
   cardQR:          {},
+  authUser:        null,     // { email, name } | null — set from src/auth.js, additive to offline-first
+  syncSummary:     null,     // { pulled, pushed, error? } | null — last syncNow() result
+  syncAt:          null,     // ISO timestamp of last sync attempt
+  syncing:         false,
 };
 
 // ── Camera / import state ─────────────────────────────────────────────────────
@@ -163,6 +169,48 @@ function _generateSettingsQR() {
   QRCode.toDataURL('https://ashaber.github.io/mtb-skills/?feedback=true', { width: 200, margin: 2 })
     .then(qr => { s.feedbackQR = qr; if (s.tab === 'settings') draw(); })
     .catch(() => {});
+}
+
+// ── Auth / sync (Phase 3.1) ───────────────────────────────────────────────────
+// Strictly additive to the offline-first app: when auth isn't configured
+// (the default), initAuthSync() is a no-op and nothing below ever runs.
+async function runSync() {
+  s.syncing = true;
+  draw();
+  const result = await syncNow();
+  s.syncing = false;
+  if (result) {
+    s.syncSummary = { pulled: result.pulled, pushed: result.pushed, error: result.error };
+    s.syncAt = new Date().toISOString();
+    flash(result.error ? 'Sync finished with errors' : `Synced — ${result.pulled} pulled, ${result.pushed} pushed`);
+  }
+  draw();
+}
+
+async function initAuthSync() {
+  if (!isAuthConfigured()) return;
+
+  const user = await getUser();
+  if (user) {
+    s.authUser = user;
+    draw();
+    runSync();
+  }
+
+  onAuthChange((event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      getUser().then(u => {
+        s.authUser = u;
+        draw();
+        runSync();
+      });
+    } else if (event === 'SIGNED_OUT') {
+      s.authUser = null;
+      s.syncSummary = null;
+      s.syncAt = null;
+      draw();
+    }
+  });
 }
 
 // ── Log / Confirm helpers ─────────────────────────────────────────────────────
@@ -522,6 +570,31 @@ function onAppClick(e) {
   if (action === 'dismiss-feedback') {
     localStorage.setItem('mtb_feedback_dismissed', 'true');
     draw();
+    return;
+  }
+
+  if (action === 'sign-in-google') {
+    log.info('auth.signin.click');
+    signInWithGoogle();
+    return;
+  }
+
+  if (action === 'sync-now') {
+    if (s.syncing) return;
+    log.info('sync.manual.click');
+    runSync();
+    return;
+  }
+
+  if (action === 'sign-out') {
+    log.info('auth.signout.click');
+    signOut().then(() => {
+      s.authUser = null;
+      s.syncSummary = null;
+      s.syncAt = null;
+      flash('Signed out');
+      draw();
+    });
     return;
   }
 
@@ -922,4 +995,6 @@ window.__test_onQRDetected = onQRDetected;
   if (FEEDBACK_MODE) {
     import('./feedback.js').then(m => m.initFeedback());
   }
+  // Additive, offline-first: no-ops entirely when auth isn't configured.
+  initAuthSync();
 })();

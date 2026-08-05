@@ -9,6 +9,8 @@ python-dotenv>=1.0,<2.0
 # is a code change only, not a dependency change. Mirrors swim-coach's
 # psycopg[binary] note in backend/requirements.txt.
 psycopg[binary]>=3.1,<4.0
+# Supabase JWT verification (app/auth.py::verify_supabase_jwt, HS256).
+pyjwt[crypto]>=2.9,<3.0
 
 # --- test-only (also installed in CI's backend job) ------------------------
 pytest>=8.0,<9.0

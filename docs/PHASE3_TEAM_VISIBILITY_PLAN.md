@@ -11,6 +11,65 @@
 
 ---
 
+## Architecture diagram
+
+```mermaid
+flowchart TB
+    subgraph Client["Coach's device (PWA)"]
+        UI["Vanilla JS views\n(src/views.js, main.js)"]
+        SF["Store factory\n(src/storage.js)"]
+        LS[("localStorage\nalways-on cache")]
+        UI --> SF
+        SF --> LS
+    end
+
+    subgraph Firebase["Firebase Hosting (per env)"]
+        FE["Static dist/ build\nmtb-skills-itg / -prod"]
+    end
+
+    subgraph GCP["GCP project (WIF + Artifact Registry)"]
+        subgraph CloudRun["Cloud Run (per env)"]
+            API["FastAPI backend\nmtb-api-itg / -prod\nmin-instances=0"]
+        end
+    end
+
+    subgraph Supabase["Supabase (per env)"]
+        AUTH["Supabase Auth\nGoogle OAuth (+ magic link)"]
+        POOL["Transaction pooler\n:6543"]
+        DIRECT["Direct connection\n:5432 (migrations only)"]
+        PG[("Postgres\nleague / team / ride_group\nperson / auth_person\nobservation / confirmed_level\nRLS on every table")]
+        AUTH --> PG
+        POOL --> PG
+        DIRECT --> PG
+    end
+
+    Coach(("Coach")) -->|installs / opens| UI
+    Coach -->|Google sign-in| AUTH
+
+    UI -->|first load, cached by SW| FE
+    SF -->|"flag=local (default): nothing leaves device"| LS
+    SF -->|"flag=db: push/pull when online"| API
+
+    API -->|verify Google ID token\n mint session| AUTH
+    API -->|reads/writes via RLS| POOL
+    API -.->|schema migrations| DIRECT
+
+    GHA["GitHub Actions CI/CD\nWIF auth, SHA-tagged images"] -->|deploy static build| FE
+    GHA -->|deploy image| API
+    GHA -->|apply supabase/migrations/*.sql| DIRECT
+
+    classDef offline fill:#e8f5e9,stroke:#2e7d32
+    classDef backend fill:#e3f2fd,stroke:#1565c0
+    classDef infra fill:#fff3e0,stroke:#e65100
+    class UI,SF,LS offline
+    class API,AUTH,POOL,DIRECT,PG backend
+    class FE,GHA infra
+```
+
+**Reading this diagram:** the green box (client) is fully functional on its own — that's the "reversible cutover" property: with the store-factory flag off, nothing below `storage.js` matters. The blue boxes (backend) only enter the picture once a coach authenticates and their team's flag is on. Two full copies of the blue+orange boxes exist — one for ITG, one for prod — never shared.
+
+---
+
 ## Context
 
 A ride-group coach reached out unprompted:
