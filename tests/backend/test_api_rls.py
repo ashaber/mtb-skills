@@ -245,6 +245,30 @@ def test_post_observation_for_own_group_athlete_succeeds_and_is_attributed_corre
     assert body["id"] in {row["id"] for row in listing.json()}
 
 
+def test_post_observation_with_client_id_is_idempotent(client, seed: dict[str, Any]) -> None:
+    """Offline-first sync: the client mints the observation id, so re-pushing
+    the same id (e.g. a pull followed by a re-sync) is a no-op, not a dup."""
+    obs_id = str(uuid.uuid4())
+    payload = {
+        "id": obs_id,
+        "athlete_id": str(seed["athlete_a1"]),
+        "skill": "braking",
+        "level_observed": 2,
+    }
+    first = client.post("/api/observations", headers=_auth_header(seed["coach_a1_auth"]), json=payload)
+    assert first.status_code == 201
+    assert first.json()["id"] == obs_id
+
+    # replay the exact same push
+    second = client.post("/api/observations", headers=_auth_header(seed["coach_a1_auth"]), json=payload)
+    assert second.status_code in (200, 201)
+    assert second.json()["id"] == obs_id
+
+    # exactly one row with that id, not two
+    listing = client.get("/api/observations", headers=_auth_header(seed["coach_a1_auth"]))
+    assert [row["id"] for row in listing.json()].count(obs_id) == 1
+
+
 def test_post_observation_for_sibling_ride_group_athlete_is_denied(client, seed: dict[str, Any]) -> None:
     resp = client.post(
         "/api/observations",

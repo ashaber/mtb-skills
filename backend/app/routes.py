@@ -194,6 +194,7 @@ def create_observation(
     settings: Settings = Depends(get_settings_dep),
 ) -> dict[str, Any]:
     session_date = body.session_date or date.today()
+    obs_id = body.id or uuid.uuid4()
 
     with rls_connection(settings.database_url, caller.sub) as conn:
         try:
@@ -205,15 +206,22 @@ def create_observation(
         coach = _select_attributing_coach(caller.personas, ride_group_id)
 
         try:
+            # Client-minted id + `on conflict do nothing` makes a re-pushed
+            # observation an idempotent no-op (append-only sync, union by id)
+            # rather than a duplicate. `do nothing` (not `do update`) also
+            # means a client can never overwrite an existing row it doesn't
+            # own -- a colliding id just no-ops.
             row = conn.execute(
                 """
                 insert into observation
-                    (athlete_id, team_id, coach_id, ride_group_id, session_date, skill, level_observed, notes)
-                values (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (id, athlete_id, team_id, coach_id, ride_group_id, session_date, skill, level_observed, notes)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                on conflict (id) do nothing
                 returning id, athlete_id, team_id, coach_id, ride_group_id,
                           session_date, skill, level_observed, notes
                 """,
                 (
+                    obs_id,
                     body.athlete_id,
                     team_id,
                     coach.person_id,
@@ -224,12 +232,25 @@ def create_observation(
                     body.notes,
                 ),
             ).fetchone()
+
+            if row is None:
+                # id already existed -> idempotent replay if it's the caller's
+                # own row (visible under RLS); otherwise the id belongs to a
+                # row they can't see -> 409, never leaking whose it is.
+                row = conn.execute(
+                    """
+                    select id, athlete_id, team_id, coach_id, ride_group_id,
+                           session_date, skill, level_observed, notes
+                    from observation where id = %s
+                    """,
+                    (obs_id,),
+                ).fetchone()
         except psycopg.Error as exc:
             log.warn("observations.insert_denied", athlete_id=str(body.athlete_id), sub=caller.sub, error=str(exc))
             raise HTTPException(status_code=403, detail="cannot record for that athlete") from exc
 
-    if row is None:  # pragma: no cover - RETURNING always yields a row on a successful INSERT
-        raise HTTPException(status_code=403, detail="cannot record for that athlete")
+    if row is None:
+        raise HTTPException(status_code=409, detail="observation id already exists")
 
     return _observation_row_to_dict(row)
 

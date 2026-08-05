@@ -27,8 +27,15 @@ class Skill(str, Enum):
 
 class ObservationIn(BaseModel):
     """POST /api/observations body. `session_date` defaults to today
-    (server-assigned) when omitted -- see app/routes.py."""
+    (server-assigned) when omitted -- see app/routes.py.
 
+    `id` is optional and CLIENT-generated: observations are append-only and
+    offline-first (app/schema.md), so the client mints the UUID locally and
+    sends it, making the push idempotent -- re-posting the same id after a
+    pull is a no-op (union by id) rather than a duplicate. Omitted (e.g. a
+    non-sync direct create) -> the server generates one."""
+
+    id: UUID | None = None
     athlete_id: UUID
     skill: Skill
     level_observed: int = Field(ge=1, le=5)
