@@ -25,8 +25,8 @@ Merge key priority, scoped to `team_id`, tried in order until one matches:
     1. `external_id` (exact)
     2. `email` (case-insensitive)
     3. `name` (case-insensitive)
-A match -> UPDATE (name, role, email, ride_group_id, external_id) on the
-existing row. No match -> INSERT a new `person` row.
+A match -> UPDATE (name, role, email, ride_group_id, external_id, grade,
+category) on the existing row. No match -> INSERT a new `person` row.
 
 `ride_group` values are resolved/created up front (case-insensitive match
 by (team_id, name); INSERT if absent -- there is no unique constraint on
@@ -148,19 +148,39 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
             conn.execute(
                 """
                 update person
-                set name = %s, role = %s, email = %s, ride_group_id = %s, external_id = %s
+                set name = %s, role = %s, email = %s, ride_group_id = %s, external_id = %s,
+                    grade = %s, category = %s
                 where id = %s
                 """,
-                (row.name, row.role, row.email, ride_group_id, row.external_id, matched_id),
+                (
+                    row.name,
+                    row.role,
+                    row.email,
+                    ride_group_id,
+                    row.external_id,
+                    row.grade,
+                    row.category,
+                    matched_id,
+                ),
             )
             people_updated += 1
         else:
             conn.execute(
                 """
-                insert into person (id, team_id, ride_group_id, role, name, email, external_id)
-                values (%s, %s, %s, %s, %s, %s, %s)
+                insert into person (id, team_id, ride_group_id, role, name, email, external_id, grade, category)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (uuid.uuid4(), team_id, ride_group_id, row.role, row.name, row.email, row.external_id),
+                (
+                    uuid.uuid4(),
+                    team_id,
+                    ride_group_id,
+                    row.role,
+                    row.name,
+                    row.email,
+                    row.external_id,
+                    row.grade,
+                    row.category,
+                ),
             )
             people_created += 1
 

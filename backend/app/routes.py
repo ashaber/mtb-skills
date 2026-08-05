@@ -89,7 +89,7 @@ def _confirmed_level_row_to_dict(row: tuple) -> dict[str, Any]:
 
 
 def _person_row_to_dict(row: tuple) -> dict[str, Any]:
-    (person_id, team_id, ride_group_id, role, name, external_id) = row
+    (person_id, team_id, ride_group_id, role, name, external_id, grade, category) = row
     return {
         "id": str(person_id),
         "team_id": str(team_id),
@@ -97,6 +97,8 @@ def _person_row_to_dict(row: tuple) -> dict[str, Any]:
         "role": role,
         "name": name,
         "external_id": external_id,
+        "grade": grade,
+        "category": category,
     }
 
 
@@ -352,7 +354,7 @@ def list_roster(
     with rls_connection(settings.database_url, caller.sub) as conn:
         rows = conn.execute(
             """
-            select id, team_id, ride_group_id, role, name, external_id
+            select id, team_id, ride_group_id, role, name, external_id, grade, category
             from person
             order by name
             """

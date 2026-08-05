@@ -368,6 +368,103 @@ def test_blank_role_defaults_to_athlete(client, seed: dict[str, Any], owner_conn
 
 
 # --------------------------------------------------------------------------
+# Grade / category (supabase/migrations/0006_person_grade_category.sql) --
+# round-trip through import AND back out through GET /api/roster; a
+# non-numeric grade is dropped (null), never a 400.
+# --------------------------------------------------------------------------
+
+
+def test_imported_athlete_grade_and_category_round_trip_through_get_roster(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    name = _unique("Grade Athlete")
+
+    resp = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "athlete", "grade": 8, "category": "8th"}]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["people_created"] == 1
+
+    row = owner_conn.execute(
+        "select grade, category from person where team_id = %s and name = %s", (seed["team_a"], name)
+    ).fetchone()
+    assert row == (8, "8th")
+
+    roster = client.get("/api/roster", headers=_auth_header(seed["hc_a_auth"]))
+    assert roster.status_code == 200
+    entry = next(p for p in roster.json() if p["name"] == name)
+    assert entry["grade"] == 8
+    assert entry["category"] == "8th"
+
+
+def test_reimport_updates_grade_and_category(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    name = _unique("Regrade Athlete")
+
+    first = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "athlete", "grade": 6, "category": "6th"}]},
+    )
+    assert first.status_code == 200
+    assert first.json()["people_created"] == 1
+
+    second = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "athlete", "grade": 7, "category": "7th"}]},
+    )
+    assert second.status_code == 200
+    assert second.json()["people_updated"] == 1
+
+    row = owner_conn.execute(
+        "select grade, category from person where team_id = %s and name = %s", (seed["team_a"], name)
+    ).fetchone()
+    assert row == (7, "7th")
+
+
+def test_non_numeric_grade_is_dropped_not_a_400(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    name = _unique("Bad Grade Athlete")
+
+    resp = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "athlete", "grade": "N/A", "category": "7th"}]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["people_created"] == 1
+
+    row = owner_conn.execute(
+        "select grade, category from person where team_id = %s and name = %s", (seed["team_a"], name)
+    ).fetchone()
+    assert row == (None, "7th")
+
+
+def test_blank_grade_and_category_are_null(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    name = _unique("Blank Grade Coach")
+
+    resp = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "coach", "grade": "", "category": "  "}]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["people_created"] == 1
+
+    row = owner_conn.execute(
+        "select grade, category from person where team_id = %s and name = %s", (seed["team_a"], name)
+    ).fetchone()
+    assert row == (None, None)
+
+
+# --------------------------------------------------------------------------
 # Onboarding tie-in: an HC-imported coach email actually feeds first-login
 # bootstrap_link -- proving import -> onboarding works end to end, not just
 # that the person row exists.

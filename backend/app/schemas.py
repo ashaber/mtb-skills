@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date
 from enum import Enum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -68,15 +69,22 @@ class RosterRowIn(BaseModel):
     Deliberately has NO `team_id` field -- the target team is always the
     caller's own HC/TD team, derived server-side in app/routes.py, never
     taken from the row (see app/roster.py's module docstring). Grade/
-    category (CLAUDE.md's Phase 2b column-mapping table) are intentionally
-    NOT modeled here -- the `person` table has no columns for them yet, so
-    they are simply not accepted (not silently accepted-and-dropped)."""
+    category (CLAUDE.md's Phase 2b column-mapping table) mirror the
+    frontend's athlete fields (src/storage.js) -- see supabase/migrations/
+    0006_person_grade_category.sql, which added the matching `person`
+    columns. A blank/whitespace grade or category is normalized to None,
+    same as email/ride_group/external_id below. A non-numeric-looking
+    `grade` (e.g. a stray header value from a malformed CSV column mapping)
+    is dropped to None rather than rejected -- a bad grade cell shouldn't
+    400 an entire import batch."""
 
     name: str
     role: str = "athlete"
     email: str | None = None
     ride_group: str | None = None
     external_id: str | None = None
+    grade: int | None = None
+    category: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -99,13 +107,39 @@ class RosterRowIn(BaseModel):
             raise ValueError(f"role must be one of {VALID_ROSTER_ROLES}")
         return role
 
-    @field_validator("email", "ride_group", "external_id")
+    @field_validator("email", "ride_group", "external_id", "category")
     @classmethod
     def _blank_to_none(cls, value: str | None) -> str | None:
         if value is None:
             return None
         stripped = value.strip()
         return stripped or None
+
+    @field_validator("grade", mode="before")
+    @classmethod
+    def _grade_numeric_or_none(cls, value: Any) -> int | None:
+        # Blank/whitespace -> None (same as the other optional fields). A
+        # non-numeric-looking value (e.g. a stray header/label that slipped
+        # through a malformed CSV column mapping) is also dropped to None
+        # rather than raising -- a bad grade cell shouldn't 400 the whole
+        # import batch (CLAUDE.md's Phase 2b "don't 400 on a non-numeric
+        # grade" rule).
+        if value is None:
+            return None
+        if isinstance(value, bool):  # bool is an int subclass -- reject explicitly
+            return None
+        if isinstance(value, int):
+            return value
+        stripped = str(value).strip()
+        if not stripped:
+            return None
+        try:
+            return int(stripped)
+        except ValueError:
+            try:
+                return int(float(stripped))
+            except (TypeError, ValueError):
+                return None
 
 
 class RosterImportIn(BaseModel):

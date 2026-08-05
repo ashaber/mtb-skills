@@ -23,15 +23,17 @@ const FEEDBACK_MODE = localStorage.getItem('mtb_feedback_mode') !== 'false';
 import { SKILL_IDS } from './rubric.js';
 import { loadRubricContent } from './rubric-content.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
-import { isAuthConfigured, signInWithGoogle, signOut, getUser, onAuthChange } from './auth.js';
+import { isAuthConfigured, signInWithGoogle, signOut, getUser, getAccessToken, onAuthChange } from './auth.js';
 import { syncNow } from './sync.js';
+import { BACKEND_URL } from './env.js';
+import { parseCsv, mapRows, guessMapping, postImport } from './roster-import.js';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
   viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
-  modalSettings, modalReflection, modalOnboarding,
+  modalSettings, modalReflection, modalOnboarding, modalRosterImport,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -60,6 +62,7 @@ const s = {
 let _cameraStream = null;
 let _scanFrame    = null;
 let _pendingImport = null;
+let _rosterImport  = null; // { step, fileName, columns, rows, mapping, importing, error, summary } | null
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function today() {
@@ -211,6 +214,88 @@ async function initAuthSync() {
       draw();
     }
   });
+}
+
+// ── Roster import (HC/TD CSV column-mapping wizard, Phase 3.2) ───────────────
+// Gating note: shown for any signed-in user (isAuthConfigured() && s.authUser)
+// -- the app does not know client-side whether the caller is HC/TD, so we
+// rely on the backend's own 403 (app/routes.py's import_roster: "roster
+// import is head-coach/team-director only") to actually enforce it. Simpler
+// than duplicating persona-role logic client-side, and the 403 surfaces as
+// an inline error same as any other import failure.
+function renderRosterImport() {
+  const scroll = document.querySelector('#sheet .sheet-scroll');
+  if (scroll) scroll.innerHTML = modalRosterImport(_rosterImport);
+}
+
+function onRosterImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const { columns, rows } = parseCsv(String(ev.target.result ?? ''));
+      if (!rows.length) {
+        _rosterImport.error = "Couldn't read the sheet. Make sure row 1 has column headers and there's at least one data row.";
+        log.warn('roster_import.parse_empty', { file: file.name });
+        renderRosterImport();
+        return;
+      }
+      _rosterImport = {
+        step: 'mapping',
+        fileName: file.name,
+        columns,
+        rows,
+        mapping: guessMapping(columns),
+        importing: false,
+        error: null,
+        summary: null,
+      };
+      log.info('roster_import.parsed', { rows: rows.length, columns: columns.length });
+      renderRosterImport();
+    } catch (err) {
+      _rosterImport.error = "Couldn't read the sheet. Make sure it's a valid CSV export.";
+      log.error('roster_import.parse_failed', { error: String(err) });
+      renderRosterImport();
+    }
+  };
+  reader.onerror = () => {
+    _rosterImport.error = 'Could not read that file.';
+    log.error('roster_import.file_read_failed', { file: file.name });
+    renderRosterImport();
+  };
+  reader.readAsText(file);
+}
+
+function submitRosterImport() {
+  if (!_rosterImport || _rosterImport.importing) return;
+  const mapped = mapRows(_rosterImport.rows, _rosterImport.mapping);
+  if (!mapped.length) {
+    _rosterImport.error = 'No rows have a name — check your First/Last name column mapping.';
+    renderRosterImport();
+    return;
+  }
+
+  _rosterImport.importing = true;
+  _rosterImport.error = null;
+  renderRosterImport();
+  log.info('roster_import.submit', { rows: mapped.length });
+
+  getAccessToken()
+    .then(token => postImport(mapped, token, BACKEND_URL))
+    .then(summary => {
+      _rosterImport.step = 'summary';
+      _rosterImport.summary = summary;
+      _rosterImport.importing = false;
+      log.info('roster_import.done', summary);
+      renderRosterImport();
+    })
+    .catch(err => {
+      _rosterImport.importing = false;
+      _rosterImport.error = err?.message || String(err);
+      log.error('roster_import.failed', { error: _rosterImport.error });
+      renderRosterImport();
+    });
 }
 
 // ── Log / Confirm helpers ─────────────────────────────────────────────────────
@@ -598,6 +683,13 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'open-roster-import') {
+    _rosterImport = { step: 'upload', fileName: null, columns: [], rows: [], mapping: {}, importing: false, error: null, summary: null };
+    log.info('roster_import.open');
+    openModal(modalRosterImport(_rosterImport));
+    return;
+  }
+
   if (action === 'save-notes') return;
 }
 
@@ -772,6 +864,11 @@ function onSheetClick(e) {
     return;
   }
 
+  if (action === 'roster-import-confirm') {
+    submitRosterImport();
+    return;
+  }
+
   if (action === 'confirm-merge') {
     if (!_pendingImport?.existingAthlete) return;
     const { payload, existingAthlete } = _pendingImport;
@@ -811,6 +908,14 @@ document.body.addEventListener('change', e => {
     reader.readAsDataURL(file);
   } else if (e.target.id === 'imp-file') {
     onImport(e);
+  } else if (e.target.id === 'roster-import-file') {
+    onRosterImportFile(e);
+  } else if (e.target.classList.contains('ri-map-select')) {
+    if (_rosterImport) {
+      _rosterImport.mapping = { ..._rosterImport.mapping, [e.target.dataset.field]: e.target.value || null };
+      _rosterImport.error = null;
+      renderRosterImport();
+    }
   } else if (e.target.id === 'inp-feedback-mode') {
     localStorage.setItem('mtb_feedback_mode', e.target.checked ? 'true' : 'false');
     location.reload();
