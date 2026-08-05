@@ -1,6 +1,8 @@
 dist/
 node_modules/
 .env
+.env.local
+.env.*.local
 *.log
 __pycache__/
 .pytest_cache/
