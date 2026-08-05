@@ -118,3 +118,74 @@ def rls_connection(database_url: str, sub: str) -> Iterator[psycopg.Connection]:
             log.info("db.rls_session_closed", duration_ms=duration_ms)
     finally:
         conn.close()
+
+
+@contextmanager
+def service_connection(database_url: str) -> Iterator[psycopg.Connection]:
+    """⚠️ RLS-BYPASSING connection. Read this whole docstring before calling
+    it from anywhere new.
+
+    Unlike `rls_connection` above (the path EVERY other query in this
+    backend must use), this opens a plain connection as whatever role
+    `database_url` connects as and does **not** `SET ROLE authenticated` and
+    does **not** set the `request.jwt.claims` GUC. It therefore runs as the
+    connecting (privileged/owner) role, with Postgres Row-Level Security
+    fully bypassed -- the same way `owner_conn` in this repo's own test
+    fixtures (tests/backend/conftest.py) bypasses RLS to seed data.
+
+    THIS IS THE ONE DELIBERATE BYPASS IN THE SYSTEM, and it exists for
+    exactly one reason: `supabase/migrations/0004_auth_person_rls.sql`
+    enables RLS on `auth_person` with a SELECT-only policy (`auth_person_
+    select_own`) and, by design, NO insert/update/delete policy -- linking a
+    Supabase auth user to a coach `person` is defined as a privileged
+    onboarding operation, never something an already-`authenticated` caller
+    can do to themselves via `rls_connection`. Something still has to create
+    that first link on a coach's first login (docs/PHASE3_1_ONBOARDING.md) --
+    that "something" is `app.onboarding.bootstrap_link`, and this function is
+    the ONLY connection it (or anything else) should use to do it.
+
+    Hard scope -- do not grow what this function is used for:
+      - It must be called ONLY from `app.onboarding` (the first-login
+        bootstrap). No route handler, and no other module, should import or
+        call this directly.
+      - The only operations that should ever run against the yielded
+        connection are: (a) SELECT `person` rows by (verified) email,
+        restricted to coach roles, and (b) INSERT into `auth_person`. It
+        must never be used to read or return athlete rows, observations, or
+        confirmed levels to a caller -- those stay behind `rls_connection`
+        for every request, with no exceptions.
+      - The email matched against must be a value that has ALREADY passed
+        `app.auth.verify_supabase_jwt` (i.e. came from a verified JWT's
+        `email` claim, not an unauthenticated request body) -- this function
+        performs no verification of its own.
+
+    Connection handling mirrors `rls_connection`: `prepare_threshold=None`
+    (required for Supabase's transaction pooler/pgbouncer in production,
+    harmless locally), a `connect_timeout` so a network partition fails fast
+    instead of hanging a request, commit on clean exit, rollback + re-raise
+    on exception, connection always closed. Connect failures are wrapped in
+    `RlsConnectionError` for the same reason `rls_connection` wraps its own
+    (a uniform, already-handled exception type for callers to catch) --
+    despite the name, that exception type just means "the DB session
+    helper couldn't establish its session," which applies here too.
+    """
+    try:
+        conn = psycopg.connect(database_url, autocommit=False, prepare_threshold=None, connect_timeout=10)
+    except psycopg.Error as exc:
+        log.error("db.service_connect_failed", error=str(exc))
+        raise RlsConnectionError(f"could not connect to database: {exc}") from exc
+
+    start = time.monotonic()
+    try:
+        try:
+            yield conn
+        except Exception:
+            conn.rollback()
+            raise
+        else:
+            conn.commit()
+        finally:
+            duration_ms = round((time.monotonic() - start) * 1000, 2)
+            log.info("db.service_session_closed", duration_ms=duration_ms)
+    finally:
+        conn.close()
