@@ -30,34 +30,42 @@ VITE_BACKEND_URL=http://localhost:8000
 npm run dev     # http://localhost:5173
 ```
 
-## 3. First sign-in (expected 403 — no persona yet)
-Open :5173 → Settings → **Sign in with Google** → pick your account. You'll land back signed in, but sync will report an error / no data — **that's expected**: your Google account isn't linked to a coach yet (there's no onboarding/import in 3.1). This first sign-in *creates* your Supabase `auth.users` row, which the seed below needs.
+## 3. Seed the test scenario (Supabase → SQL Editor, mtb-itg)
+> Requires migration **0005** applied (adds `person.email`). With the onboarding
+> auto-link (PR #21) you do **not** hand-insert an `auth_person` row — you put
+> **your Google email on a coach `person` row**, and first sign-in links you
+> automatically. (In the real pilot these rows come from the HC roster import;
+> this SQL stands in for it during the test.)
 
-## 4. Seed a minimal test scenario (Supabase → SQL Editor, mtb-itg)
-First get your auth user id:
+In the SQL Editor, paste this — it makes **your email** the Head Coach of Team A,
+with a second coach who already logged an observation (the "other coach's score"
+you should see) and a Team B athlete you must NOT be able to touch. **Replace
+`you@gmail.com` with the Google address you'll sign in with.** Idempotent — safe
+to re-run:
 ```sql
-select id, email from auth.users;            -- copy YOUR id
-```
-Then paste this, replacing `:MY_AUTH_ID` (from above) — it makes you **Head Coach of Team A**, with a *second* coach who already logged an observation (so you can see another coach's score), plus a Team B athlete you must NOT be able to touch:
-```sql
-insert into league(id,name) values ('00000000-0000-0000-0000-0000000000a1','Idaho');
+insert into league(id,name) values ('00000000-0000-0000-0000-0000000000a1','Idaho') on conflict (id) do nothing;
 insert into team(id,league_id,name) values
   ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000a1','Boise'),
-  ('00000000-0000-0000-0000-0000000000b2','00000000-0000-0000-0000-0000000000a1','Meridian');
+  ('00000000-0000-0000-0000-0000000000b2','00000000-0000-0000-0000-0000000000a1','Meridian') on conflict (id) do nothing;
 insert into ride_group(id,team_id,name) values
-  ('00000000-0000-0000-0000-0000000000c1','00000000-0000-0000-0000-0000000000b1','Group A1');
-insert into person(id,team_id,ride_group_id,role,name) values
-  ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000b1',null,'head_coach','You (HC)'),
-  ('00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000c1','coach','Coach Sam'),
-  ('00000000-0000-0000-0000-0000000000e1','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000c1','athlete','Alice (Team A)'),
-  ('00000000-0000-0000-0000-0000000000e2','00000000-0000-0000-0000-0000000000b2',null,'athlete','Carol (Team B)');
--- link YOUR Google login to the HC person:
-insert into auth_person(auth_user_id,person_id) values (':MY_AUTH_ID','00000000-0000-0000-0000-0000000000d1');
--- Coach Sam already recorded a skill for Alice — this is the "other coach's score" you should see:
+  ('00000000-0000-0000-0000-0000000000c1','00000000-0000-0000-0000-0000000000b1','Group A1') on conflict (id) do nothing;
+insert into person(id,team_id,ride_group_id,role,name,email) values
+  ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000b1',null,'head_coach','You (HC)','you@gmail.com'),
+  ('00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000c1','coach','Coach Sam',null),
+  ('00000000-0000-0000-0000-0000000000e1','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000c1','athlete','Alice (Team A)',null),
+  ('00000000-0000-0000-0000-0000000000e2','00000000-0000-0000-0000-0000000000b2',null,'athlete','Carol (Team B)',null) on conflict (id) do nothing;
+-- your email on the HC row is the whole "give a coach your email" step (also fixes an older seed that lacked it):
+update person set email='you@gmail.com' where id='00000000-0000-0000-0000-0000000000d1';
+-- run ONCE: Coach Sam's observation for Alice (the score you should see):
 insert into observation(id,athlete_id,team_id,coach_id,ride_group_id,session_date,skill,level_observed)
   values (gen_random_uuid(),'00000000-0000-0000-0000-0000000000e1','00000000-0000-0000-0000-0000000000b1',
           '00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000c1',current_date,'braking',2);
 ```
+
+## 4. Sign in → auto-link
+Open :5173 → Settings → **Sign in with Google** → pick the account whose email you
+put on the HC row. First sign-in verifies your email and auto-creates the
+`auth_person` link (onboarding bootstrap). No manual linking needed.
 
 ## 5. Reload the app → verify the round-trip
 Back on :5173, reload (or Settings → **Sync now**). Expect:
@@ -72,7 +80,8 @@ Back on :5173, reload (or Settings → **Sync now**). Expect:
 - **Backend 401 / "could not resolve signing key"** → the JWKS fetch from `SUPABASE_URL` failed. Check `SUPABASE_URL` is exactly `https://<itg-ref>.supabase.co` (no trailing path) and the backend can reach the internet. (Asymmetric ES256 verification is now built in — `pyjwt[crypto]` + JWKS.)
 - **Backend 500 / "could not connect"** → check the `DATABASE_URL` is the `:6543` transaction pooler and the password is right.
 - **CORS error in the browser console** → backend `ALLOWED_ORIGINS` must be exactly `http://localhost:5173`.
-- **403 "not a recognized coach" after seeding** → the `auth_person` link didn't match; re-check `:MY_AUTH_ID` equals the `auth.users.id` for the email you signed in with.
+- **403 "not a recognized coach" after seeding** → the email on the coach `person` row doesn't match the Google account you signed in with (case-insensitive). Re-check the `update person set email=...` used your real sign-in address, and that migration 0005 (`person.email`) is applied.
+- **`column p.email does not exist`** in the backend log → migration **0005** isn't applied to that project. Apply it (SQL Editor): `alter table person add column if not exists email text; create index if not exists person_email_lower_idx on person (lower(email));`.
 
 ## Cleanup (optional)
 `delete from league where id='00000000-0000-0000-0000-0000000000a1';` (cascades where FKs allow; or truncate the test rows) — do this before the pilot uses the project, or seed pilot data instead.

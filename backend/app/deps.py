@@ -16,6 +16,15 @@ HEADSTART.md's fork-independent core, all reused unmodified here):
        all, e.g. a verified-but-unprovisioned login or an athlete-only
        auth link).
 
+If step 3 comes back empty, `get_caller` also runs the Phase 3.1 first-login
+bootstrap (docs/PHASE3_1_ONBOARDING.md): app.onboarding.bootstrap_link,
+given the JWT's own verified `email` claim, attempts to link `sub` to a
+pre-authorized coach `person` row sharing that email, then re-resolves
+personas via a fresh `rls_connection` before falling through to the 403.
+This is the ONLY caller of `bootstrap_link` / the RLS-bypassing
+app.db.service_connection it uses internally -- see those modules'
+docstrings for the security boundary.
+
 Route handlers depend on `get_caller` (never call verify_supabase_jwt /
 resolve_personas themselves) and get back a `Caller`, then open their OWN
 `rls_connection(settings.database_url, caller.sub)` for the actual data
@@ -35,6 +44,7 @@ from app.config import Settings
 from app.db import rls_connection
 from app.identity import Persona, resolve_personas
 from app.logging import get_logger
+from app.onboarding import bootstrap_link
 
 log = get_logger("app.deps")
 
@@ -107,6 +117,25 @@ def get_caller(request: Request) -> Caller:
 
     with rls_connection(settings.database_url, sub) as conn:
         personas = resolve_personas(conn, sub)
+
+    if not personas:
+        # First-login bootstrap (docs/PHASE3_1_ONBOARDING.md): a verified
+        # session with zero coach personas yet is exactly the "first sign-in,
+        # never linked before" case -- if the JWT carries a verified `email`
+        # claim, attempt to redeem it against a pre-authorized coach `person`
+        # row (app.onboarding.bootstrap_link, via the RLS-bypassing
+        # app.db.service_connection -- see that module's docstrings for why
+        # this is the one legitimate bypass in the system). Re-resolve
+        # personas through a FRESH rls_connection afterward -- never reuse
+        # the connection above, and never trust bootstrap_link's own return
+        # value in place of actually re-checking what RLS now says this sub
+        # can see.
+        email = claims.get("email")
+        if email:
+            links_created = bootstrap_link(settings.database_url, sub, email)
+            if links_created > 0:
+                with rls_connection(settings.database_url, sub) as conn:
+                    personas = resolve_personas(conn, sub)
 
     if not personas:
         log.warn("auth.no_persona", sub=sub)
