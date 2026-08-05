@@ -3,16 +3,17 @@
 The one non-automated gate for 3.1: sign in with Google for real and watch a coach's data round-trip through FastAPI under RLS. Run against the **`mtb-itg`** Supabase project. ~10 min.
 
 ## 1. Backend env + run
-Get the values: `DATABASE_URL` = mtb-itg **transaction pooler** (`:6543`) string (Connect dialog); `SUPABASE_JWT_SECRET` = Supabase → **Settings → API → JWT Settings → JWT Secret** (the legacy HS256 secret — reveal it); `GOOGLE_CLIENT_ID` = your `VITE_GOOGLE_CLIENT_ID`.
+Get the values: `DATABASE_URL` = mtb-itg **transaction pooler** (`:6543`) string (Connect dialog); `SUPABASE_URL` = `https://<itg-ref>.supabase.co` (same as `VITE_SUPABASE_URL`); `GOOGLE_CLIENT_ID` = your `VITE_GOOGLE_CLIENT_ID`. The backend verifies Supabase's ES256 tokens via the project's JWKS (derived from `SUPABASE_URL`) — no JWT secret needed on modern projects.
 
 ```bash
 cd backend
 export DATABASE_URL='postgresql://postgres.<itg-ref>:<pw>@aws-0-<region>.pooler.supabase.com:6543/postgres'
-export SUPABASE_JWT_SECRET='<mtb-itg JWT secret>'
+export SUPABASE_URL='https://<itg-ref>.supabase.co'
 export GOOGLE_CLIENT_ID='<clientid>.apps.googleusercontent.com'
 export SESSION_SECRET="$(openssl rand -hex 32)"     # required by config; unused in 3.1
 export ALLOWED_ORIGINS='http://localhost:5173'
-../.venv/bin/pip install -r requirements.txt
+# (SUPABASE_JWT_SECRET only if your project still uses legacy HS256 signing.)
+../.venv/bin/pip install -r requirements.txt        # now pulls pyjwt[crypto] for ES256
 ../.venv/bin/uvicorn app.main:app --reload --port 8000
 # health check in another shell: curl localhost:8000/health  -> {"status":"ok"}
 ```
@@ -68,7 +69,7 @@ Back on :5173, reload (or Settings → **Sync now**). Expect:
 
 ## Troubleshooting
 - **Sign-in loops / "redirect" error** → the redirect URL isn't allow-listed. Supabase → Authentication → URL Configuration → Redirect URLs must include `http://localhost:5173/**`; Site URL = `http://localhost:5173`.
-- **Backend 401 on every call / "JWT verify failed"** → likely the project uses Supabase's **new asymmetric signing keys** rather than the legacy HS256 secret. Tell me — it's a small change to `backend/app/auth.py` to verify via the project's JWKS endpoint instead. (Known risk flagged in the head-start.)
+- **Backend 401 / "could not resolve signing key"** → the JWKS fetch from `SUPABASE_URL` failed. Check `SUPABASE_URL` is exactly `https://<itg-ref>.supabase.co` (no trailing path) and the backend can reach the internet. (Asymmetric ES256 verification is now built in — `pyjwt[crypto]` + JWKS.)
 - **Backend 500 / "could not connect"** → check the `DATABASE_URL` is the `:6543` transaction pooler and the password is right.
 - **CORS error in the browser console** → backend `ALLOWED_ORIGINS` must be exactly `http://localhost:5173`.
 - **403 "not a recognized coach" after seeding** → the `auth_person` link didn't match; re-check `:MY_AUTH_ID` equals the `auth.users.id` for the email you signed in with.

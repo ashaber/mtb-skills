@@ -15,7 +15,7 @@ REQUIRED = {
     "DATABASE_URL": "postgresql://placeholder",
     "SESSION_SECRET": "placeholder",
     "GOOGLE_CLIENT_ID": "ci-placeholder.apps.googleusercontent.com",
-    "SUPABASE_JWT_SECRET": "ci-placeholder-jwt-secret",
+    "SUPABASE_URL": "https://placeholder.supabase.co",
 }
 
 
@@ -50,7 +50,9 @@ def test_from_env_succeeds_with_a_full_env(monkeypatch: pytest.MonkeyPatch) -> N
     assert settings.database_url == REQUIRED["DATABASE_URL"]
     assert settings.session_secret == REQUIRED["SESSION_SECRET"]
     assert settings.google_client_id == REQUIRED["GOOGLE_CLIENT_ID"]
-    assert settings.supabase_jwt_secret == REQUIRED["SUPABASE_JWT_SECRET"]
+    assert settings.supabase_url == REQUIRED["SUPABASE_URL"]
+    assert settings.jwks_url == "https://placeholder.supabase.co/auth/v1/.well-known/jwks.json"
+    assert settings.supabase_jwt_secret == ""  # optional, unset -> empty default
 
 
 def test_from_env_defaults_apply(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -124,6 +126,7 @@ def test_secrets_are_stripped_of_surrounding_whitespace(
     monkeypatch.setenv("DATABASE_URL", " postgresql://placeholder\n")
     monkeypatch.setenv("SESSION_SECRET", "placeholder\n")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", " ci-placeholder.apps.googleusercontent.com ")
+    monkeypatch.setenv("SUPABASE_URL", " https://placeholder.supabase.co\n")
     monkeypatch.setenv("SUPABASE_JWT_SECRET", " ci-placeholder-jwt-secret\n")
 
     settings = Settings.from_env()
@@ -131,4 +134,5 @@ def test_secrets_are_stripped_of_surrounding_whitespace(
     assert settings.database_url == "postgresql://placeholder"
     assert settings.session_secret == "placeholder"
     assert settings.google_client_id == "ci-placeholder.apps.googleusercontent.com"
+    assert settings.supabase_url == "https://placeholder.supabase.co"
     assert settings.supabase_jwt_secret == "ci-placeholder-jwt-secret"

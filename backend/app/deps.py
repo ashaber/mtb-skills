@@ -94,7 +94,11 @@ def get_caller(request: Request) -> Caller:
     settings = get_settings_dep(request)
 
     try:
-        claims = verify_supabase_jwt(token, settings.supabase_jwt_secret)
+        claims = verify_supabase_jwt(
+            token,
+            jwks_url=settings.jwks_url,
+            hs256_secret=settings.supabase_jwt_secret or None,
+        )
     except AuthError as exc:
         log.warn("auth.token_invalid", error=str(exc))
         raise HTTPException(status_code=401, detail="invalid or expired token") from exc

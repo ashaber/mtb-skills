@@ -26,7 +26,7 @@ try:
 except ImportError:  # pragma: no cover - python-dotenv is a listed dependency
     pass
 
-_REQUIRED_VARS = ("DATABASE_URL", "SESSION_SECRET", "GOOGLE_CLIENT_ID", "SUPABASE_JWT_SECRET")
+_REQUIRED_VARS = ("DATABASE_URL", "SESSION_SECRET", "GOOGLE_CLIENT_ID", "SUPABASE_URL")
 _VALID_STORE_BACKENDS = ("db", "local")
 _VALID_LOG_LEVELS = ("debug", "info", "warn", "error")
 
@@ -71,16 +71,21 @@ class Settings(BaseSettings):
     # now so 3.1 doesn't need a new deploy just to add this var.
     google_client_id: str
 
-    # Signing secret for Supabase's own auth JWTs (HS256) -- verified
-    # server-side by app/auth.py::verify_supabase_jwt() once a coach's
-    # Supabase session token is presented to this backend (3.1). SECRET --
-    # Supabase project settings -> API -> JWT Secret. Required now (not
-    # deferred to whichever increment adds the first auth-checked route) so
-    # 3.1 is a code change, not a config/deploy change -- same rationale as
-    # `session_secret`/`google_client_id` above.
-    supabase_jwt_secret: str
+    # The Supabase project URL (same value as the frontend's
+    # VITE_SUPABASE_URL), e.g. https://<ref>.supabase.co. Used to build the
+    # JWKS discovery URL so app/auth.py can verify Supabase's asymmetric
+    # (ES256/RS256) session tokens -- which is what new Supabase projects
+    # issue by default. Required. NOT a secret (it's a public URL).
+    supabase_url: str
 
     # --- optional, sensible defaults shown ----------------------------------
+
+    # Legacy HS256 shared secret (Supabase settings -> API -> JWT Secret).
+    # Optional: only projects still on legacy HS256 signing need it. Projects
+    # on the newer asymmetric signing keys verify via the JWKS URL derived
+    # from `supabase_url` instead (see app/auth.py::verify_supabase_jwt).
+    # SECRET when set -- never commit a real value.
+    supabase_jwt_secret: str = ""
 
     # HTTP port uvicorn binds to (Cloud Run injects PORT itself).
     port: int = 8000
@@ -104,7 +109,13 @@ class Settings(BaseSettings):
     # Structured-logger level (app/logging.py). One of debug/info/warn/error.
     log_level: str = "info"
 
-    @field_validator("database_url", "session_secret", "google_client_id", "supabase_jwt_secret")
+    @property
+    def jwks_url(self) -> str:
+        """Supabase Auth JWKS discovery endpoint, derived from `supabase_url`.
+        Used by app/auth.py to verify asymmetric (ES256/RS256) session tokens."""
+        return f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+
+    @field_validator("database_url", "session_secret", "google_client_id", "supabase_url", "supabase_jwt_secret")
     @classmethod
     def _strip_secret(cls, value: str) -> str:
         # Secret managers and printf/echo pipelines routinely leave a

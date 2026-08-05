@@ -62,7 +62,8 @@ def client(db_url: str, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DATABASE_URL", db_url)
     monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "test.apps.googleusercontent.com")
-    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_SUPABASE_JWT_SECRET)
+    monkeypatch.setenv("SUPABASE_URL", "https://placeholder.supabase.co")  # required; JWKS unused (tokens are HS256)
+    monkeypatch.setenv("SUPABASE_JWT_SECRET", TEST_SUPABASE_JWT_SECRET)  # HS256 path for the test tokens
 
     from fastapi.testclient import TestClient
 
