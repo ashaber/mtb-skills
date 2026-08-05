@@ -22,12 +22,13 @@ from typing import Any
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException
 
+from app import roster
 from app.config import Settings
 from app.db import rls_connection
 from app.deps import Caller, get_caller, get_settings_dep
 from app.identity import Persona
 from app.logging import get_logger
-from app.schemas import ConfirmedLevelIn, ObservationIn
+from app.schemas import ConfirmedLevelIn, ObservationIn, RosterImportIn
 
 log = get_logger("app.routes")
 
@@ -357,3 +358,56 @@ def list_roster(
             """
         ).fetchall()
     return [_person_row_to_dict(row) for row in rows]
+
+
+# ==========================================================================
+# roster import -- HC/TD bulk upsert (app/roster.py does the actual merge
+# logic; this route's job is entirely "which team is this caller allowed to
+# import into" + wiring the RLS-scoped connection).
+# ==========================================================================
+
+_HC_TD_ROLES = ("head_coach", "team_director")
+
+
+@router.post("/roster/import")
+def import_roster(
+    body: RosterImportIn,
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    # Target team is ALWAYS derived from the caller's own HC/TD persona --
+    # never from anything in the request body (app/roster.py's module
+    # docstring / RosterRowIn's docstring: rows carry no team_id at all, so
+    # there is no vector for a client to name a different team here, even
+    # before RLS would deny the resulting write anyway).
+    hc_td_team_ids = {p.team_id for p in caller.personas if p.role in _HC_TD_ROLES}
+
+    if not hc_td_team_ids:
+        log.warn("roster.import_denied_not_hc", sub=caller.sub)
+        raise HTTPException(status_code=403, detail="roster import is head-coach/team-director only")
+
+    if len(hc_td_team_ids) > 1:
+        # TODO 3.x: multi-team HC support -- accept an explicit team_id in
+        # the request body (validated against the caller's own HC/TD
+        # team_ids) once a coach can lead more than one team in the pilot.
+        # Out of scope for now (CLAUDE.md's Phase 3 pilot is one-team-per-
+        # coach in the common case; this is the rare traveling-TD case
+        # app/identity.py's MultiplePersonasError already anticipates).
+        log.warn("roster.import_ambiguous_team", sub=caller.sub, team_count=len(hc_td_team_ids))
+        raise HTTPException(status_code=400, detail="specify which team")
+
+    (team_id,) = hc_td_team_ids
+
+    with rls_connection(settings.database_url, caller.sub) as conn:
+        try:
+            summary = roster.import_roster(conn, uuid.UUID(team_id), body.rows)
+        except psycopg.Error as exc:
+            # Shouldn't happen -- team_id is the caller's own HC/TD team, so
+            # RLS's person_insert/person_update/ride_group_insert policies
+            # (all "team_id in caller's own HC/TD teams") should always
+            # allow this. Denied anyway (defense in depth) -> 403, never a
+            # raw 500 for what is fundamentally an authorization outcome.
+            log.warn("roster.import_denied", sub=caller.sub, team_id=team_id, error=str(exc))
+            raise HTTPException(status_code=403, detail="cannot import roster for that team") from exc
+
+    return summary
