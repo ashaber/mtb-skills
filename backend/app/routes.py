@@ -248,7 +248,7 @@ def create_observation(
                     """,
                     (obs_id,),
                 ).fetchone()
-        except psycopg.Error as exc:
+        except psycopg.errors.InsufficientPrivilege as exc:
             log.warn("observations.insert_denied", athlete_id=str(body.athlete_id), sub=caller.sub, error=str(exc))
             raise HTTPException(status_code=403, detail="cannot record for that athlete") from exc
 
@@ -329,7 +329,7 @@ def upsert_confirmed_level(
                     """,
                     (body.athlete_id, team_id, coach.person_id, ride_group_id, body.skill.value, body.level),
                 ).fetchone()
-        except psycopg.Error as exc:
+        except psycopg.errors.InsufficientPrivilege as exc:
             log.warn(
                 "confirmed_levels.upsert_denied", athlete_id=str(body.athlete_id), sub=caller.sub, error=str(exc)
             )
@@ -403,12 +403,15 @@ def import_roster(
     with rls_connection(settings.database_url, caller.sub) as conn:
         try:
             summary = roster.import_roster(conn, uuid.UUID(team_id), body.rows)
-        except psycopg.Error as exc:
-            # Shouldn't happen -- team_id is the caller's own HC/TD team, so
-            # RLS's person_insert/person_update/ride_group_insert policies
-            # (all "team_id in caller's own HC/TD teams") should always
-            # allow this. Denied anyway (defense in depth) -> 403, never a
-            # raw 500 for what is fundamentally an authorization outcome.
+        except psycopg.errors.InsufficientPrivilege as exc:
+            # ONLY an actual RLS-policy denial (SQLSTATE 42501) is treated as
+            # a 403. Shouldn't normally happen -- team_id is the caller's own
+            # HC/TD team, so the person/ride_group RLS policies should always
+            # allow it -- but if it does, it's an authorization outcome, not a
+            # 500. Any OTHER psycopg error (missing column, bad FK, etc.) is a
+            # genuine server/schema fault and deliberately propagates to
+            # main.py's handler as a 500 -- NOT masked as "cannot import for
+            # that team", which previously mislabeled schema errors as authz.
             log.warn("roster.import_denied", sub=caller.sub, team_id=team_id, error=str(exc))
             raise HTTPException(status_code=403, detail="cannot import roster for that team") from exc
 
