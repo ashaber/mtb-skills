@@ -26,7 +26,11 @@ Merge key priority, scoped to `team_id`, tried in order until one matches:
     2. `email` (case-insensitive)
     3. `name` (case-insensitive)
 A match -> UPDATE (name, role, email, ride_group_id, external_id, grade,
-category) on the existing row. No match -> INSERT a new `person` row.
+category, tags) on the existing row. No match -> INSERT a new `person` row.
+`tags` (supabase/migrations/0007_person_tags.sql) is carried straight
+through on both paths -- a re-import REPLACES the existing tag list with
+whatever the row specifies (not a merge/append), same last-write-wins
+posture as every other re-importable field here.
 
 `ride_group` values are resolved/created up front (case-insensitive match
 by (team_id, name); INSERT if absent -- there is no unique constraint on
@@ -149,7 +153,7 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
                 """
                 update person
                 set name = %s, role = %s, email = %s, ride_group_id = %s, external_id = %s,
-                    grade = %s, category = %s
+                    grade = %s, category = %s, tags = %s
                 where id = %s
                 """,
                 (
@@ -160,6 +164,7 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
                     row.external_id,
                     row.grade,
                     row.category,
+                    row.tags,
                     matched_id,
                 ),
             )
@@ -167,8 +172,9 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
         else:
             conn.execute(
                 """
-                insert into person (id, team_id, ride_group_id, role, name, email, external_id, grade, category)
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                insert into person
+                    (id, team_id, ride_group_id, role, name, email, external_id, grade, category, tags)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     uuid.uuid4(),
@@ -180,6 +186,7 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
                     row.external_id,
                     row.grade,
                     row.category,
+                    row.tags,
                 ),
             )
             people_created += 1

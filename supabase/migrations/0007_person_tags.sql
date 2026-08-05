@@ -1,0 +1,31 @@
+-- MTB Skills -- Phase 3.x -- person.tags (descriptive folksonomy).
+--
+-- docs/PHASE3_RECONCILIATION_PLAN.md: "lead/sweep = tags (folksonomy,
+-- arbitrary/multiple) now; permissions later when attendance/promote-demote/
+-- medical land." This column is PURELY DESCRIPTIVE -- a coach labeling
+-- themselves or (via POST /api/roster/import / a future coach-roster-edit
+-- UI) another coach with free-text labels like "lead", "sweep", "floater".
+-- Tags carry NO authorization meaning of their own: nothing in
+-- supabase/migrations/0002_rls.sql or 0008_coach_add_athlete_rls.sql reads
+-- this column, and no future migration should silently start treating a tag
+-- as a permission check without an explicit, reviewed policy change -- if/
+-- when "lead" needs to actually GATE something (e.g. attendance-taking,
+-- promote/demote, medical-info visibility), that gets its own dedicated
+-- column/table and RLS policy, not an implicit read of this folksonomy.
+--
+-- Array, not a join table: tags are arbitrary and multiple per person
+-- (CLAUDE.md doesn't define a fixed vocabulary), and the pilot has no need
+-- yet for tag-level querying/indexing beyond "does this person have tag X"
+-- (a GIN index can be added later if that lookup becomes hot -- not needed
+-- for the pilot's roster sizes).
+--
+-- No RLS change needed: 0002_rls.sql's `person_select`/`person_insert`/
+-- `person_update` policies (plus 0008_coach_add_athlete_rls.sql's additive
+-- insert policy) already scope which `person` rows a caller can see or
+-- write -- tags just ride along as an ordinary column on rows already
+-- subject to those policies, same rationale as 0005_person_email.sql's own
+-- note for `email` and 0006_person_grade_category.sql's for grade/category.
+--
+-- Idempotent: `add column if not exists`.
+
+alter table person add column if not exists tags text[] not null default '{}';

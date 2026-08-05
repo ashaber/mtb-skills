@@ -28,7 +28,7 @@ from app.db import rls_connection
 from app.deps import Caller, get_caller, get_settings_dep
 from app.identity import Persona
 from app.logging import get_logger
-from app.schemas import ConfirmedLevelIn, ObservationIn, RosterImportIn
+from app.schemas import AthleteIn, ConfirmedLevelIn, ObservationIn, RosterImportIn
 
 log = get_logger("app.routes")
 
@@ -89,7 +89,7 @@ def _confirmed_level_row_to_dict(row: tuple) -> dict[str, Any]:
 
 
 def _person_row_to_dict(row: tuple) -> dict[str, Any]:
-    (person_id, team_id, ride_group_id, role, name, external_id, grade, category) = row
+    (person_id, team_id, ride_group_id, role, name, external_id, grade, category, tags) = row
     return {
         "id": str(person_id),
         "team_id": str(team_id),
@@ -99,6 +99,7 @@ def _person_row_to_dict(row: tuple) -> dict[str, Any]:
         "external_id": external_id,
         "grade": grade,
         "category": category,
+        "tags": list(tags) if tags is not None else [],
     }
 
 
@@ -354,12 +355,81 @@ def list_roster(
     with rls_connection(settings.database_url, caller.sub) as conn:
         rows = conn.execute(
             """
-            select id, team_id, ride_group_id, role, name, external_id, grade, category
+            select id, team_id, ride_group_id, role, name, external_id, grade, category, tags
             from person
             order by name
             """
         ).fetchall()
     return [_person_row_to_dict(row) for row in rows]
+
+
+# ==========================================================================
+# athletes -- a coach adding a single walk-up athlete to their own ride
+# group (docs/PHASE3_RECONCILIATION_PLAN.md decision (a);
+# supabase/migrations/0008_coach_add_athlete_rls.sql is the actual authz).
+# ==========================================================================
+
+
+@router.post("/athletes", status_code=201)
+def create_athlete(
+    body: AthleteIn,
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    with rls_connection(settings.database_url, caller.sub) as conn:
+        # team_id is ALWAYS derived from the target ride_group row itself,
+        # never taken from the request body (AthleteIn has no team_id field
+        # at all) -- this SELECT runs through the caller's own RLS scope, so
+        # a ride_group the caller can't see (not their own group, and they
+        # aren't HC/TD on that team) returns zero rows here, same as
+        # _resolve_athlete_scope's "doesn't exist vs. hidden by RLS" posture
+        # above -- indistinguishable from this backend's point of view, and
+        # deliberately so.
+        group_row = conn.execute(
+            "select team_id from ride_group where id = %s",
+            (body.ride_group_id,),
+        ).fetchone()
+        if group_row is None:
+            log.warn("athletes.ride_group_not_in_scope", ride_group_id=str(body.ride_group_id), sub=caller.sub)
+            raise HTTPException(status_code=403, detail="cannot add to that group")
+
+        team_id = group_row[0]
+        person_id = uuid.uuid4()
+
+        try:
+            # role is hardcoded 'athlete' here -- AthleteIn has no role
+            # field for a client to override it with (see its docstring).
+            # The actual authorization decision (is THIS caller allowed to
+            # insert an athlete into THIS ride_group_id/team_id pair) is
+            # made by Postgres RLS (0008_coach_add_athlete_rls.sql for a
+            # plain ride-group coach, 0002_rls.sql's person_insert for
+            # HC/TD), not by anything in this route.
+            row = conn.execute(
+                """
+                insert into person (id, team_id, ride_group_id, role, name, grade, category)
+                values (%s, %s, %s, 'athlete', %s, %s, %s)
+                returning id, team_id, ride_group_id, role, name, external_id, grade, category, tags
+                """,
+                (person_id, team_id, body.ride_group_id, body.name, body.grade, body.category),
+            ).fetchone()
+        except psycopg.errors.InsufficientPrivilege as exc:
+            # ONLY an actual RLS-policy denial (SQLSTATE 42501) is treated as
+            # a 403 -- mirrors the tightened error handling in
+            # import_roster/create_observation/upsert_confirmed_level above.
+            # Any other psycopg error is a genuine server/schema fault and
+            # propagates to main.py's handler as a 500.
+            log.warn(
+                "athletes.insert_denied",
+                ride_group_id=str(body.ride_group_id),
+                sub=caller.sub,
+                error=str(exc),
+            )
+            raise HTTPException(status_code=403, detail="cannot add athlete to that group") from exc
+
+    if row is None:  # pragma: no cover - RETURNING always yields a row on a successful INSERT
+        raise HTTPException(status_code=403, detail="cannot add athlete to that group")
+
+    return _person_row_to_dict(row)
 
 
 # ==========================================================================
