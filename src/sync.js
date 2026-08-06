@@ -161,9 +161,20 @@ export async function syncNow() {
       }
     }
 
+    // Athletes the backend knows about (this pull's roster). A local record
+    // whose athlete_id isn't here belongs to a LOCAL-ONLY athlete — pushing
+    // it would just 403 (`athlete_not_in_scope`) and surface as "sync
+    // finished with errors". We skip those cleanly here; the coach resolves
+    // them via reconciliation (Add/Match → remapAthleteId re-points the id,
+    // after which the next sync pushes them normally). Counted as `skipped`,
+    // not errored.
+    const remoteRosterIdSet = new Set((remoteRoster || []).map(r => r.id));
+    let skipped = 0;
+
     // ── Push: local observations the backend doesn't have yet ────────────
     for (const o of localObs) {
       if (remoteObsIds.has(o.id)) continue;
+      if (!remoteRosterIdSet.has(o.athlete_id)) { skipped++; continue; }
       try {
         await api('/api/observations', {
           method: 'POST',
@@ -186,6 +197,7 @@ export async function syncNow() {
     for (const [key, local] of localConfirmedMap) {
       const remote = remoteConfirmedMap.get(key);
       if (remote && !(new Date(local.confirmed_at) > new Date(remote.confirmed_at))) continue;
+      if (!remoteRosterIdSet.has(local.athlete_id)) { skipped++; continue; }
       try {
         await api('/api/confirmed-levels', {
           method: 'POST',
@@ -201,8 +213,9 @@ export async function syncNow() {
       }
     }
 
-    log.info('sync.done', { pulled, pushed });
-    return { pulled, pushed };
+    if (skipped) log.info('sync.push.skipped_local_only', { skipped });
+    log.info('sync.done', { pulled, pushed, skipped });
+    return { pulled, pushed, skipped };
   } catch (e) {
     log.error('sync.failed', { error: String(e) });
     return { pulled, pushed, error: String(e) };

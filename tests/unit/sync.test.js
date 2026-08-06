@@ -166,7 +166,10 @@ describe('syncNow — observations (union by id)', () => {
 
   it('pushes local-only observations (not present remotely) with their local id', async () => {
     saveObservation({ id: 'local-obs-1', athlete_id: 'a2', skill: 'cornering', level_observed: 2, session_date: '2026-01-02' });
-    const fetchMock = mockFetch({ observations: [] }); // remote has nothing
+    // a2 is a backend-known athlete (in the pulled roster) — its local
+    // observation is pushed. (A local-ONLY athlete is skipped instead; see
+    // the dedicated test below.)
+    const fetchMock = mockFetch({ roster: [{ id: 'a2', name: 'A2', role: 'athlete' }], observations: [] });
     global.fetch = fetchMock;
 
     const result = await syncNow();
@@ -179,6 +182,23 @@ describe('syncNow — observations (union by id)', () => {
     expect(body.id).toBe('local-obs-1');
     expect(body.athlete_id).toBe('a2');
     expect(result.pushed).toBeGreaterThan(0);
+  });
+
+  it('does NOT push a local-only athlete\'s observation — skips it (counted, not errored)', async () => {
+    // a-local exists only on this device (not in the pulled roster), so
+    // pushing would 403 (athlete_not_in_scope). Sync must skip it cleanly.
+    saveObservation({ id: 'local-obs-2', athlete_id: 'a-local', skill: 'braking', level_observed: 3, session_date: '2026-01-04' });
+    const fetchMock = mockFetch({ roster: [{ id: 'a2', name: 'A2', role: 'athlete' }], observations: [] });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    const pushCalls = fetchMock.mock.calls.filter(
+      ([url, opts]) => url.endsWith('/api/observations') && opts?.method === 'POST'
+    );
+    expect(pushCalls).toHaveLength(0);
+    expect(result.skipped).toBe(1);
+    expect(result.error).toBeUndefined();
   });
 
   it('does not push an observation that already exists remotely', async () => {
@@ -215,6 +235,7 @@ describe('syncNow — confirmed levels (LWW by athlete_id+skill)', () => {
   it('local wins (and gets pushed) when its confirmed_at is newer than remote', async () => {
     setConfirmedLevel({ athlete_id: 'a1', skill: 'cornering', level: 5, confirmed_at: '2026-02-01T00:00:00.000Z' });
     const fetchMock = mockFetch({
+      roster: [{ id: 'a1', name: 'A1', role: 'athlete' }],
       confirmedLevels: [{ id: 'cl-remote', athlete_id: 'a1', team_id: 't1', coach_id: 'c2', skill: 'cornering', level: 1, confirmed_at: '2026-01-01T00:00:00.000Z' }],
     });
     global.fetch = fetchMock;
@@ -236,7 +257,7 @@ describe('syncNow — confirmed levels (LWW by athlete_id+skill)', () => {
 
   it('a local-only confirmed level (no remote counterpart) is pushed', async () => {
     setConfirmedLevel({ athlete_id: 'a9', skill: 'body_position', level: 3 });
-    const fetchMock = mockFetch({ confirmedLevels: [] });
+    const fetchMock = mockFetch({ roster: [{ id: 'a9', name: 'A9', role: 'athlete' }], confirmedLevels: [] });
     global.fetch = fetchMock;
 
     await syncNow();

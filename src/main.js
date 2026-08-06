@@ -191,9 +191,15 @@ async function runSync() {
   const result = await syncNow();
   s.syncing = false;
   if (result) {
-    s.syncSummary = { pulled: result.pulled, pushed: result.pushed, error: result.error };
+    s.syncSummary = { pulled: result.pulled, pushed: result.pushed, skipped: result.skipped, error: result.error };
     s.syncAt = new Date().toISOString();
-    flash(result.error ? 'Sync finished with errors' : `Synced — ${result.pulled} pulled, ${result.pushed} pushed`);
+    // `skipped` = local-only athletes' records held back from push (they'd
+    // 403) — not an error; a nudge to reconcile. Shown only when there was
+    // no hard error and something was actually skipped.
+    const skippedNote = result.skipped ? ` · ${result.skipped} pending (tap ⚠ local only)` : '';
+    flash(result.error
+      ? 'Sync finished with errors'
+      : `Synced — ${result.pulled} pulled, ${result.pushed} pushed${skippedNote}`);
   }
   draw();
 }
