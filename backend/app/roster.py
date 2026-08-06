@@ -21,10 +21,15 @@ docstring) -- there is deliberately no vector for a row to target a
 different team than the caller's own, even though RLS would deny it anyway
 if there were.
 
-Merge key priority, scoped to `team_id`, tried in order until one matches:
-    1. `external_id` (exact)
-    2. `email` (case-insensitive)
-    3. `name` (case-insensitive)
+Merge key priority, scoped to `team_id` (see `_find_matching_person` for
+the full rationale -- real PitZone rosters collide hard on both email and
+name, so this is deliberately conservative):
+    1. `external_id` (exact) -- the only truly unique key.
+    2. `email` AND `name` together (case-insensitive) -- email alone is a
+       FAMILY identifier in PitZone (parent-coach and athlete share it), and
+       names collide across different people, so BOTH must agree.
+    3. `name` (case-insensitive) ONLY when neither the row nor the candidate
+       has an email.
 A match -> UPDATE (name, role, email, ride_group_id, external_id, grade,
 category, tags) on the existing row. No match -> INSERT a new `person` row.
 `tags` (supabase/migrations/0007_person_tags.sql) is carried straight
@@ -77,10 +82,30 @@ def _find_or_create_ride_group(conn: psycopg.Connection, team_id: uuid.UUID, nam
 
 
 def _find_matching_person(conn: psycopg.Connection, team_id: uuid.UUID, row: RosterRowIn) -> uuid.UUID | None:
-    """The existing `person.id` this row merges into, if any, per the
-    module docstring's external_id -> email -> name priority. Each strategy
-    is only tried if the row actually provides that field; the first hit
-    wins."""
+    """The existing `person.id` this row merges into, if any.
+
+    Merge is deliberately conservative because real PitZone rosters collide
+    hard on both email and name (see the module docstring):
+
+    1. `external_id` exact -- the only truly unique key (a future PitZone/
+       NICA GUID, or our OWN person id round-tripped back in via an export).
+    2. `email` AND `name` together (case-insensitive). Email alone is a
+       FAMILY-level identifier in PitZone -- a parent-coach and their athlete
+       routinely share one email -- so a lone-email match would collapse two
+       different people into one; requiring the name too keeps them distinct.
+       The converse also holds: two different people who happen to share a
+       name have different emails, so pairing the two fields likewise avoids
+       the same-name collapse. If the row HAS an email but no (email, name)
+       twin exists, we deliberately do NOT fall through to a name-only match
+       -- a name-only hit at that point is almost always a DIFFERENT person
+       who merely shares the name (rampant in sanitized/real rosters alike),
+       so the row is treated as a new person instead.
+    3. Only when the row has NO email do we fall back to a name match, and
+       even then only against a candidate that ALSO has no email -- we won't
+       overwrite a row that carries a distinct email on the strength of a
+       shared name alone.
+    Anything else -> None (a new person).
+    """
     if row.external_id:
         match = conn.execute(
             "select id from person where team_id = %s and external_id = %s",
@@ -91,14 +116,20 @@ def _find_matching_person(conn: psycopg.Connection, team_id: uuid.UUID, row: Ros
 
     if row.email:
         match = conn.execute(
-            "select id from person where team_id = %s and lower(email) = lower(%s)",
-            (team_id, row.email),
+            "select id from person where team_id = %s and lower(email) = lower(%s) and lower(name) = lower(%s)",
+            (team_id, row.email, row.name),
         ).fetchone()
         if match is not None:
             return match[0]
+        # Row has an email but no (email, name) twin -> NOT the same person as
+        # a mere name-share; fall through to a new insert rather than a
+        # name-only merge.
+        return None
 
+    # No email on the row -> name fallback, but only against an equally
+    # email-less candidate.
     match = conn.execute(
-        "select id from person where team_id = %s and lower(name) = lower(%s)",
+        "select id from person where team_id = %s and lower(name) = lower(%s) and email is null",
         (team_id, row.name),
     ).fetchone()
     if match is not None:

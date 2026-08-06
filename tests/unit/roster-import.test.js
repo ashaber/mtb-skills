@@ -130,6 +130,7 @@ describe('guessMapping', () => {
       rideGroupCol: 'Ride Group',
       gradeCol: null,
       categoryCol: null,
+      externalIdCol: null,
     });
   });
 
@@ -143,6 +144,7 @@ describe('guessMapping', () => {
       rideGroupCol: null,
       gradeCol: 'Grade',
       categoryCol: 'Racing Category',
+      externalIdCol: null,
     });
   });
 
@@ -150,6 +152,20 @@ describe('guessMapping', () => {
     const mapping = guessMapping(['Some Random Column']);
     expect(mapping.firstNameCol).toBeNull();
     expect(mapping.emailCol).toBeNull();
+  });
+
+  it('detects an "External ID" column (our export) but not a bare "id" substring', () => {
+    // "Rider Email" contains the substring "id" — the guesser must not
+    // false-match it as the id column.
+    expect(guessMapping(['External ID', 'Rider Email']).externalIdCol).toBe('External ID');
+    expect(guessMapping(['Pit Zone ID']).externalIdCol).toBe('Pit Zone ID');
+    expect(guessMapping(['Rider Email']).externalIdCol).toBeNull();
+  });
+
+  it('maps external_id through when the id column is present', () => {
+    const rows = [{ First: 'Ana', Last: 'Vega', 'External ID': 'abc-123' }];
+    const mapping = { firstNameCol: 'First', lastNameCol: 'Last', externalIdCol: 'External ID' };
+    expect(mapRows(rows, mapping)[0].external_id).toBe('abc-123');
   });
 });
 

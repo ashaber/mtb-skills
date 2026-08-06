@@ -257,17 +257,19 @@ def test_external_id_merge_updates_existing_person_on_name_change(
     assert [r[0] for r in rows] == [changed_name]
 
 
-def test_email_merge_updates_existing_person_case_insensitively(
+def test_email_and_name_merge_is_case_insensitive(
     client, seed: dict[str, Any], owner_conn: psycopg.Connection
 ) -> None:
+    # Re-importing the SAME person (email + name both agree, just different
+    # casing on both) updates in place -- no duplicate. This is the merge
+    # key's happy path and the basis of idempotent re-import.
     email = f"{_unique('casey')}@x.example"
-    original_name = _unique("Casey Coach")
-    changed_name = _unique("Casey C")
+    name = _unique("Casey Coach")
 
     first = client.post(
         "/api/roster/import",
         headers=_auth_header(seed["hc_a_auth"]),
-        json={"rows": [{"name": original_name, "role": "coach", "email": email}]},
+        json={"rows": [{"name": name, "role": "coach", "email": email}]},
     )
     assert first.status_code == 200
     assert first.json()["people_created"] == 1
@@ -275,16 +277,112 @@ def test_email_merge_updates_existing_person_case_insensitively(
     second = client.post(
         "/api/roster/import",
         headers=_auth_header(seed["hc_a_auth"]),
-        json={"rows": [{"name": changed_name, "role": "coach", "email": email.upper()}]},
+        json={"rows": [{"name": name.upper(), "role": "coach", "email": email.upper()}]},
     )
     assert second.status_code == 200
     assert second.json() == {"people_created": 0, "people_updated": 1, "groups_created": 0, "skipped": []}
 
     rows = owner_conn.execute(
-        "select name, email from person where team_id = %s and lower(email) = lower(%s)", (seed["team_a"], email)
+        "select count(*) from person where team_id = %s and lower(email) = lower(%s)", (seed["team_a"], email)
+    ).fetchone()
+    assert rows[0] == 1
+
+
+def test_same_email_different_name_stays_two_people(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    # PitZone family email: a parent-coach and their athlete can share one
+    # email. Email alone must NOT collapse them -- different names => two
+    # people. (Regression test for the roster-scramble bug.)
+    shared = f"{_unique('family')}@x.example"
+    parent = _unique("Parent Coach")
+    kid = _unique("Kid Athlete")
+
+    resp = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [
+            {"name": parent, "role": "coach", "email": shared},
+            {"name": kid, "role": "athlete", "email": shared},
+        ]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["people_created"] == 2
+
+    rows = owner_conn.execute(
+        "select name, role from person where team_id = %s and lower(email) = lower(%s) order by name",
+        (seed["team_a"], shared),
     ).fetchall()
-    assert len(rows) == 1
-    assert rows[0][0] == changed_name
+    assert len(rows) == 2
+    assert {(r[0], r[1]) for r in rows} == {(parent, "coach"), (kid, "athlete")}
+
+
+def test_same_name_different_email_stays_two_people_in_their_own_groups(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    # Two DIFFERENT people who share a name but have different emails must
+    # NOT collapse -- and each keeps its OWN ride group. This is the exact
+    # failure that scattered the Droid roster (two "Hayden Upton"s in
+    # different groups).
+    name = _unique("Hayden Upton")
+    resp = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [
+            {"name": name, "role": "coach", "email": f"{_unique('h1')}@x.example", "ride_group": "Droid"},
+            {"name": name, "role": "coach", "email": f"{_unique('h2')}@x.example", "ride_group": "Leia"},
+        ]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["people_created"] == 2
+
+    rows = owner_conn.execute(
+        """
+        select rg.name from person p join ride_group rg on rg.id = p.ride_group_id
+        where p.team_id = %s and lower(p.name) = lower(%s)
+        order by rg.name
+        """,
+        (seed["team_a"], name),
+    ).fetchall()
+    assert [r[0] for r in rows] == ["Droid", "Leia"]
+
+
+def test_no_email_row_name_matches_only_an_emailless_candidate(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    # A row without an email falls back to name -- but only against a
+    # candidate that ALSO has no email. It must not overwrite a same-named
+    # person who carries a distinct email.
+    name = _unique("Emailless Ernie")
+
+    # An emailed person of this name exists first.
+    client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "athlete", "email": f"{_unique('e')}@x.example"}]},
+    )
+    # A no-email row of the same name must create a NEW person (not merge
+    # into the emailed one).
+    second = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "athlete"}]},
+    )
+    assert second.json()["people_created"] == 1
+
+    # Re-importing the no-email row again now merges into the email-less one
+    # (idempotent), not the emailed one.
+    third = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [{"name": name, "role": "athlete"}]},
+    )
+    assert third.json()["people_updated"] == 1
+
+    total = owner_conn.execute(
+        "select count(*) from person where team_id = %s and lower(name) = lower(%s)", (seed["team_a"], name)
+    ).fetchone()
+    assert total[0] == 2  # the emailed one + the single email-less one
 
 
 # --------------------------------------------------------------------------
