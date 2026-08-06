@@ -148,3 +148,25 @@
 .attend-check { width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; color: transparent; cursor: pointer; }
 .attend-check--on { background: var(--l4); border-color: var(--l4); color: #fff; }
 .row-card--present { box-shadow: inset 4px 0 0 #16a34a, 0 1px 2px rgba(0,0,0,.05); background: rgba(22,163,74,0.08); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   RIDE-GROUP UI + RECONCILIATION (Phase 3.2) — additive, only ever shown
+   when isAuthConfigured() && s.authUser (see src/views.js's viewRoster).
+   ════════════════════════════════════════════════════════════════════════ */
+.hdr-mygroup-row { margin-top: 4px; }
+.hdr-mygroup { font: 700 11px/1 var(--font-body); color: var(--accent); }
+.row-group { font: 700 10.5px/1 var(--font-body); color: var(--dim); }
+
+/* second chip row, scrollable — a team can have many ride groups */
+.roster-filters--group { overflow-x: auto; flex-wrap: nowrap; -ms-overflow-style: none; scrollbar-width: none; }
+.roster-filters--group::-webkit-scrollbar { display: none; }
+
+.local-only-badge {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px;
+  padding: 5px 8px; margin-right: 6px;
+  font: 700 10px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; color: #92400e;
+  cursor: pointer;
+}
+.local-only-badge:active { opacity: .75; }
+.local-only-badge svg { width: 12px; height: 12px; }

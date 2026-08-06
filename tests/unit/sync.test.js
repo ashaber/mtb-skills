@@ -15,6 +15,7 @@ import { syncNow } from '../../src/sync.js';
 import {
   getPeople, getObservations, saveObservation,
   getConfirmedLevels, setConfirmedLevel,
+  getCachedIdentity, getRemoteRosterIds,
 } from '../../src/storage.js';
 
 function jsonResponse(body, { ok = true, status = 200 } = {}) {
@@ -22,16 +23,18 @@ function jsonResponse(body, { ok = true, status = 200 } = {}) {
 }
 
 /**
- * Builds a fetch mock that serves fixed GET bodies for the three pull
- * endpoints and echoes POST bodies back as the "created" row, recording
- * every call for assertions.
+ * Builds a fetch mock that serves fixed GET bodies for the pull endpoints
+ * (roster/observations/confirmed-levels/me) and echoes POST bodies back as
+ * the "created" row, recording every call for assertions. `me` defaults to
+ * an empty personas list — most tests here don't care about identity.
  */
-function mockFetch({ roster = [], observations = [], confirmedLevels = [] } = {}) {
+function mockFetch({ roster = [], observations = [], confirmedLevels = [], me = { personas: [] } } = {}) {
   const fn = vi.fn(async (url, opts = {}) => {
     const method = opts.method || 'GET';
     if (method === 'GET' && url.endsWith('/api/roster'))            return jsonResponse(roster);
     if (method === 'GET' && url.endsWith('/api/observations'))      return jsonResponse(observations);
     if (method === 'GET' && url.endsWith('/api/confirmed-levels'))  return jsonResponse(confirmedLevels);
+    if (method === 'GET' && url.endsWith('/api/me'))                return jsonResponse(me);
     if (method === 'POST' && url.endsWith('/api/observations'))     return jsonResponse(JSON.parse(opts.body), { status: 201 });
     if (method === 'POST' && url.endsWith('/api/confirmed-levels')) return jsonResponse(JSON.parse(opts.body));
     return jsonResponse({ error: 'unhandled in test mock' }, { ok: false, status: 404 });
@@ -82,6 +85,61 @@ describe('syncNow — roster pull (upsert by id)', () => {
     expect(result.pulled).toBeGreaterThan(0);
     const people = getPeople();
     expect(people.find(p => p.id === 'p1')?.name).toBe('Remote Rider');
+  });
+
+  it('persists ride_group_id, ride_group_name, tags, external_id, grade, category from the pulled row', async () => {
+    global.fetch = mockFetch({
+      roster: [{
+        id: 'p1', team_id: 't1', role: 'athlete', name: 'Remote Rider',
+        ride_group_id: 'rg1', ride_group_name: 'JV Boys',
+        tags: ['lead'], external_id: 'NICA-1', grade: 10, category: 'JV2',
+      }],
+    });
+    await syncNow();
+    const p = getPeople().find(x => x.id === 'p1');
+    expect(p.ride_group_id).toBe('rg1');
+    expect(p.ride_group_name).toBe('JV Boys');
+    expect(p.tags).toEqual(['lead']);
+    expect(p.external_id).toBe('NICA-1');
+    expect(p.grade).toBe(10);
+    expect(p.category).toBe('JV2');
+  });
+
+  it('a roster pull never clobbers a locally-set medical_notes field', async () => {
+    const { savePerson } = await import('../../src/storage.js');
+    savePerson({ id: 'p1', name: 'Local Name', role: 'athlete', medical_notes: 'Peanut allergy' });
+    global.fetch = mockFetch({
+      roster: [{ id: 'p1', team_id: 't1', role: 'athlete', name: 'Remote Rider' }],
+    });
+    await syncNow();
+    const p = getPeople().find(x => x.id === 'p1');
+    expect(p.name).toBe('Remote Rider'); // roster row IS authoritative for name
+    expect(p.medical_notes).toBe('Peanut allergy'); // but not for fields it doesn't carry
+  });
+});
+
+describe('syncNow — identity + remote-roster-id caches (Phase 3.2)', () => {
+  it('caches GET /api/me personas via saveCachedIdentity', async () => {
+    const personas = [{ person_id: 'p1', role: 'coach', team_id: 't1', ride_group_id: 'g1', name: 'Coach A' }];
+    global.fetch = mockFetch({ me: { personas } });
+    await syncNow();
+    expect(getCachedIdentity()?.personas).toEqual(personas);
+  });
+
+  it('caches the pulled roster ids via saveRemoteRosterIds', async () => {
+    global.fetch = mockFetch({
+      roster: [{ id: 'p1', role: 'athlete', name: 'A' }, { id: 'p2', role: 'athlete', name: 'B' }],
+    });
+    await syncNow();
+    expect(getRemoteRosterIds()).toEqual(['p1', 'p2']);
+  });
+
+  it('does not touch the identity/roster-id caches when sync is gated off (not configured)', async () => {
+    mockIsAuthConfigured.mockReturnValue(false);
+    global.fetch = mockFetch({ roster: [{ id: 'p1', role: 'athlete', name: 'A' }] });
+    await syncNow();
+    expect(getCachedIdentity()).toBeNull();
+    expect(getRemoteRosterIds()).toBeNull();
   });
 });
 
