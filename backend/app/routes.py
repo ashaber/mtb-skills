@@ -28,7 +28,7 @@ from app.db import rls_connection
 from app.deps import Caller, get_caller, get_settings_dep
 from app.identity import Persona
 from app.logging import get_logger
-from app.schemas import AthleteIn, ConfirmedLevelIn, ObservationIn, RosterImportIn
+from app.schemas import AssignRideGroupIn, AthleteIn, ConfirmedLevelIn, ObservationIn, RosterImportIn
 
 log = get_logger("app.routes")
 
@@ -131,13 +131,21 @@ class _AthleteNotInScope(Exception):
 
 
 def _resolve_athlete_scope(conn: psycopg.Connection, athlete_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID | None]:
-    """`(team_id, ride_group_id)` of the athlete `person` row, as visible to
-    the caller through THIS connection's RLS scope. Raises
+    """`(team_id, ride_group_id)` of the assessment TARGET's `person` row, as
+    visible to the caller through THIS connection's RLS scope. Raises
     `_AthleteNotInScope` if the SELECT returns zero rows -- either the id
     doesn't exist at all, or it does but RLS filtered it out because the
-    caller can't see that athlete (out-of-group)."""
+    caller can't see that person (out-of-group).
+
+    Note: this intentionally does NOT filter `role = 'athlete'`. Coaches are
+    assessable too (a coach demonstrates the same rubric skills), so any
+    person the caller can see under `person_select` -- athlete OR coach in
+    their ride group / team -- is a valid target. RLS's
+    observation_insert/confirmed_level_insert policies (keyed on
+    ride_group_id/team_id, not role) are what still bound WHO a caller may
+    record for; nothing here needs to re-check the target's role."""
     row = conn.execute(
-        "select team_id, ride_group_id from person where id = %s and role = 'athlete'",
+        "select team_id, ride_group_id from person where id = %s",
         (athlete_id,),
     ).fetchone()
     if row is None:
@@ -502,3 +510,88 @@ def import_roster(
             raise HTTPException(status_code=403, detail="cannot import roster for that team") from exc
 
     return summary
+
+
+# ==========================================================================
+# roster assign -- HC/TD reassigns (or unassigns) a single athlete's ride
+# group. Authorization is Postgres RLS's `person_update` policy (HC/TD,
+# team-wide -- supabase/migrations/0002_rls.sql), same posture as every
+# other route in this module: this route only picks WHICH row/values to ask
+# the database to write, the database decides whether the caller may.
+# ==========================================================================
+
+
+@router.post("/roster/assign")
+def assign_ride_group(
+    body: AssignRideGroupIn,
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    with rls_connection(settings.database_url, caller.sub) as conn:
+        ride_group_name: str | None = None
+        try:
+            if body.ride_group_id is not None:
+                # Cross-team guard: resolve the TARGET group's team through
+                # the caller's own RLS scope first -- an HC only sees
+                # ride_group rows on their own team (ride_group_select),
+                # so a group belonging to a different team returns zero
+                # rows here, exactly like create_athlete's same guard
+                # above. This is what prevents ever pointing a person at
+                # another team's ride group, even before the UPDATE's own
+                # `team_id = %s` pin (below) would catch it too.
+                group_row = conn.execute(
+                    "select team_id, name from ride_group where id = %s",
+                    (body.ride_group_id,),
+                ).fetchone()
+                if group_row is None:
+                    log.warn(
+                        "roster.assign.group_not_in_scope",
+                        ride_group_id=str(body.ride_group_id),
+                        sub=caller.sub,
+                    )
+                    raise HTTPException(status_code=403, detail="cannot assign to that group")
+
+                team_id, ride_group_name = group_row
+
+                # `and team_id = %s` pins the write to the GROUP's own team
+                # -- this is what stops the update from ever moving a
+                # person onto a different team than the group they're
+                # being assigned into, on top of whatever RLS's
+                # person_update `with check` already re-validates.
+                row = conn.execute(
+                    """
+                    update person
+                    set ride_group_id = %s
+                    where id = %s and team_id = %s
+                    returning id, team_id, ride_group_id, role, name, external_id, grade, category, tags
+                    """,
+                    (body.ride_group_id, body.person_id, team_id),
+                ).fetchone()
+            else:
+                # Unassign: no team to pin against, so no team_id clause --
+                # RLS's person_update policy (`using`/`with check` both
+                # keyed on the row's own, unmodified team_id) is the only
+                # authorization check here.
+                row = conn.execute(
+                    """
+                    update person
+                    set ride_group_id = null
+                    where id = %s
+                    returning id, team_id, ride_group_id, role, name, external_id, grade, category, tags
+                    """,
+                    (body.person_id,),
+                ).fetchone()
+        except psycopg.errors.InsufficientPrivilege as exc:
+            log.warn("roster.assign.denied", person_id=str(body.person_id), sub=caller.sub, error=str(exc))
+            raise HTTPException(status_code=403, detail="cannot reassign that athlete") from exc
+
+    if row is None:
+        # UPDATE matched zero rows -- either the caller isn't HC/TD on this
+        # person's team (RLS's `using` clause filtered it out silently,
+        # no exception) or the person_id/team_id pairing doesn't exist at
+        # all. Indistinguishable from here, and deliberately so -- same
+        # posture as _resolve_athlete_scope above.
+        log.warn("roster.assign.no_row", person_id=str(body.person_id), sub=caller.sub)
+        raise HTTPException(status_code=403, detail="cannot reassign that athlete")
+
+    return _person_row_to_dict(row, ride_group_name=ride_group_name)

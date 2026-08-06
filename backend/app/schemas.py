@@ -210,3 +210,24 @@ class AthleteIn(BaseModel):
         if not stripped:
             raise ValueError("name must not be blank")
         return stripped
+
+
+class AssignRideGroupIn(BaseModel):
+    """POST /api/roster/assign body -- an HC/TD reassigns (or unassigns) an
+    athlete's `ride_group_id`. Authorization is enforced by Postgres RLS's
+    `person_update` policy (HC/TD, team-wide -- supabase/migrations/
+    0002_rls.sql), not by this schema; app/routes.py's `assign_ride_group`
+    additionally guards against pointing a person at a DIFFERENT team's
+    ride_group (RLS alone would deny that too, since person_update's `with
+    check` re-validates the row's own team_id against the caller's HC team
+    ids, but the route makes the guard explicit rather than relying solely
+    on the database catching it).
+
+    `ride_group_id: None` means unassign (clears the field) -- required (no
+    default) so a caller must say so explicitly rather than an omitted key
+    silently doing nothing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    person_id: UUID
+    ride_group_id: UUID | None

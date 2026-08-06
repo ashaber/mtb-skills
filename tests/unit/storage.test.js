@@ -7,10 +7,13 @@ import {
   getCoach, saveCoach, getTeamId,
   getPhoto, savePhoto,
   exportAll, importAll,
-  createPractice, getPractices,
+  createPractice, getPractices, toggleAttendance, getAttendance,
   remapAthleteId,
   getCachedIdentity, saveCachedIdentity, clearCachedIdentity,
   getRemoteRosterIds, saveRemoteRosterIds,
+  getRosterFilter, saveRosterFilter, getRosterGroupFilter, saveRosterGroupFilter,
+  getTeamSettings, saveTeamSettings,
+  clearLocalRosterData,
 } from '../../src/storage.js';
 
 beforeEach(() => {
@@ -447,5 +450,75 @@ describe('local date — practice and observation timestamps', () => {
   it('date format is YYYY-MM-DD with zero-padded month and day', () => {
     const p = createPractice();
     expect(p.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('clearLocalRosterData', () => {
+  function seedEverything() {
+    // Roster / derived data — every key clearLocalRosterData must remove.
+    const a = saveAthlete({ name: 'Rider' });
+    saveObservation({ athlete_id: a.id, skill: 'braking', level_observed: 3 });
+    setConfirmedLevel({ athlete_id: a.id, skill: 'braking', level: 3 });
+    savePhoto(a.id, 'data:image/png;base64,xxx');
+    const practice = createPractice();
+    toggleAttendance(practice.id, a.id);
+    saveCachedIdentity([{ person_id: 'p1', role: 'coach', team_id: 't1', ride_group_id: null, name: 'Coach' }]);
+    saveRemoteRosterIds([a.id]);
+    saveRosterFilter('athletes');
+    saveRosterGroupFilter('JV Boys');
+
+    // Data that must SURVIVE — coach profile, team, team settings, and a
+    // Supabase auth key (never touched by this module at all).
+    saveCoach({ name: 'Coach Andrew' });
+    getTeamId(); // ensures mtb_team is populated
+    saveTeamSettings({ name: 'Idaho League' });
+    localStorage.setItem('sb-fakeproject-auth-token', JSON.stringify({ access_token: 'fake' }));
+
+    return { athleteId: a.id, practiceId: practice.id };
+  }
+
+  it('removes only the roster/derived keys, preserving coach/team/team_settings/sb-*', () => {
+    seedEverything();
+
+    clearLocalRosterData();
+
+    // Roster + derived data gone.
+    expect(getPeople()).toHaveLength(0);
+    expect(getObservations()).toHaveLength(0);
+    expect(getConfirmedLevels()).toHaveLength(0);
+    expect(getPractices()).toHaveLength(0);
+    expect(getCachedIdentity()).toBeNull();
+    expect(getRemoteRosterIds()).toBeNull();
+    expect(getRosterFilter()).toBe('all');
+    expect(getRosterGroupFilter()).toBe('all');
+    expect(localStorage.getItem('mtb_photos')).toBeNull();
+    expect(localStorage.getItem('mtb_attendance')).toBeNull();
+
+    // Coach / team / team settings / Supabase auth token preserved.
+    expect(getCoach()?.name).toBe('Coach Andrew');
+    expect(localStorage.getItem('mtb_team')).not.toBeNull();
+    expect(getTeamSettings().name).toBe('Idaho League');
+    expect(localStorage.getItem('sb-fakeproject-auth-token')).not.toBeNull();
+  });
+
+  it('removes exactly the documented key list from localStorage', () => {
+    seedEverything();
+
+    const removedKeys = [
+      'mtb_athletes', 'mtb_observations', 'mtb_confirmed_levels', 'mtb_photos',
+      'mtb_attendance', 'mtb_practices', 'mtb_remote_roster_ids', 'mtb_identity',
+      'mtb_roster_filter', 'mtb_roster_group_filter',
+    ];
+    const preservedKeys = ['mtb_coach', 'mtb_team', 'mtb_team_settings', 'sb-fakeproject-auth-token'];
+
+    clearLocalRosterData();
+
+    removedKeys.forEach(key => expect(localStorage.getItem(key)).toBeNull());
+    preservedKeys.forEach(key => expect(localStorage.getItem(key)).not.toBeNull());
+  });
+
+  it('is a no-op-safe call when nothing was ever seeded', () => {
+    expect(() => clearLocalRosterData()).not.toThrow();
+    expect(getPeople()).toHaveLength(0);
   });
 });

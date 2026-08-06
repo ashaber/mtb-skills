@@ -170,3 +170,15 @@
 }
 .local-only-badge:active { opacity: .75; }
 .local-only-badge svg { width: 12px; height: 12px; }
+
+/* HC/TD-only "reassign ride group" affordance (src/views.js's
+   `_hcAssignGroupActive` gate) -- neutral styling, distinct from the
+   amber local-only-badge above since this isn't a warning. */
+.group-assign-btn {
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  background: var(--panel, #f3f4f6); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 8px; margin-right: 6px;
+  font: 700 10px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; color: var(--dim);
+  cursor: pointer;
+}
+.group-assign-btn:active { opacity: .75; }

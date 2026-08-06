@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectLocalOnly, autoMatchByName, resolveMyGroups } from '../../src/reconcile.js';
+import { detectLocalOnly, autoMatchByName, resolveMyGroups, isHcOrTd } from '../../src/reconcile.js';
 
 describe('detectLocalOnly', () => {
   it('returns empty array for empty local roster', () => {
@@ -122,5 +122,37 @@ describe('resolveMyGroups', () => {
     ];
     const result = resolveMyGroups(personas, roster);
     expect(result.map(r => r.ride_group_name)).toEqual(['JV Boys', 'Varsity Girls']);
+  });
+});
+
+describe('isHcOrTd', () => {
+  it('returns false for null/undefined personas', () => {
+    expect(isHcOrTd(null)).toBe(false);
+    expect(isHcOrTd(undefined)).toBe(false);
+  });
+
+  it('returns false for an empty personas array', () => {
+    expect(isHcOrTd([])).toBe(false);
+  });
+
+  it('returns false when the only persona is a plain ride-group coach', () => {
+    expect(isHcOrTd([{ role: 'coach' }])).toBe(false);
+  });
+
+  it('returns true for a head_coach persona', () => {
+    expect(isHcOrTd([{ role: 'head_coach' }])).toBe(true);
+  });
+
+  it('returns true for a team_director persona', () => {
+    expect(isHcOrTd([{ role: 'team_director' }])).toBe(true);
+  });
+
+  it('returns true when ANY persona (not just the first) is HC/TD', () => {
+    expect(isHcOrTd([{ role: 'coach' }, { role: 'team_director' }])).toBe(true);
+  });
+
+  it('returns false for an unrecognized role, including a malformed entry', () => {
+    expect(isHcOrTd([{ role: 'league_staff' }])).toBe(false);
+    expect(isHcOrTd([{}])).toBe(false);
   });
 });

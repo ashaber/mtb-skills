@@ -625,6 +625,48 @@ export function saveTeamSettings(settings) {
 }
 
 // ---------------------------------------------------------------------------
+// Local data reset ("Clear local data & re-sync" — Settings, HC-facing but
+// available to anyone signed in or not; src/main.js gates the re-sync half
+// on being signed in, not this function). Wipes ONLY roster/derived data
+// that a backend pull can fully reconstruct — never the coach's own
+// identity/team config, and never a Supabase auth token (those live under
+// `sb-*` keys this module never touches at all).
+// ---------------------------------------------------------------------------
+
+// Every key this function removes. Deliberately explicit (not "everything
+// except an allowlist") so a new KEYS entry added later does NOT get wiped
+// by default — a future storage.js key must be added here on purpose.
+const LOCAL_ROSTER_DATA_KEYS = [
+  KEYS.athletes,
+  KEYS.observations,
+  KEYS.confirmedLevels,
+  PHOTO_KEY,
+  KEYS.attendance,
+  KEYS.practices,
+  REMOTE_ROSTER_IDS_KEY,
+  IDENTITY_KEY,
+  KEYS.rosterFilter,
+  KEYS.rosterGroupFilter,
+];
+
+/**
+ * Removes only the local-storage keys listed in LOCAL_ROSTER_DATA_KEYS —
+ * roster (people), observations, confirmed levels, photos, attendance,
+ * practices, the cached remote-roster-id set, the cached identity, and the
+ * two roster filter selections. Deliberately does NOT touch `mtb_coach`,
+ * `mtb_team`, `mtb_team_settings`, or any Supabase `sb-*` auth key — those
+ * are the coach's own profile/config and sign-in session, not data a
+ * backend re-sync repopulates. Call sites (src/main.js) follow this with
+ * `runSync()` when signed in so the wiped roster/observations/confirmed-
+ * levels are immediately re-pulled; offline or signed out this is just a
+ * clean local wipe.
+ */
+export function clearLocalRosterData() {
+  LOCAL_ROSTER_DATA_KEYS.forEach(key => getStore().remove(key));
+  log.info('storage.local_cleared', { keys: LOCAL_ROSTER_DATA_KEYS.length });
+}
+
+// ---------------------------------------------------------------------------
 // Attendance export helper
 // ---------------------------------------------------------------------------
 

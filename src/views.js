@@ -26,7 +26,7 @@ import {
 } from './ui.js';
 import { isAuthConfigured } from './auth.js';
 import { mapRows } from './roster-import.js';
-import { detectLocalOnly, autoMatchByName, resolveMyGroups } from './reconcile.js';
+import { detectLocalOnly, autoMatchByName, resolveMyGroups, isHcOrTd } from './reconcile.js';
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
@@ -55,6 +55,16 @@ const UNASSIGNED_GROUP = '__unassigned__';
 
 function _rideGroupUIActive(s) {
   return Boolean(isAuthConfigured() && s.authUser);
+}
+
+// HC/TD-only: gates the roster row's "reassign group" affordance (opens
+// modalAssignGroup) and modalAssignGroup itself. A plain ride-group coach
+// never sees this at all -- the backend's RLS `person_update` policy is
+// still the actual authorization boundary (POST /api/roster/assign), this
+// is purely a client-side UI gate so a non-HC coach isn't shown a control
+// that would just 403.
+function _hcAssignGroupActive(s) {
+  return Boolean(_rideGroupUIActive(s) && isHcOrTd(getCachedIdentity()?.personas));
 }
 
 /** Unique ride_group_name values present in the local roster, sorted. */
@@ -115,9 +125,11 @@ export function viewRoster(s) {
     return (a.name || '').localeCompare(b.name || '');
   });
 
+  const canAssignGroup = _hcAssignGroupActive(s);
+
   const rows = sorted.map(person => {
     if (person.role === 'coach') return coachRowHTML(person, s, practice, attendingIds, takingAttendance, rideGroupUI);
-    return athleteRowHTML(person, s, practice, attendingIds, takingAttendance, rideGroupUI, localOnlyIds.has(person.id));
+    return athleteRowHTML(person, s, practice, attendingIds, takingAttendance, rideGroupUI, localOnlyIds.has(person.id), canAssignGroup);
   }).join('');
 
   const filterChips = ['all', 'athletes', 'coaches'].map(f => {
@@ -172,7 +184,7 @@ export function viewRoster(s) {
     <div class="ph"></div>`;
 }
 
-function athleteRowHTML(a, s, practice, attendingIds, attendanceMode, rideGroupUI = false, isLocalOnly = false) {
+function athleteRowHTML(a, s, practice, attendingIds, attendanceMode, rideGroupUI = false, isLocalOnly = false, canAssignGroup = false) {
   const conf = getAthleteConfirmedLevels(a.id);
   const open = s.expandedId === a.id;
   const draft = s.draft[a.id] || { body_position: conf.body_position || 1, braking: conf.braking || 1, cornering: conf.cornering || 1 };
@@ -232,6 +244,7 @@ function athleteRowHTML(a, s, practice, attendingIds, attendanceMode, rideGroupU
         </div>
       </button>
       ${isLocalOnly && !attendanceMode ? `<button class="local-only-badge" data-a="open-reconcile" data-id="${a.id}" title="Not synced to your team's backend roster yet — tap to Add, Match, or Delete">${WARN} local only</button>` : ''}
+      ${canAssignGroup && !attendanceMode ? `<button class="group-assign-btn" data-a="open-assign-group" data-id="${a.id}" title="Reassign ride group">⋯ Group</button>` : ''}
       ${!attendanceMode ? `<button class="chips-caret" data-a="toggle-expand" data-id="${a.id}">
         ${chips}
         <svg class="caret${open?' caret--open':''}" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--dim)" stroke-width="2.4" stroke-linecap="round"><path d="M5 8l5 5 5-5"/></svg>
@@ -467,6 +480,12 @@ export function viewSettings(s) {
             <input id="imp-file" type="file" accept=".json" style="display:none">
           </label>
         </div>
+      </div>
+
+      <div class="settings-section">
+        <span class="settings-section-label">Local data</span>
+        <p class="settings-about" style="margin-bottom:10px">Wipes this device's roster and re-pulls it from the backend. Keeps your coach profile and sign-in.</p>
+        <button class="btn btn-outline" style="color:#dc2626;border-color:#dc2626" data-a="clear-local-data">Clear local data &amp; re-sync</button>
       </div>
 
       ${isAuthConfigured() ? `<div class="settings-section">
@@ -1155,6 +1174,57 @@ export function modalReconcile(state) {
       <span class="settings-section-label">Delete</span>
       <p class="modal-hint">Removes this athlete and its observations from this device only.</p>
       <button class="btn btn-outline" style="color:#dc2626;border-color:#dc2626" data-m="reconcile-delete" data-id="${esc(athlete.id)}" ${state.submitting ? 'disabled' : ''}>Delete local record</button>
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+// ── Reassign ride group (HC/TD-only, Phase 3.x) ───────────────────────────────
+// Opened by tapping the "⋯ Group" affordance on a roster row (src/views.js's
+// athleteRowHTML, gated on `_hcAssignGroupActive` -- never shown to a plain
+// ride-group coach). `state` is main.js's module-level `_assignGroup`:
+// { athleteId, submitting: null|'save', error } | null.
+
+/** Unique {id, name} ride-group pairs present in the local roster, sorted
+ * by name. Derived from the roster rather than a second cached copy -- the
+ * same posture as modalReconcile's `candidates` above. */
+function _teamGroupOptions(people) {
+  const byId = new Map();
+  (people || []).forEach(p => {
+    if (p.ride_group_id && p.ride_group_name && !byId.has(p.ride_group_id)) {
+      byId.set(p.ride_group_id, p.ride_group_name);
+    }
+  });
+  return Array.from(byId, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function modalAssignGroup(state) {
+  if (!state?.athleteId) return '';
+  const closeBtn = `<button class="ico-btn" data-m="close">✕</button>`;
+  const athlete = getPeople().find(p => p.id === state.athleteId);
+  if (!athlete) {
+    return `<div class="modal-head"><span>Reassign Group</span>${closeBtn}</div>
+      <div class="fg"><p class="modal-hint">That athlete no longer exists locally.</p></div>`;
+  }
+
+  const groups = _teamGroupOptions(getPeople());
+  const options = [`<option value=""${!athlete.ride_group_id ? ' selected' : ''}>Unassigned</option>`]
+    .concat(groups.map(g =>
+      `<option value="${esc(g.id)}"${athlete.ride_group_id === g.id ? ' selected' : ''}>${esc(g.name)}</option>`
+    ))
+    .join('');
+
+  return `
+    <div class="modal-head"><span>Reassign Ride Group</span>${closeBtn}</div>
+    <div class="fg" style="padding-top:0">
+      <p class="modal-hint">Move <b>${esc(athlete.name)}</b> to a different ride group, or unassign them.</p>
+      ${state.error ? `<p class="modal-hint" style="color:#dc2626">${esc(state.error)}</p>` : ''}
+    </div>
+    <div class="fg" style="padding-top:0">
+      <label class="fl" for="assign-group-select">Ride group</label>
+      <select class="fi" id="assign-group-select">${options}</select>
+    </div>
+    <div class="fg" style="padding-top:0">
+      <button class="btn btn-primary" data-m="save-assign-group" data-id="${esc(athlete.id)}" ${state.submitting ? 'disabled' : ''}>${state.submitting === 'save' ? 'Saving…' : 'Save'}</button>
     </div>
     <div style="height:12px"></div>`;
 }

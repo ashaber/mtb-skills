@@ -246,6 +246,47 @@ def test_post_observation_for_own_group_athlete_succeeds_and_is_attributed_corre
     assert body["id"] in {row["id"] for row in listing.json()}
 
 
+def test_post_observation_for_a_coach_in_own_group_succeeds(client, seed: dict[str, Any]) -> None:
+    # Coaches are assessable too (same rubric skills). A ride-group coach
+    # recording for a coach IN THEIR OWN GROUP -- here coach_a1 assessing
+    # their own coach person (the "andrew rating himself" case) -- succeeds;
+    # the target being role='coach' is no longer a 403.
+    resp = client.post(
+        "/api/observations",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"athlete_id": str(seed["coach_a1_person"]), "skill": "cornering", "level_observed": 4},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["athlete_id"] == str(seed["coach_a1_person"])
+    assert body["ride_group_id"] == str(seed["group_a1"])
+
+
+def test_post_observation_for_a_coach_in_a_sibling_group_is_still_denied(
+    client, seed: dict[str, Any]
+) -> None:
+    # Coaches assessable does NOT widen scope: coach_a1 recording for
+    # coach_a2 (a coach in a DIFFERENT ride group on the same team) is still
+    # 403 -- RLS group scoping, not the role, is what bounds it.
+    resp = client.post(
+        "/api/observations",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"athlete_id": str(seed["coach_a2_person"]), "skill": "cornering", "level_observed": 3},
+    )
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "cannot record for that athlete"}
+
+
+def test_confirmed_level_for_a_coach_in_own_group_succeeds(client, seed: dict[str, Any]) -> None:
+    resp = client.post(
+        "/api/confirmed-levels",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"athlete_id": str(seed["coach_a1_person"]), "skill": "braking", "level": 5},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["athlete_id"] == str(seed["coach_a1_person"])
+
+
 def test_post_observation_with_client_id_is_idempotent(client, seed: dict[str, Any]) -> None:
     """Offline-first sync: the client mints the observation id, so re-pushing
     the same id (e.g. a pull followed by a re-sync) is a no-op, not a dup."""

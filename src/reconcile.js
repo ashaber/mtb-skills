@@ -82,3 +82,23 @@ export function resolveMyGroups(personas, roster) {
     };
   });
 }
+
+// Matches backend/app/routes.py's `_HC_TD_ROLES` -- the two persona roles
+// that carry HC/TD-team-wide authority (roster editing, ride-group
+// reassignment). Kept here (not just inline where it's used) so both
+// src/views.js's frontend gating AND its own unit test share one source of
+// truth for "what counts as HC/TD" on the client.
+const HC_TD_ROLES = new Set(['head_coach', 'team_director']);
+
+/**
+ * Whether ANY of the caller's cached personas (src/storage.js's
+ * getCachedIdentity()?.personas) carries head_coach/team_director
+ * standing. Purely a client-side UI gate (show/hide the "reassign group"
+ * affordance) -- the actual authorization decision is always the backend's
+ * RLS `person_update` policy (POST /api/roster/assign), never this.
+ * @param {Array<{role?:string}>|null|undefined} personas
+ * @returns {boolean}
+ */
+export function isHcOrTd(personas) {
+  return (personas || []).some(p => HC_TD_ROLES.has(p?.role));
+}
