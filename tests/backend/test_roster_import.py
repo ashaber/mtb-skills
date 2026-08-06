@@ -317,6 +317,40 @@ def test_same_email_different_name_stays_two_people(
     assert {(r[0], r[1]) for r in rows} == {(parent, "coach"), (kid, "athlete")}
 
 
+def test_case_variant_group_names_collapse_to_one_group(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    # "Droid" and "droid" (any case) must resolve to a SINGLE ride_group --
+    # the (team_id, lower(name)) unique index + on-conflict insert in
+    # _find_or_create_ride_group (migration 0009). Two people entered under
+    # different casings land in the same group, so a ride-group coach on it
+    # sees both. Regression guard for the split-Droid 403.
+    gname = _unique("Droid")  # e.g. "Droid-ab12"
+    resp = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={"rows": [
+            {"name": _unique("A"), "role": "athlete", "email": f"{_unique('a')}@x.example", "ride_group": gname.upper()},
+            {"name": _unique("B"), "role": "athlete", "email": f"{_unique('b')}@x.example", "ride_group": gname.lower()},
+        ]},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["groups_created"] == 1  # NOT 2
+
+    groups = owner_conn.execute(
+        "select count(*) from ride_group where team_id = %s and lower(name) = lower(%s)",
+        (seed["team_a"], gname),
+    ).fetchone()
+    assert groups[0] == 1
+
+    # And the index physically rejects a hand-rolled duplicate.
+    with pytest.raises(psycopg.errors.UniqueViolation):
+        owner_conn.execute(
+            "insert into ride_group (id, team_id, name) values (%s, %s, %s)",
+            (uuid.uuid4(), seed["team_a"], gname.lower()),
+        )
+
+
 def test_same_name_different_email_stays_two_people_in_their_own_groups(
     client, seed: dict[str, Any], owner_conn: psycopg.Connection
 ) -> None:

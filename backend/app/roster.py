@@ -66,19 +66,31 @@ def _find_or_create_ride_group(conn: psycopg.Connection, team_id: uuid.UUID, nam
     `team_id` -- case-insensitive match against an existing row, INSERT if
     none exists. `name` must already be stripped/non-blank (callers only
     invoke this for a row that actually specified a ride group)."""
+    # Insert-or-get against the (team_id, lower(name)) unique index
+    # (supabase/migrations/0009_ride_group_unique_name.sql). `on conflict do
+    # nothing returning` yields the new id only when THIS call created the
+    # row; on a conflict it returns no row and we read the existing id back.
+    # This is race-safe (two concurrent imports can't both create "Droid")
+    # AND guarantees a team can never accumulate duplicate groups -- the
+    # split-brain that made a ride-group coach unable to see athletes filed
+    # under a second same-named group.
+    created = conn.execute(
+        """
+        insert into ride_group (id, team_id, name)
+        values (%s, %s, %s)
+        on conflict (team_id, lower(name)) do nothing
+        returning id
+        """,
+        (uuid.uuid4(), team_id, name),
+    ).fetchone()
+    if created is not None:
+        return created[0], True
+
     existing = conn.execute(
         "select id from ride_group where team_id = %s and lower(name) = lower(%s)",
         (team_id, name),
     ).fetchone()
-    if existing is not None:
-        return existing[0], False
-
-    new_id = uuid.uuid4()
-    conn.execute(
-        "insert into ride_group (id, team_id, name) values (%s, %s, %s)",
-        (new_id, team_id, name),
-    )
-    return new_id, True
+    return existing[0], False
 
 
 def _find_matching_person(conn: psycopg.Connection, team_id: uuid.UUID, row: RosterRowIn) -> uuid.UUID | None:
