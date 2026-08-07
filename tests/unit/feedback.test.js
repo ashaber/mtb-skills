@@ -9,7 +9,7 @@ const { _post, _showFeedbackModal, _submitFeedback, initFeedback } = await impor
 
 // A handful of microtask ticks plus one macrotask turn -- enough for the
 // nested `fetch().then().then()`/`.catch()` chains in _post /
-// _postFeedbackToBackend / _drainFeedbackBackendQueue to fully settle.
+// `_makeBackendQueue`'s post/drain to fully settle.
 const flush = async () => {
   for (let i = 0; i < 8; i++) await Promise.resolve();
   await new Promise(r => setTimeout(r, 0));
@@ -17,6 +17,7 @@ const flush = async () => {
 
 const sheetPendingKeys = () => Object.keys(localStorage).filter(k => k.startsWith('mtb_pending_'));
 const backendPendingKeys = () => Object.keys(localStorage).filter(k => k.startsWith('mtb_fb_pending_backend_'));
+const engagementPendingKeys = () => Object.keys(localStorage).filter(k => k.startsWith('mtb_eng_pending_backend_'));
 
 describe('feedback.js', () => {
   let fetchMock;
@@ -40,7 +41,7 @@ describe('feedback.js', () => {
     initFeedback();
   });
 
-  describe('_post routing (Phase 3 feedback -> db)', () => {
+  describe('_post routing (Phase 3 feedback+engagement -> db)', () => {
     it('routes a type:feedback payload to the backend POST /api/feedback when BACKEND_URL is set', async () => {
       fetchMock.mockResolvedValue({ ok: true, status: 201 });
 
@@ -57,20 +58,36 @@ describe('feedback.js', () => {
       // Success -> nothing queued anywhere.
       expect(sheetPendingKeys()).toEqual([]);
       expect(backendPendingKeys()).toEqual([]);
+      expect(engagementPendingKeys()).toEqual([]);
     });
 
-    it('type:engagement is routed straight to the sheet/queue path, ignoring BACKEND_URL entirely', async () => {
+    it('routes a type:engagement payload to the backend POST /api/engagement when BACKEND_URL is set', async () => {
+      fetchMock.mockResolvedValue({ ok: true, status: 201 });
+
       _post({ type: 'engagement', sessionId: 'sess_1', events: '[]' });
       await flush();
 
-      // No configured sheet URL -> queued locally under the SHEET's key;
-      // the backend was never called at all (engagement stays on the
-      // sheet, per scope).
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.example.com/api/engagement');
+      expect(opts.method).toBe('POST');
+      expect(opts.headers['Content-Type']).toBe('application/json');
+      expect(JSON.parse(opts.body)).toMatchObject({ type: 'engagement', sessionId: 'sess_1' });
+
+      // Success -> nothing queued anywhere, and the sheet is never touched.
+      expect(sheetPendingKeys()).toEqual([]);
+      expect(backendPendingKeys()).toEqual([]);
+      expect(engagementPendingKeys()).toEqual([]);
+    });
+
+    it('an unrecognized type falls back to the sheet/queue path', async () => {
+      _post({ type: 'something_else' });
+      await flush();
+
       expect(fetchMock).not.toHaveBeenCalled();
       expect(sheetPendingKeys().length).toBe(1);
-      const queued = JSON.parse(localStorage.getItem(sheetPendingKeys()[0]));
-      expect(queued.type).toBe('engagement');
       expect(backendPendingKeys()).toEqual([]);
+      expect(engagementPendingKeys()).toEqual([]);
     });
   });
 
@@ -131,6 +148,81 @@ describe('feedback.js', () => {
         expect.objectContaining({ method: 'POST' })
       );
       expect(backendPendingKeys()).toEqual([]);
+      expect(sheetPendingKeys()).toEqual([]);
+    });
+  });
+
+  describe('offline engagement queues to the backend, never the sheet (own queue, separate from feedback)', () => {
+    it('a rejected backend POST queues under the engagement-specific key, not the sheet or feedback queue', async () => {
+      fetchMock.mockRejectedValueOnce(new Error('network down'));
+
+      _post({ type: 'engagement', sessionId: 'sess_2', events: '[]' });
+      await flush();
+
+      expect(engagementPendingKeys().length).toBe(1);
+      expect(sheetPendingKeys()).toEqual([]);
+      expect(backendPendingKeys()).toEqual([]);
+      const queued = JSON.parse(localStorage.getItem(engagementPendingKeys()[0]));
+      expect(queued).toMatchObject({ type: 'engagement', sessionId: 'sess_2' });
+    });
+
+    it('a non-2xx backend response also queues under the engagement-specific key', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
+
+      _post({ type: 'engagement', sessionId: 'sess_3', events: '[]' });
+      await flush();
+
+      expect(engagementPendingKeys().length).toBe(1);
+      expect(sheetPendingKeys()).toEqual([]);
+    });
+
+    it('a later successful engagement POST drains the engagement queue back to /api/engagement (not the sheet, not the feedback queue)', async () => {
+      fetchMock.mockRejectedValueOnce(new Error('offline'));
+      _post({ type: 'engagement', sessionId: 'sess_4', events: '[]' });
+      await flush();
+      expect(engagementPendingKeys().length).toBe(1);
+
+      fetchMock.mockResolvedValue({ ok: true, status: 201 });
+      _post({ type: 'engagement', sessionId: 'sess_5', events: '[]' });
+      await flush();
+
+      const backendCalls = fetchMock.mock.calls.filter(([url]) => url === 'https://api.example.com/api/engagement');
+      // 3 total: the initial (rejected) offline attempt, the "back online"
+      // flush itself, and the drain of the queued item that flush's
+      // success triggers.
+      expect(backendCalls.length).toBe(3);
+      expect(engagementPendingKeys()).toEqual([]);
+      expect(sheetPendingKeys()).toEqual([]);
+      expect(backendPendingKeys()).toEqual([]);
+    });
+
+    it('initFeedback() drains anything left queued from a prior offline session, for engagement too', async () => {
+      localStorage.setItem(
+        'mtb_eng_pending_backend_1',
+        JSON.stringify({ type: 'engagement', sessionId: 'sess_earlier' })
+      );
+      fetchMock.mockResolvedValue({ ok: true, status: 201 });
+
+      initFeedback();
+      await flush();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.example.com/api/engagement',
+        expect.objectContaining({ method: 'POST' })
+      );
+      expect(engagementPendingKeys()).toEqual([]);
+      expect(sheetPendingKeys()).toEqual([]);
+    });
+
+    it('a feedback failure and an engagement failure queue independently under their own keys', async () => {
+      fetchMock.mockRejectedValue(new Error('offline'));
+
+      _post({ type: 'feedback', comment: 'offline feedback' });
+      _post({ type: 'engagement', sessionId: 'sess_both', events: '[]' });
+      await flush();
+
+      expect(backendPendingKeys().length).toBe(1);
+      expect(engagementPendingKeys().length).toBe(1);
       expect(sheetPendingKeys()).toEqual([]);
     });
   });

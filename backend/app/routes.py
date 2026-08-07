@@ -12,16 +12,18 @@ write to -- the database is the authorization backstop for all of it.
 Response shapes mirror app/schema.md's Observation / ConfirmedLevel field
 lists, plus the Phase-3 `person`/`Persona` shape from app/identity.py.
 
-ONE deliberate exception to the "every route requires `Depends(get_caller)`"
-rule: `POST /api/feedback`, at the bottom of this module. There is no
-persona behind a 💬 feedback-modal submission (src/feedback.js) -- identity
-is entirely self-reported in the payload -- so it takes no auth at all and
-writes through `app.db.service_connection` (the same RLS-bypass
-app.onboarding uses for its own no-persona-yet bootstrap write; see that
-module's and `service_connection`'s docstrings). See
-supabase/migrations/0011_feedback.sql for why that's the correct access
-model for this one table (RLS enabled, no policies, so nothing but the
-service bypass can ever touch it).
+TWO deliberate exceptions to the "every route requires `Depends(get_caller)`"
+rule, both at the bottom of this module: `POST /api/feedback` and `POST
+/api/engagement`. Neither has a persona behind it -- there is no coach/
+athlete identity behind a 💬 feedback-modal submission or a usage-tracking
+ping (src/feedback.js), identity in both is entirely self-reported (or
+absent) in the payload -- so both take no auth at all and write through
+`app.db.service_connection` (the same RLS-bypass app.onboarding uses for
+its own no-persona-yet bootstrap write; see that module's and
+`service_connection`'s docstrings). See supabase/migrations/0011_feedback.sql
+and supabase/migrations/0012_engagement.sql for why that's the correct
+access model for these two tables (RLS enabled, no policies, so nothing but
+the service bypass can ever touch either).
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ from typing import Any
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Request
+from psycopg.types.json import Jsonb
 
 from app import roster
 from app.config import Settings
@@ -44,6 +47,7 @@ from app.schemas import (
     AthleteIn,
     AttendanceIn,
     ConfirmedLevelIn,
+    EngagementIn,
     FeedbackIn,
     ObservationIn,
     PracticeIn,
@@ -825,10 +829,11 @@ def assign_ride_group(
 
 
 # ==========================================================================
-# feedback -- the ONE anonymous, unauthenticated write in this backend. See
-# the module docstring above and supabase/migrations/0011_feedback.sql for
-# why an RLS-bypassing `service_connection` write is the correct (and only
-# correct) path here: there is no persona to scope an `rls_connection` to.
+# feedback -- one of the two anonymous, unauthenticated writes in this
+# backend (the other is engagement, below). See the module docstring above
+# and supabase/migrations/0011_feedback.sql for why an RLS-bypassing
+# `service_connection` write is the correct (and only correct) path here:
+# there is no persona to scope an `rls_connection` to.
 # ==========================================================================
 
 
@@ -884,3 +889,64 @@ def submit_feedback(
     )
 
     return _feedback_row_to_dict(row)
+
+
+# ==========================================================================
+# engagement -- the other anonymous, unauthenticated write in this backend
+# (feedback, above, is the first). Same access model as feedback: see the
+# module docstring above and supabase/migrations/0012_engagement.sql for
+# why an RLS-bypassing `service_connection` write is the correct (and only
+# correct) path here -- there is no persona to scope an `rls_connection` to
+# behind a usage-tracking ping (src/feedback.js's `_flushEngagement`).
+# ==========================================================================
+
+
+def _engagement_row_to_dict(row: tuple) -> dict[str, Any]:
+    (eng_id,) = row
+    return {"id": str(eng_id)}
+
+
+@router.post("/engagement", status_code=201)
+def submit_engagement(
+    body: EngagementIn,
+    request: Request,
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    # `user_agent` is captured HERE, from the actual request header --
+    # never taken from anything the client put in the JSON body (EngagementIn
+    # has no such field at all), same as submit_feedback above.
+    user_agent = request.headers.get("User-Agent")
+
+    with service_connection(settings.database_url) as conn:
+        row = conn.execute(
+            """
+            insert into engagement
+                (session_id, session_start, duration_sec, user_name, league, team,
+                 event_count, events, app_version, user_agent)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            returning id
+            """,
+            (
+                body.session_id,
+                body.session_start,
+                body.duration_sec,
+                body.user_name,
+                body.league,
+                body.team,
+                body.event_count,
+                Jsonb(body.events) if body.events is not None else None,
+                body.app_version,
+                user_agent,
+            ),
+        ).fetchone()
+
+    # Never log `events` content, user_name, league, or team -- self-reported
+    # PII/behavioral detail (global logging standard: "Never log secrets,
+    # API keys, or PII"). Only shape/size metadata useful for triage.
+    log.info(
+        "engagement.received",
+        event_count=body.event_count,
+        duration_sec=body.duration_sec,
+    )
+
+    return _engagement_row_to_dict(row)

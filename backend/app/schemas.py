@@ -8,7 +8,8 @@ app/main.py's `RequestValidationError` handler.
 
 from __future__ import annotations
 
-from datetime import date
+import json
+from datetime import date, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID
@@ -343,6 +344,140 @@ class FeedbackIn(BaseModel):
         # omitted `hasDrawing` + omitted/blank `comment` is still caught.
         if not self.comment and not self.has_drawing:
             raise ValueError("feedback must include a comment or a drawing")
+        return self
+
+
+# Cap on the SERIALIZED `events` JSON, in characters -- bounds the size of
+# the jsonb payload `POST /api/engagement` will insert, regardless of
+# whether the client sent `events` as a JSON string or a native JSON array
+# (see EngagementIn._events_string_or_list below). ~500KB of JSON is
+# generous headroom over a normal 15-event flush batch (src/feedback.js's
+# `_trackEvent` flushes at 15 events or on the 60s interval, whichever
+# comes first) while still bounding this anonymous, unauthenticated write
+# surface the same way FeedbackIn caps screenshot/drawing size above.
+_MAX_EVENTS_JSON_CHARS = 500_000
+
+
+class EngagementIn(BaseModel):
+    """POST /api/engagement body -- the usage-tracking ping payload
+    (src/feedback.js's `_flushEngagement`), routed to this ANONYMOUS backend
+    endpoint instead of the Google Sheet (supabase/migrations/
+    0012_engagement.sql). This is the LAST stream still posting to the
+    sheet before this migration; once it ships, the sheet is unused.
+
+    No auth on this endpoint (app/routes.py's `POST /api/engagement` has no
+    `Depends(get_caller)`), same posture as FeedbackIn above -- there is no
+    persona behind an engagement ping, identity (`user_name`/`league`/
+    `team`) is entirely self-reported (mirrored from the feedback-session
+    profile, see src/feedback.js). Every text field is length-capped for
+    the same open-write-surface reason FeedbackIn's fields are.
+
+    Every field is optional -- an engagement flush with just a `session_id`
+    (or even less) is a legitimate ping -- but `_require_not_empty` below
+    still rejects a request body that is entirely empty, since that's
+    almost certainly a client bug rather than a real flush.
+
+    `ConfigDict(extra="ignore", populate_by_name=True)` mirrors FeedbackIn:
+    forward-compat against payload fields this backend doesn't persist yet,
+    and accepts the frontend's camelCase keys via `alias=` while the Python
+    side stays snake_case.
+    """
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    type: str | None = None
+    session_id: str | None = Field(default=None, max_length=500, alias="sessionId")
+    session_start: datetime | None = Field(default=None, alias="sessionStart")
+    duration_sec: int | None = Field(default=None, ge=0, alias="durationSec")
+    user_name: str | None = Field(default=None, max_length=500, alias="userName")
+    league: str | None = Field(default=None, max_length=500)
+    team: str | None = Field(default=None, max_length=500)
+    event_count: int | None = Field(default=None, ge=0, alias="eventCount")
+    events: list[Any] | None = None
+    app_version: str | None = Field(default=None, max_length=500, alias="appVersion")
+
+    @field_validator("session_id", "user_name", "league", "team", "app_version")
+    @classmethod
+    def _blank_optional_to_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("session_start", mode="before")
+    @classmethod
+    def _session_start_lenient(cls, value: Any) -> Any:
+        # `sessionStart` arrives as `new Date(...).toISOString()` (src/
+        # feedback.js's `_flushEngagement`) -- a proper ISO 8601 string --
+        # but usage data shouldn't be lost to one malformed timestamp: an
+        # unparseable value stores as null instead of 400ing the whole
+        # ping (CLAUDE.md task brief). Runs `mode="before"` so it can
+        # swallow a parse failure itself, rather than letting pydantic's
+        # own datetime coercion raise a ValidationError for a bad string.
+        if value is None or isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            try:
+                # `datetime.fromisoformat` (3.11+) doesn't accept a bare
+                # trailing "Z" -- normalize it to the equivalent explicit
+                # UTC offset it does accept.
+                return datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+            except ValueError:
+                return None
+        return None  # unrecognized shape (e.g. a number) -- store null, never 400
+
+    @field_validator("events", mode="before")
+    @classmethod
+    def _events_string_or_list(cls, value: Any) -> Any:
+        # Accepts EITHER a JSON string (what src/feedback.js's
+        # `_flushEngagement` sends today: `JSON.stringify(_events)`) OR an
+        # already-decoded JSON array -- normalizes either shape to a
+        # native list before pydantic stores it, so app/routes.py can hand
+        # it straight to psycopg's jsonb adapter without caring which shape
+        # the client sent. A string over the size cap is rejected before
+        # attempting to parse it (no point paying the json.loads cost on
+        # something that will be rejected anyway); the equivalent
+        # re-serialized-size check also runs on an already-a-list value, so
+        # the cap is enforced the same way regardless of input shape.
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if len(value) > _MAX_EVENTS_JSON_CHARS:
+                raise ValueError(f"events payload too large (max {_MAX_EVENTS_JSON_CHARS} chars)")
+            try:
+                value = json.loads(value)
+            except (json.JSONDecodeError, TypeError) as exc:
+                raise ValueError("events must be valid JSON") from exc
+        if not isinstance(value, list):
+            raise ValueError("events must be a JSON array, or a JSON string of one")
+        if len(json.dumps(value)) > _MAX_EVENTS_JSON_CHARS:
+            raise ValueError(f"events payload too large (max {_MAX_EVENTS_JSON_CHARS} chars)")
+        return value
+
+    @model_validator(mode="after")
+    def _require_not_empty(self) -> "EngagementIn":
+        # An omitted/blank `type` doesn't count toward "non-empty" -- it's
+        # the caller's job to only POST engagement pings here in the first
+        # place (same posture as FeedbackIn's `type`), so a body that is
+        # ONLY `{"type": "engagement"}` is still rejected as empty.
+        has_content = any(
+            [
+                self.session_id,
+                self.session_start is not None,
+                self.duration_sec is not None,
+                self.user_name,
+                self.league,
+                self.team,
+                self.event_count is not None,
+                self.events,
+                self.app_version,
+            ]
+        )
+        if not has_content:
+            raise ValueError("engagement payload must not be entirely empty")
         return self
 
 
