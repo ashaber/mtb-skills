@@ -11,6 +11,17 @@ write to -- the database is the authorization backstop for all of it.
 
 Response shapes mirror app/schema.md's Observation / ConfirmedLevel field
 lists, plus the Phase-3 `person`/`Persona` shape from app/identity.py.
+
+ONE deliberate exception to the "every route requires `Depends(get_caller)`"
+rule: `POST /api/feedback`, at the bottom of this module. There is no
+persona behind a 💬 feedback-modal submission (src/feedback.js) -- identity
+is entirely self-reported in the payload -- so it takes no auth at all and
+writes through `app.db.service_connection` (the same RLS-bypass
+app.onboarding uses for its own no-persona-yet bootstrap write; see that
+module's and `service_connection`'s docstrings). See
+supabase/migrations/0011_feedback.sql for why that's the correct access
+model for this one table (RLS enabled, no policies, so nothing but the
+service bypass can ever touch it).
 """
 
 from __future__ import annotations
@@ -20,11 +31,11 @@ from datetime import date, datetime
 from typing import Any
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app import roster
 from app.config import Settings
-from app.db import rls_connection
+from app.db import rls_connection, service_connection
 from app.deps import Caller, get_caller, get_settings_dep
 from app.identity import Persona
 from app.logging import get_logger
@@ -33,6 +44,7 @@ from app.schemas import (
     AthleteIn,
     AttendanceIn,
     ConfirmedLevelIn,
+    FeedbackIn,
     ObservationIn,
     PracticeIn,
     RosterImportIn,
@@ -810,3 +822,65 @@ def assign_ride_group(
         raise HTTPException(status_code=403, detail="cannot reassign that athlete")
 
     return _person_row_to_dict(row, ride_group_name=ride_group_name)
+
+
+# ==========================================================================
+# feedback -- the ONE anonymous, unauthenticated write in this backend. See
+# the module docstring above and supabase/migrations/0011_feedback.sql for
+# why an RLS-bypassing `service_connection` write is the correct (and only
+# correct) path here: there is no persona to scope an `rls_connection` to.
+# ==========================================================================
+
+
+def _feedback_row_to_dict(row: tuple) -> dict[str, Any]:
+    (fb_id,) = row
+    return {"id": str(fb_id)}
+
+
+@router.post("/feedback", status_code=201)
+def submit_feedback(
+    body: FeedbackIn,
+    request: Request,
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    # `user_agent` is captured HERE, from the actual request header --
+    # never taken from anything the client put in the JSON body (FeedbackIn
+    # has no such field at all), so a submitter can't spoof it.
+    user_agent = request.headers.get("User-Agent")
+
+    with service_connection(settings.database_url) as conn:
+        row = conn.execute(
+            """
+            insert into feedback
+                (page, role, user_name, email, league, team, comment, has_drawing,
+                 screenshot, drawing, app_version, user_agent)
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            returning id
+            """,
+            (
+                body.page,
+                body.role,
+                body.user_name,
+                body.email,
+                body.league,
+                body.team,
+                body.comment,
+                body.has_drawing,
+                body.screenshot,
+                body.drawing,
+                body.app_version,
+                user_agent,
+            ),
+        ).fetchone()
+
+    # Never log the comment text, email, or images -- PII (global logging
+    # standard: "Never log secrets, API keys, or PII"). Only shape/size
+    # metadata that's useful for triage.
+    log.info(
+        "feedback.received",
+        page=body.page,
+        comment_length=len(body.comment) if body.comment else 0,
+        has_drawing=body.has_drawing,
+    )
+
+    return _feedback_row_to_dict(row)

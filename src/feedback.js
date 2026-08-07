@@ -2,10 +2,32 @@
  * src/feedback.js — Conference feedback & engagement tracking.
  * Only loaded when ?feedback=true is in the URL.
  * Exports initFeedback() — called once from main.js boot.
+ *
+ * Routing (Phase 3 feedback→db): `type:'feedback'` submissions go to the
+ * backend's anonymous POST /api/feedback (see src/env.js's BACKEND_URL and
+ * backend/app/routes.py) when a backend is configured; `type:'engagement'`
+ * usage-tracking pings (_flushEngagement) are UNCHANGED — they still post
+ * to the Google Sheet webhook exclusively, via its own `mtb_pending_*`
+ * offline queue. When BACKEND_URL is set but a feedback POST fails
+ * (offline, 5xx, etc.), the payload is queued under its OWN
+ * `mtb_fb_pending_backend_*` localStorage key and retried against the
+ * BACKEND on the next drain — never against the sheet. That queue is
+ * drained on `initFeedback()` (app boot) and after every subsequent
+ * successful feedback POST, so a coach who submits offline gets caught up
+ * automatically the next time the backend is reachable. Net effect: every
+ * feedback item — submitted online or recovered from offline — lands in
+ * the backend `feedback` table; the sheet is used for engagement only. If
+ * BACKEND_URL is empty entirely (a no-backend build, e.g. local/dev), the
+ * legacy sheet POST/offline-queue path is still used for feedback too —
+ * there is no backend to hold a queue against in that configuration.
  */
+
+import log from './log.js';
+import { BACKEND_URL } from './env.js';
 
 const SHEETS_KEY = 'mtb_sheets_url';
 const SESSION_KEY = 'mtb_feedback_session';
+const FB_BACKEND_QUEUE_PREFIX = 'mtb_fb_pending_backend_';
 
 let _session = null;
 let _events = [];
@@ -16,11 +38,22 @@ const _esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+// Exported alongside initFeedback so tests/unit/feedback.test.js can drive
+// the feedback→backend / offline-queue routing and the identity-prefill /
+// anonymize behavior directly, without needing to puppet the full modal's
+// screenshot-capture (html2canvas) + canvas-init (rAF) flow just to reach
+// them.
+export { _post, _showFeedbackModal, _submitFeedback };
+
 export function initFeedback() {
   _injectCSS();
   _session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
   _startEngagement();
   _addFeedbackButton();
+  // Catch up any feedback left queued from a prior offline session (see
+  // module docstring) -- a no-op if BACKEND_URL is unset or the queue is
+  // empty.
+  _drainFeedbackBackendQueue();
 }
 
 // ── Engagement tracker ────────────────────────────────────────────────────────
@@ -95,12 +128,22 @@ function _openFeedbackModal() {
 function _showFeedbackModal() {
   const needsProfile = !_session;
 
-  // D13: pre-fill from coach profile stored in localStorage
+  // Pre-fill identity from the signed-in user when available (main.js
+  // exposes `window._mtbState.authUser = { email, name } | null`), else
+  // fall back to the locally-stored coach profile (D13). Both `fb-name`
+  // and `fb-email` stay ordinary, fully editable/clearable text inputs --
+  // a coach can wipe either (or both) before submitting to go anonymous;
+  // that's a supported, still-sends case (see _submitFeedback below). Only
+  // ever applies when `needsProfile` (no saved `_session` yet) -- an
+  // already-saved session, or anything the user typed this session, is
+  // never overwritten here.
+  const authUser = needsProfile ? window._mtbState?.authUser : null;
   const coach = needsProfile ? JSON.parse(localStorage.getItem('mtb_coach') || 'null') : null;
   const teamSettings = needsProfile ? JSON.parse(localStorage.getItem('mtb_team') || 'null') : null;
-  const prefillName = coach?.name || '';
+  const prefillName = authUser?.name || coach?.name || '';
+  const prefillEmail = authUser?.email || '';
   const prefillTeam = teamSettings?.name || '';
-  const hasCoachProfile = !!(coach?.name);
+  const hasCoachProfile = !!(coach?.name || authUser?.name);
 
   const modal = document.createElement('div');
   modal.id = 'fb-modal-wrap';
@@ -115,7 +158,7 @@ function _showFeedbackModal() {
         <div class="fb-profile-section" id="fb-profile">
           <p class="fb-profile-label">Tell us about yourself (optional except role)</p>
           <input class="fb-input" id="fb-name" type="text" placeholder="Your name (optional)" autocomplete="name" value="${_esc(prefillName)}">
-          <input class="fb-input" id="fb-email" type="email" placeholder="Email (optional — for follow-up)" autocomplete="email">
+          <input class="fb-input" id="fb-email" type="email" placeholder="Email (optional — for follow-up)" autocomplete="email" value="${_esc(prefillEmail)}">
           <input class="fb-input" id="fb-league" type="text" placeholder="NICA League (optional)">
           <input class="fb-input" id="fb-team" type="text" placeholder="Team (optional)" autocomplete="organization" value="${_esc(prefillTeam)}">
           <div class="fb-role-row">
@@ -378,9 +421,71 @@ function _submitFeedback() {
   setTimeout(_closeFeedbackModal, 1600);
 }
 
-// ── Sheets POST / offline queue ───────────────────────────────────────────────
+// ── Post routing: backend (feedback, own queue) / sheet (engagement, and
+// feedback ONLY in a no-backend build) ────────────────────────────────────────
 
 function _post(payload) {
+  if (payload.type === 'feedback') {
+    if (BACKEND_URL) {
+      _postFeedbackToBackend(payload)
+        .then(() => {
+          // A successful post is also a good moment to catch up anything
+          // still stuck from an earlier offline attempt.
+          _drainFeedbackBackendQueue();
+        })
+        .catch(err => {
+          log.warn('feedback.backend_post_failed', { error: String(err) });
+          _queueFeedbackForBackend(payload);
+        });
+      return;
+    }
+    // No backend configured at all (no-backend build) -- there is no
+    // backend queue to hold this against, so feedback uses the legacy
+    // sheet path, same as before BACKEND_URL existed.
+    _postToSheetOrQueue(payload);
+    return;
+  }
+  _postToSheetOrQueue(payload);
+}
+
+function _postFeedbackToBackend(payload) {
+  return fetch(`${BACKEND_URL}/api/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(res => {
+    if (!res.ok) throw new Error('feedback backend responded ' + res.status);
+  });
+}
+
+// ── Feedback's own offline queue (backend-bound only — never the sheet) ──────
+
+function _queueFeedbackForBackend(payload) {
+  localStorage.setItem(FB_BACKEND_QUEUE_PREFIX + Date.now(), JSON.stringify(payload));
+}
+
+function _drainFeedbackBackendQueue() {
+  if (!BACKEND_URL) return; // nothing to drain against
+  Object.keys(localStorage)
+    .filter(k => k.startsWith(FB_BACKEND_QUEUE_PREFIX))
+    .forEach(k => {
+      let payload;
+      try {
+        payload = JSON.parse(localStorage.getItem(k));
+      } catch {
+        localStorage.removeItem(k); // corrupt entry -- drop rather than retry forever
+        return;
+      }
+      _postFeedbackToBackend(payload)
+        .then(() => localStorage.removeItem(k))
+        .catch(() => { /* still unreachable -- leave queued, retry on next drain */ });
+    });
+}
+
+// ── Sheets POST / offline queue (engagement's only path; feedback's path
+// only in a no-backend build) ─────────────────────────────────────────────────
+
+function _postToSheetOrQueue(payload) {
   const url = window.MTB_SHEETS_URL || localStorage.getItem(SHEETS_KEY);
   if (!url) { _queue(payload); return; }
   fetch(url, {
