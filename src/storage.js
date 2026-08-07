@@ -490,6 +490,89 @@ export function getAttendanceStatus(practiceId, personId) {
   return rec?.status ?? null;
 }
 
+/**
+ * Every local attendance record, across all practices — unlike
+ * getAttendance(practiceId) above, this is not scoped to one practice.
+ * Used by src/sync.js to diff the full local attendance set against the
+ * backend's pull/push. */
+export function getAllAttendance() {
+  return load(KEYS.attendance);
+}
+
+// ---------------------------------------------------------------------------
+// Practice / attendance — remote merge helpers (Phase 3.x backend sync)
+// ---------------------------------------------------------------------------
+
+/**
+ * Upserts a PULLED remote practice row (backend/app/routes.py's
+ * `_practice_row_to_dict` shape) into the local store, mapping the
+ * backend's field names onto the local shape used by createPractice/
+ * getPractices/etc above (`session_date` -> `date`, `created_by` ->
+ * `coach_id`) so the rest of the app never has to know two shapes exist.
+ *
+ * Simple union by id, matching src/sync.js's "union practices by id" merge
+ * rule (NOT last-write-wins, unlike attendance below) — if a practice with
+ * this id already exists locally it is left untouched: the local record
+ * already IS that same practice, whether it was created here originally or
+ * is being echoed back from a prior push, and a practice/status pair is
+ * simple enough that there's nothing to reconcile field-by-field. Returns
+ * the (possibly pre-existing, untouched) local record.
+ */
+export function upsertPracticeFromRemote(remote) {
+  const all = load(KEYS.practices);
+  const idx = all.findIndex(p => p.id === remote.id);
+  if (idx !== -1) return all[idx];
+
+  const practice = {
+    id:            remote.id,
+    team_id:       remote.team_id ?? null,
+    ride_group_id: remote.ride_group_id ?? null,
+    coach_id:      remote.created_by ?? null,
+    date:          remote.session_date,
+    status:        remote.status ?? 'active',
+  };
+  all.push(practice);
+  save(KEYS.practices, all);
+  return practice;
+}
+
+/**
+ * Upserts a PULLED remote attendance row (backend/app/routes.py's
+ * `_attendance_row_to_dict` shape), last-write-wins by
+ * (practice_id, person_id), comparing the backend's `marked_at` against
+ * the local record's `ts` — same LWW posture as src/sync.js's
+ * confirmed-level merge. Local wins (no-op) when its `ts` is already newer
+ * than or equal to the remote `marked_at`; otherwise the remote status
+ * replaces the local record's status/`ts` (or a new local record is
+ * created, if none existed for this practice+person yet). Returns the
+ * (possibly unchanged) local record.
+ */
+export function upsertAttendanceFromRemote(remote) {
+  const all = load(KEYS.attendance);
+  const idx = all.findIndex(a => a.practice_id === remote.practice_id && a.person_id === remote.person_id);
+
+  if (idx === -1) {
+    const record = {
+      id:          remote.id,
+      practice_id: remote.practice_id,
+      person_id:   remote.person_id,
+      status:      remote.status,
+      ts:          remote.marked_at,
+    };
+    all.push(record);
+    save(KEYS.attendance, all);
+    return record;
+  }
+
+  const local = all[idx];
+  if (local.ts && new Date(local.ts) >= new Date(remote.marked_at)) {
+    return local; // local is newer or equal — keep it
+  }
+  all[idx] = { ...local, status: remote.status, ts: remote.marked_at };
+  save(KEYS.attendance, all);
+  return all[idx];
+}
+
 // ---------------------------------------------------------------------------
 // Import / Export (schema v2)
 // ---------------------------------------------------------------------------

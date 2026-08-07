@@ -64,6 +64,12 @@ _VALID_CONFIRMED_LEVEL_BODY = {
     "skill": "braking",
     "level": 4,
 }
+_VALID_PRACTICE_BODY: dict[str, Any] = {}
+_VALID_ATTENDANCE_BODY = {
+    "practice_id": str(uuid.uuid4()),
+    "person_id": str(uuid.uuid4()),
+    "status": "attending",
+}
 
 # (method, path, json body-or-None) for every mounted /api/* route. Bodies
 # are valid-shaped where a body is required, so a missing-auth 401 can't be
@@ -75,6 +81,10 @@ _API_ROUTES: list[tuple[str, str, dict[str, Any] | None]] = [
     ("GET", "/api/confirmed-levels", None),
     ("POST", "/api/confirmed-levels", _VALID_CONFIRMED_LEVEL_BODY),
     ("GET", "/api/roster", None),
+    ("GET", "/api/practices", None),
+    ("POST", "/api/practices", _VALID_PRACTICE_BODY),
+    ("GET", "/api/attendance", None),
+    ("POST", "/api/attendance", _VALID_ATTENDANCE_BODY),
 ]
 
 
@@ -212,5 +222,35 @@ def test_post_observations_rejects_invalid_body(authed_client, bad_body: dict[st
 )
 def test_post_confirmed_levels_rejects_invalid_body(authed_client, bad_body: dict[str, Any]) -> None:
     resp = authed_client.post("/api/confirmed-levels", json=bad_body)
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "invalid request"
+
+
+@pytest.mark.parametrize(
+    "bad_body",
+    [
+        {"ride_group_id": "not-a-uuid"},
+        {"status": "not-a-status"},
+    ],
+    ids=["bad-uuid", "bad-status"],
+)
+def test_post_practices_rejects_invalid_body(authed_client, bad_body: dict[str, Any]) -> None:
+    resp = authed_client.post("/api/practices", json=bad_body)
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "invalid request"
+
+
+@pytest.mark.parametrize(
+    "bad_body",
+    [
+        {"practice_id": "not-a-uuid", "person_id": str(uuid.uuid4())},
+        {"practice_id": str(uuid.uuid4()), "person_id": "not-a-uuid"},
+        {"practice_id": str(uuid.uuid4()), "person_id": str(uuid.uuid4()), "status": "not-a-status"},
+        {"person_id": str(uuid.uuid4())},  # missing practice_id
+    ],
+    ids=["bad-practice-uuid", "bad-person-uuid", "bad-status", "missing-practice-id"],
+)
+def test_post_attendance_rejects_invalid_body(authed_client, bad_body: dict[str, Any]) -> None:
+    resp = authed_client.post("/api/attendance", json=bad_body)
     assert resp.status_code == 400
     assert resp.json()["error"] == "invalid request"

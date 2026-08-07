@@ -15,6 +15,8 @@ import { syncNow } from '../../src/sync.js';
 import {
   getPeople, getObservations, saveObservation,
   getConfirmedLevels, setConfirmedLevel,
+  getPractices, createPractice, upsertPracticeFromRemote,
+  getAllAttendance, toggleAttendance, upsertAttendanceFromRemote,
   getCachedIdentity, getRemoteRosterIds,
 } from '../../src/storage.js';
 
@@ -24,19 +26,28 @@ function jsonResponse(body, { ok = true, status = 200 } = {}) {
 
 /**
  * Builds a fetch mock that serves fixed GET bodies for the pull endpoints
- * (roster/observations/confirmed-levels/me) and echoes POST bodies back as
- * the "created" row, recording every call for assertions. `me` defaults to
- * an empty personas list — most tests here don't care about identity.
+ * (roster/observations/confirmed-levels/practices/attendance/me) and echoes
+ * POST bodies back as the "created"/"upserted" row, recording every call
+ * for assertions. `me` defaults to an empty personas list — most tests
+ * here don't care about identity.
  */
-function mockFetch({ roster = [], observations = [], confirmedLevels = [], me = { personas: [] } } = {}) {
+function mockFetch({
+  roster = [], observations = [], confirmedLevels = [],
+  practices = [], attendance = [],
+  me = { personas: [] },
+} = {}) {
   const fn = vi.fn(async (url, opts = {}) => {
     const method = opts.method || 'GET';
     if (method === 'GET' && url.endsWith('/api/roster'))            return jsonResponse(roster);
     if (method === 'GET' && url.endsWith('/api/observations'))      return jsonResponse(observations);
     if (method === 'GET' && url.endsWith('/api/confirmed-levels'))  return jsonResponse(confirmedLevels);
+    if (method === 'GET' && url.endsWith('/api/practices'))         return jsonResponse(practices);
+    if (method === 'GET' && url.endsWith('/api/attendance'))        return jsonResponse(attendance);
     if (method === 'GET' && url.endsWith('/api/me'))                return jsonResponse(me);
     if (method === 'POST' && url.endsWith('/api/observations'))     return jsonResponse(JSON.parse(opts.body), { status: 201 });
     if (method === 'POST' && url.endsWith('/api/confirmed-levels')) return jsonResponse(JSON.parse(opts.body));
+    if (method === 'POST' && url.endsWith('/api/practices'))        return jsonResponse(JSON.parse(opts.body), { status: 201 });
+    if (method === 'POST' && url.endsWith('/api/attendance'))       return jsonResponse(JSON.parse(opts.body));
     return jsonResponse({ error: 'unhandled in test mock' }, { ok: false, status: 404 });
   });
   return fn;
@@ -266,5 +277,167 @@ describe('syncNow — confirmed levels (LWW by athlete_id+skill)', () => {
       ([url, opts]) => url.endsWith('/api/confirmed-levels') && opts?.method === 'POST'
     );
     expect(pushCall).toBeTruthy();
+  });
+});
+
+describe('syncNow — practices (union by id)', () => {
+  it('pulls a remote practice into the local store, mapping session_date -> date and created_by -> coach_id', async () => {
+    global.fetch = mockFetch({
+      practices: [{
+        id: 'prac1', team_id: 't1', ride_group_id: 'rg1', session_date: '2026-01-01',
+        status: 'active', created_by: 'c1', created_at: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+    const result = await syncNow();
+
+    expect(result.pulled).toBeGreaterThan(0);
+    const practices = getPractices();
+    expect(practices).toHaveLength(1);
+    expect(practices[0]).toMatchObject({
+      id: 'prac1', team_id: 't1', ride_group_id: 'rg1', date: '2026-01-01',
+      status: 'active', coach_id: 'c1',
+    });
+  });
+
+  it('re-pulling the same remote practice does not create a duplicate', async () => {
+    const remote = { id: 'prac1', team_id: 't1', session_date: '2026-01-01', status: 'active' };
+    global.fetch = mockFetch({ practices: [remote] });
+
+    await syncNow();
+    await syncNow();
+
+    expect(getPractices()).toHaveLength(1);
+  });
+
+  it('pushes a local-only practice (not present remotely) with its local id and mapped fields', async () => {
+    const local = createPractice({ force: true });
+    const fetchMock = mockFetch({ practices: [] });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    const pushCall = fetchMock.mock.calls.find(
+      ([url, opts]) => url.endsWith('/api/practices') && opts?.method === 'POST'
+    );
+    expect(pushCall).toBeTruthy();
+    const body = JSON.parse(pushCall[1].body);
+    expect(body.id).toBe(local.id);
+    expect(body.session_date).toBe(local.date);
+    expect(body.status).toBe('active');
+    expect(result.pushed).toBeGreaterThan(0);
+  });
+
+  it('does not push a practice that already exists both locally and remotely under the same id', async () => {
+    // Seed the local copy the same way a prior pull would have (upsertPracticeFromRemote),
+    // then have the SAME id come back on this sync's pull too.
+    upsertPracticeFromRemote({ id: 'shared-prac', team_id: 't1', session_date: '2026-01-02', status: 'active' });
+    const remote = { id: 'shared-prac', team_id: 't1', session_date: '2026-01-02', status: 'active' };
+    const fetchMock = mockFetch({ practices: [remote] });
+    global.fetch = fetchMock;
+
+    await syncNow();
+
+    const pushCalls = fetchMock.mock.calls.filter(
+      ([url, opts]) => url.endsWith('/api/practices') && opts?.method === 'POST'
+    );
+    expect(pushCalls).toHaveLength(0);
+  });
+});
+
+describe('syncNow — attendance (LWW by practice_id+person_id)', () => {
+  it('pulls a remote attendance row into the local store', async () => {
+    global.fetch = mockFetch({
+      attendance: [{
+        id: 'att1', practice_id: 'prac1', person_id: 'a1', team_id: 't1', ride_group_id: 'rg1',
+        status: 'attending', marked_by: 'c1', marked_at: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+    const result = await syncNow();
+
+    expect(result.pulled).toBeGreaterThan(0);
+    const attendance = getAllAttendance();
+    expect(attendance).toHaveLength(1);
+    expect(attendance[0]).toMatchObject({
+      practice_id: 'prac1', person_id: 'a1', status: 'attending', ts: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('remote wins when its marked_at is newer than the local ts', async () => {
+    upsertAttendanceFromRemote({
+      id: 'att1', practice_id: 'prac1', person_id: 'a1', status: 'absent',
+      marked_at: '2026-01-01T00:00:00.000Z',
+    });
+    global.fetch = mockFetch({
+      attendance: [{
+        id: 'att1', practice_id: 'prac1', person_id: 'a1', status: 'attending',
+        marked_at: '2026-01-05T00:00:00.000Z',
+      }],
+    });
+
+    await syncNow();
+
+    const rec = getAllAttendance().find(a => a.practice_id === 'prac1' && a.person_id === 'a1');
+    expect(rec.status).toBe('attending');
+    expect(rec.ts).toBe('2026-01-05T00:00:00.000Z');
+  });
+
+  it('local wins (and gets pushed) when its ts is newer than the remote marked_at', async () => {
+    upsertAttendanceFromRemote({
+      id: 'att1', practice_id: 'prac1', person_id: 'a1', status: 'attending',
+      marked_at: '2026-02-01T00:00:00.000Z',
+    });
+    const fetchMock = mockFetch({
+      roster: [{ id: 'a1', name: 'A1', role: 'athlete' }],
+      attendance: [{
+        id: 'att1', practice_id: 'prac1', person_id: 'a1', status: 'absent',
+        marked_at: '2026-01-01T00:00:00.000Z',
+      }],
+    });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    // Local value must not be clobbered by the older remote value.
+    const rec = getAllAttendance().find(a => a.practice_id === 'prac1' && a.person_id === 'a1');
+    expect(rec.status).toBe('attending');
+
+    const pushCall = fetchMock.mock.calls.find(
+      ([url, opts]) => url.endsWith('/api/attendance') && opts?.method === 'POST'
+    );
+    expect(pushCall).toBeTruthy();
+    const body = JSON.parse(pushCall[1].body);
+    expect(body).toMatchObject({ practice_id: 'prac1', person_id: 'a1', status: 'attending' });
+    expect(result.pushed).toBeGreaterThan(0);
+  });
+
+  it('a local-only attendance record (no remote counterpart) is pushed', async () => {
+    toggleAttendance('prac1', 'a9'); // absent -> attending
+    const fetchMock = mockFetch({ roster: [{ id: 'a9', name: 'A9', role: 'athlete' }], attendance: [] });
+    global.fetch = fetchMock;
+
+    await syncNow();
+
+    const pushCall = fetchMock.mock.calls.find(
+      ([url, opts]) => url.endsWith('/api/attendance') && opts?.method === 'POST'
+    );
+    expect(pushCall).toBeTruthy();
+  });
+
+  it('does NOT push a local-only person\'s attendance — skips it (counted, not errored)', async () => {
+    // a-local exists only on this device (not in the pulled roster), so
+    // pushing would 403 (cannot mark attendance for that person). Sync must
+    // skip it cleanly, same posture as the observations skip-guard test.
+    toggleAttendance('prac1', 'a-local');
+    const fetchMock = mockFetch({ roster: [{ id: 'a2', name: 'A2', role: 'athlete' }], attendance: [] });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    const pushCalls = fetchMock.mock.calls.filter(
+      ([url, opts]) => url.endsWith('/api/attendance') && opts?.method === 'POST'
+    );
+    expect(pushCalls).toHaveLength(0);
+    expect(result.skipped).toBe(1);
+    expect(result.error).toBeUndefined();
   });
 });
