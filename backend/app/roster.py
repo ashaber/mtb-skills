@@ -21,12 +21,21 @@ docstring) -- there is deliberately no vector for a row to target a
 different team than the caller's own, even though RLS would deny it anyway
 if there were.
 
-Merge key priority, scoped to `team_id`, tried in order until one matches:
-    1. `external_id` (exact)
-    2. `email` (case-insensitive)
-    3. `name` (case-insensitive)
+Merge key priority, scoped to `team_id` (see `_find_matching_person` for
+the full rationale -- real PitZone rosters collide hard on both email and
+name, so this is deliberately conservative):
+    1. `external_id` (exact) -- the only truly unique key.
+    2. `email` AND `name` together (case-insensitive) -- email alone is a
+       FAMILY identifier in PitZone (parent-coach and athlete share it), and
+       names collide across different people, so BOTH must agree.
+    3. `name` (case-insensitive) ONLY when neither the row nor the candidate
+       has an email.
 A match -> UPDATE (name, role, email, ride_group_id, external_id, grade,
-category) on the existing row. No match -> INSERT a new `person` row.
+category, tags) on the existing row. No match -> INSERT a new `person` row.
+`tags` (supabase/migrations/0007_person_tags.sql) is carried straight
+through on both paths -- a re-import REPLACES the existing tag list with
+whatever the row specifies (not a merge/append), same last-write-wins
+posture as every other re-importable field here.
 
 `ride_group` values are resolved/created up front (case-insensitive match
 by (team_id, name); INSERT if absent -- there is no unique constraint on
@@ -57,26 +66,58 @@ def _find_or_create_ride_group(conn: psycopg.Connection, team_id: uuid.UUID, nam
     `team_id` -- case-insensitive match against an existing row, INSERT if
     none exists. `name` must already be stripped/non-blank (callers only
     invoke this for a row that actually specified a ride group)."""
+    # Insert-or-get against the (team_id, lower(name)) unique index
+    # (supabase/migrations/0009_ride_group_unique_name.sql). `on conflict do
+    # nothing returning` yields the new id only when THIS call created the
+    # row; on a conflict it returns no row and we read the existing id back.
+    # This is race-safe (two concurrent imports can't both create "Droid")
+    # AND guarantees a team can never accumulate duplicate groups -- the
+    # split-brain that made a ride-group coach unable to see athletes filed
+    # under a second same-named group.
+    created = conn.execute(
+        """
+        insert into ride_group (id, team_id, name)
+        values (%s, %s, %s)
+        on conflict (team_id, lower(name)) do nothing
+        returning id
+        """,
+        (uuid.uuid4(), team_id, name),
+    ).fetchone()
+    if created is not None:
+        return created[0], True
+
     existing = conn.execute(
         "select id from ride_group where team_id = %s and lower(name) = lower(%s)",
         (team_id, name),
     ).fetchone()
-    if existing is not None:
-        return existing[0], False
-
-    new_id = uuid.uuid4()
-    conn.execute(
-        "insert into ride_group (id, team_id, name) values (%s, %s, %s)",
-        (new_id, team_id, name),
-    )
-    return new_id, True
+    return existing[0], False
 
 
 def _find_matching_person(conn: psycopg.Connection, team_id: uuid.UUID, row: RosterRowIn) -> uuid.UUID | None:
-    """The existing `person.id` this row merges into, if any, per the
-    module docstring's external_id -> email -> name priority. Each strategy
-    is only tried if the row actually provides that field; the first hit
-    wins."""
+    """The existing `person.id` this row merges into, if any.
+
+    Merge is deliberately conservative because real PitZone rosters collide
+    hard on both email and name (see the module docstring):
+
+    1. `external_id` exact -- the only truly unique key (a future PitZone/
+       NICA GUID, or our OWN person id round-tripped back in via an export).
+    2. `email` AND `name` together (case-insensitive). Email alone is a
+       FAMILY-level identifier in PitZone -- a parent-coach and their athlete
+       routinely share one email -- so a lone-email match would collapse two
+       different people into one; requiring the name too keeps them distinct.
+       The converse also holds: two different people who happen to share a
+       name have different emails, so pairing the two fields likewise avoids
+       the same-name collapse. If the row HAS an email but no (email, name)
+       twin exists, we deliberately do NOT fall through to a name-only match
+       -- a name-only hit at that point is almost always a DIFFERENT person
+       who merely shares the name (rampant in sanitized/real rosters alike),
+       so the row is treated as a new person instead.
+    3. Only when the row has NO email do we fall back to a name match, and
+       even then only against a candidate that ALSO has no email -- we won't
+       overwrite a row that carries a distinct email on the strength of a
+       shared name alone.
+    Anything else -> None (a new person).
+    """
     if row.external_id:
         match = conn.execute(
             "select id from person where team_id = %s and external_id = %s",
@@ -87,14 +128,20 @@ def _find_matching_person(conn: psycopg.Connection, team_id: uuid.UUID, row: Ros
 
     if row.email:
         match = conn.execute(
-            "select id from person where team_id = %s and lower(email) = lower(%s)",
-            (team_id, row.email),
+            "select id from person where team_id = %s and lower(email) = lower(%s) and lower(name) = lower(%s)",
+            (team_id, row.email, row.name),
         ).fetchone()
         if match is not None:
             return match[0]
+        # Row has an email but no (email, name) twin -> NOT the same person as
+        # a mere name-share; fall through to a new insert rather than a
+        # name-only merge.
+        return None
 
+    # No email on the row -> name fallback, but only against an equally
+    # email-less candidate.
     match = conn.execute(
-        "select id from person where team_id = %s and lower(name) = lower(%s)",
+        "select id from person where team_id = %s and lower(name) = lower(%s) and email is null",
         (team_id, row.name),
     ).fetchone()
     if match is not None:
@@ -149,7 +196,7 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
                 """
                 update person
                 set name = %s, role = %s, email = %s, ride_group_id = %s, external_id = %s,
-                    grade = %s, category = %s
+                    grade = %s, category = %s, tags = %s
                 where id = %s
                 """,
                 (
@@ -160,6 +207,7 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
                     row.external_id,
                     row.grade,
                     row.category,
+                    row.tags,
                     matched_id,
                 ),
             )
@@ -167,8 +215,9 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
         else:
             conn.execute(
                 """
-                insert into person (id, team_id, ride_group_id, role, name, email, external_id, grade, category)
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                insert into person
+                    (id, team_id, ride_group_id, role, name, email, external_id, grade, category, tags)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     uuid.uuid4(),
@@ -180,6 +229,7 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
                     row.external_id,
                     row.grade,
                     row.category,
+                    row.tags,
                 ),
             )
             people_created += 1

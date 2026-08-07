@@ -13,7 +13,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Skill(str, Enum):
@@ -76,7 +76,15 @@ class RosterRowIn(BaseModel):
     same as email/ride_group/external_id below. A non-numeric-looking
     `grade` (e.g. a stray header value from a malformed CSV column mapping)
     is dropped to None rather than rejected -- a bad grade cell shouldn't
-    400 an entire import batch."""
+    400 an entire import batch.
+
+    `tags` (supabase/migrations/0007_person_tags.sql) is the descriptive
+    folksonomy (lead/sweep/floater/...) -- NOT part of CLAUDE.md's Phase 2b
+    column-mapping table (no sheet-column source is defined for it yet), but
+    carried here so a future importer/UI can set it. Normalized the same way
+    as the other optional fields: each entry stripped, lowercased, blanks
+    dropped, duplicates collapsed (order-preserving). Defaults to an empty
+    list, never None -- matches the column's own `not null default '{}'`."""
 
     name: str
     role: str = "athlete"
@@ -85,6 +93,7 @@ class RosterRowIn(BaseModel):
     external_id: str | None = None
     grade: int | None = None
     category: str | None = None
+    tags: list[str] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -141,6 +150,27 @@ class RosterRowIn(BaseModel):
             except (TypeError, ValueError):
                 return None
 
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _normalize_tags(cls, value: Any) -> list[str]:
+        # Blank/whitespace entries dropped, everything lowercased, order-
+        # preserving de-dupe -- same "don't 400 on messy input" posture as
+        # the other optional fields above. `None` (an omitted/null tags
+        # field) normalizes to an empty list rather than being rejected.
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError("tags must be a list of strings")
+        seen: set[str] = set()
+        normalized: list[str] = []
+        for item in value:
+            cleaned = str(item).strip().lower()
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            normalized.append(cleaned)
+        return normalized
+
 
 class RosterImportIn(BaseModel):
     """POST /api/roster/import body. `rows` must be non-empty -- an empty
@@ -148,3 +178,56 @@ class RosterImportIn(BaseModel):
     silently returned nothing), not a legitimate no-op request."""
 
     rows: list[RosterRowIn] = Field(min_length=1)
+
+
+class AthleteIn(BaseModel):
+    """POST /api/athletes body -- a coach adds ONE athlete to their own
+    ride group (docs/PHASE3_RECONCILIATION_PLAN.md decision (a): walk-up SA
+    / one-time-waiver record). Authorization is enforced by Postgres RLS
+    (supabase/migrations/0008_coach_add_athlete_rls.sql), not by this
+    schema -- this schema's job is only to shape/validate the request body.
+
+    Deliberately has NO `role` field -- this endpoint only ever creates
+    `role = 'athlete'` rows (app/routes.py hardcodes it in the INSERT), so
+    there is no field for a client to set it through. `model_config`
+    forbids any extra/unknown field (including a client-supplied `role`),
+    surfacing as a 400 "invalid request" via app/main.py's
+    RequestValidationError handler -- a client cannot sneak a `role`
+    (or `team_id`, which is likewise never taken from the request body and
+    is always derived server-side from `ride_group_id`) past this schema."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    ride_group_id: UUID
+    grade: int | None = None
+    category: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _name_non_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name must not be blank")
+        return stripped
+
+
+class AssignRideGroupIn(BaseModel):
+    """POST /api/roster/assign body -- an HC/TD reassigns (or unassigns) an
+    athlete's `ride_group_id`. Authorization is enforced by Postgres RLS's
+    `person_update` policy (HC/TD, team-wide -- supabase/migrations/
+    0002_rls.sql), not by this schema; app/routes.py's `assign_ride_group`
+    additionally guards against pointing a person at a DIFFERENT team's
+    ride_group (RLS alone would deny that too, since person_update's `with
+    check` re-validates the row's own team_id against the caller's HC team
+    ids, but the route makes the guard explicit rather than relying solely
+    on the database catching it).
+
+    `ride_group_id: None` means unassign (clears the field) -- required (no
+    default) so a caller must say so explicitly rather than an omitted key
+    silently doing nothing."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    person_id: UUID
+    ride_group_id: UUID | None

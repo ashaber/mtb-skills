@@ -61,6 +61,81 @@ describe('savePerson — athlete', () => {
   });
 });
 
+// ── savePerson — merge-preserve on update (Phase 3.2) ─────────────────────────
+// A sync pull passes only {id,name,role,ride_group_id,ride_group_name,tags,
+// grade,category,external_id} — it must never wipe fields it doesn't
+// mention, and new roster fields must round-trip.
+describe('savePerson — update merge-preserve', () => {
+  it('preserves an unlisted medical_notes field when the update omits it', () => {
+    const p = savePerson({ name: 'Rider', medical_notes: 'Asthma — carries inhaler' });
+    const updated = savePerson({ id: p.id, name: 'Rider Updated', role: 'athlete' });
+    expect(updated.medical_notes).toBe('Asthma — carries inhaler');
+    expect(updated.name).toBe('Rider Updated');
+  });
+
+  it('preserves emergency contact fields and plate/notes not mentioned in the update', () => {
+    const p = savePerson({
+      name: 'Rider',
+      plate: 42,
+      notes: 'Great cornering form',
+      emergency_contact_name: 'Parent Name',
+      emergency_contact_phone: '555-1234',
+    });
+    const updated = savePerson({ id: p.id, name: 'Rider', role: 'athlete', category: 'JV1' });
+    expect(updated.plate).toBe(42);
+    expect(updated.notes).toBe('Great cornering form');
+    expect(updated.emergency_contact_name).toBe('Parent Name');
+    expect(updated.emergency_contact_phone).toBe('555-1234');
+  });
+
+  it('preserves a locally-set photo-adjacent field (medical_notes) across a sync-shaped update', () => {
+    const p = savePerson({ name: 'Rider', medical_notes: 'Bee sting allergy' });
+    // Sync-shaped update: exactly the fields src/sync.js passes through.
+    const synced = savePerson({
+      id: p.id, name: 'Rider', role: 'athlete',
+      ride_group_id: 'g1', ride_group_name: 'JV Boys', tags: ['lead'],
+      grade: null, category: null, external_id: 'NICA-1',
+    });
+    expect(synced.medical_notes).toBe('Bee sting allergy');
+  });
+
+  it('an explicit null clears a field (does not fall back to existing)', () => {
+    const p = savePerson({ name: 'Rider', notes: 'old note' });
+    const updated = savePerson({ id: p.id, name: 'Rider', role: 'athlete', notes: null });
+    expect(updated.notes).toBeNull();
+  });
+
+  it('round-trips ride_group_id, ride_group_name, and tags', () => {
+    const p = savePerson({ name: 'Rider' });
+    expect(p.ride_group_id).toBeNull();
+    expect(p.ride_group_name).toBeNull();
+    expect(p.tags).toEqual([]);
+
+    const updated = savePerson({
+      id: p.id, name: 'Rider', role: 'athlete',
+      ride_group_id: 'g1', ride_group_name: 'JV Boys', tags: ['lead', 'sweep'],
+    });
+    expect(updated.ride_group_id).toBe('g1');
+    expect(updated.ride_group_name).toBe('JV Boys');
+    expect(updated.tags).toEqual(['lead', 'sweep']);
+  });
+
+  it('round-trips external_id and defaults it to null when never set', () => {
+    const p = savePerson({ name: 'Rider' });
+    expect(p.external_id).toBeNull();
+    const updated = savePerson({ id: p.id, name: 'Rider', role: 'athlete', external_id: 'NICA-42' });
+    expect(updated.external_id).toBe('NICA-42');
+  });
+
+  it('a second update that omits ride_group_id/tags preserves them from the prior sync', () => {
+    const p = savePerson({ name: 'Rider', ride_group_id: 'g1', ride_group_name: 'JV Boys', tags: ['lead'] });
+    const untouched = savePerson({ id: p.id, name: 'Rider Renamed' });
+    expect(untouched.ride_group_id).toBe('g1');
+    expect(untouched.ride_group_name).toBe('JV Boys');
+    expect(untouched.tags).toEqual(['lead']);
+  });
+});
+
 describe('savePerson — coach', () => {
   it('stores level, null category and grade', () => {
     const p = savePerson({ name: 'Coach Bob', role: 'coach', level: 2 });

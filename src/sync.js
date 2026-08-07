@@ -34,14 +34,17 @@ import {
   savePerson,
   getObservations, saveObservation,
   getConfirmedLevels, setConfirmedLevel,
+  saveCachedIdentity, saveRemoteRosterIds,
 } from './storage.js';
 
 /**
  * Minimal fetch helper: adds the Bearer token + JSON headers, parses the
  * JSON body, and throws a plain Error (message = the server's `{error}`
- * when present) on any non-2xx response.
+ * when present) on any non-2xx response. Exported (Phase 3.2) so
+ * src/main.js's reconciliation Add/Match flow can reuse it for
+ * `POST /api/athletes` without duplicating the fetch/error-shape logic.
  */
-async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, { method = 'GET', body } = {}) {
   const token = await getAccessToken();
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -95,15 +98,39 @@ export async function syncNow() {
   let pushed = 0;
 
   try {
-    const [remoteRoster, remoteObs, remoteConfirmed] = await Promise.all([
+    const [remoteRoster, remoteObs, remoteConfirmed, me] = await Promise.all([
       api('/api/roster'),
       api('/api/observations'),
       api('/api/confirmed-levels'),
+      api('/api/me'),
     ]);
 
+    // ── Identity + remote-roster-id cache (Phase 3.2) ─────────────────────
+    // Written on every successful sync so src/views.js can read "my
+    // group(s)" (via src/reconcile.js's resolveMyGroups) and detect
+    // local-only athletes (src/reconcile.js's detectLocalOnly) SYNCHRONOUSLY
+    // — no network call on render, per this module's offline-first header.
+    saveCachedIdentity(me?.personas || []);
+    saveRemoteRosterIds((remoteRoster || []).map(r => r.id));
+
     // ── Roster: upsert by id ──────────────────────────────────────────────
+    // Pass the FULL pulled row through (not just id/name/role) so
+    // ride_group_id/ride_group_name/tags/external_id/grade/category all
+    // persist locally. savePerson merge-preserves any field this row
+    // doesn't mention (medical_notes, photo, plate, notes, ...) — see its
+    // doc comment in src/storage.js.
     for (const r of remoteRoster || []) {
-      savePerson({ id: r.id, name: r.name, role: r.role });
+      savePerson({
+        id:              r.id,
+        name:            r.name,
+        role:            r.role,
+        ride_group_id:   r.ride_group_id ?? null,
+        ride_group_name: r.ride_group_name ?? null,
+        tags:            r.tags ?? [],
+        external_id:     r.external_id ?? null,
+        grade:           r.grade ?? null,
+        category:        r.category ?? null,
+      });
       pulled++;
     }
 
@@ -134,9 +161,20 @@ export async function syncNow() {
       }
     }
 
+    // Athletes the backend knows about (this pull's roster). A local record
+    // whose athlete_id isn't here belongs to a LOCAL-ONLY athlete — pushing
+    // it would just 403 (`athlete_not_in_scope`) and surface as "sync
+    // finished with errors". We skip those cleanly here; the coach resolves
+    // them via reconciliation (Add/Match → remapAthleteId re-points the id,
+    // after which the next sync pushes them normally). Counted as `skipped`,
+    // not errored.
+    const remoteRosterIdSet = new Set((remoteRoster || []).map(r => r.id));
+    let skipped = 0;
+
     // ── Push: local observations the backend doesn't have yet ────────────
     for (const o of localObs) {
       if (remoteObsIds.has(o.id)) continue;
+      if (!remoteRosterIdSet.has(o.athlete_id)) { skipped++; continue; }
       try {
         await api('/api/observations', {
           method: 'POST',
@@ -159,6 +197,7 @@ export async function syncNow() {
     for (const [key, local] of localConfirmedMap) {
       const remote = remoteConfirmedMap.get(key);
       if (remote && !(new Date(local.confirmed_at) > new Date(remote.confirmed_at))) continue;
+      if (!remoteRosterIdSet.has(local.athlete_id)) { skipped++; continue; }
       try {
         await api('/api/confirmed-levels', {
           method: 'POST',
@@ -174,8 +213,9 @@ export async function syncNow() {
       }
     }
 
-    log.info('sync.done', { pulled, pushed });
-    return { pulled, pushed };
+    if (skipped) log.info('sync.push.skipped_local_only', { skipped });
+    log.info('sync.done', { pulled, pushed, skipped });
+    return { pulled, pushed, skipped };
   } catch (e) {
     log.error('sync.failed', { error: String(e) });
     return { pulled, pushed, error: String(e) };

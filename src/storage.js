@@ -18,6 +18,7 @@ const KEYS = {
   coach:          'mtb_coach',
   team:           'mtb_team',
   rosterFilter:   'mtb_roster_filter',
+  rosterGroupFilter: 'mtb_roster_group_filter',
   practices:      'mtb_practices',
   attendance:     'mtb_attendance',
 };
@@ -121,41 +122,67 @@ export function getPeople(filter = {}) {
 }
 
 /**
- * @param {{ name: string, role?: string, category?: string|null, level?: number|null, grade?: number|null }} fields
+ * @param {{ name: string, role?: string, category?: string|null, level?: number|null, grade?: number|null,
+ *   ride_group_id?: string|null, ride_group_name?: string|null, tags?: string[], external_id?: string|null }} fields
  */
 export function savePerson(fields) {
   const all = load(KEYS.athletes);
   const isNew = !fields.id;
-  const role = fields.role ?? 'athlete';
+  const existing = isNew ? null : all.find(p => p.id === fields.id);
 
-  let category = null;
-  let grade = null;
-  let level = null;
+  // `has(k)` — true only when the CALLER explicitly set this key (present in
+  // `fields`, even if the value is null/undefined). This is what makes an
+  // update merge-preserve: a key the caller never mentioned (e.g. a sync
+  // pull that only sends {id,name,role,ride_group_id,ride_group_name,tags,
+  // grade,category,external_id}) falls through to the EXISTING value below
+  // rather than being wiped to null. A key the caller sets to null (e.g. the
+  // edit-person form clearing a field) is honored as an explicit clear.
+  const has = k => Object.prototype.hasOwnProperty.call(fields, k);
 
+  const role = has('role') ? fields.role : (existing?.role ?? 'athlete');
+
+  let category, grade, level;
   if (role === 'athlete') {
-    category = fields.category ?? null;
-    grade = category !== null ? categoryToGrade(category) : (fields.grade ?? null);
+    category = has('category') ? (fields.category ?? null) : (existing?.category ?? null);
+    if (category !== null) {
+      grade = categoryToGrade(category);
+    } else if (has('grade')) {
+      grade = fields.grade ?? null;
+    } else {
+      grade = existing?.grade ?? null;
+    }
     level = null;
   } else {
-    level = fields.level ?? null;
+    level = has('level') ? (fields.level ?? null) : (existing?.level ?? null);
     category = null;
     grade = null;
   }
 
+  // Spread the existing record first (preserves anything not enumerated
+  // below, including fields this module doesn't even know about yet), THEN
+  // apply computed/provided fields on top — never fields.<x> directly, so an
+  // absent key can't clobber an existing value with `undefined`.
   const person = {
-    id:          fields.id ?? generateId(),
-    team_id:     getTeamId(),
-    season_year: new Date().getFullYear(),
-    name:        fields.name,
+    ...(existing ?? {}),
+    id:          existing?.id ?? fields.id ?? generateId(),
+    team_id:     existing?.team_id ?? getTeamId(),
+    season_year: existing?.season_year ?? new Date().getFullYear(),
+    name:        has('name') ? fields.name : (existing?.name ?? fields.name),
     role,
     category,
     grade,
     level,
-    plate:       fields.plate ?? null,
-    notes:       fields.notes ?? null,
-    medical_notes:           fields.medical_notes ?? null,
-    emergency_contact_name:  fields.emergency_contact_name ?? null,
-    emergency_contact_phone: fields.emergency_contact_phone ?? null,
+    plate:                   has('plate') ? (fields.plate ?? null) : (existing?.plate ?? null),
+    notes:                   has('notes') ? (fields.notes ?? null) : (existing?.notes ?? null),
+    medical_notes:           has('medical_notes') ? (fields.medical_notes ?? null) : (existing?.medical_notes ?? null),
+    emergency_contact_name:  has('emergency_contact_name') ? (fields.emergency_contact_name ?? null) : (existing?.emergency_contact_name ?? null),
+    emergency_contact_phone: has('emergency_contact_phone') ? (fields.emergency_contact_phone ?? null) : (existing?.emergency_contact_phone ?? null),
+    // Phase 3.2 — pulled from the backend roster row (see src/sync.js);
+    // default null/[] for locally-created people who have never synced.
+    ride_group_id:           has('ride_group_id') ? (fields.ride_group_id ?? null) : (existing?.ride_group_id ?? null),
+    ride_group_name:         has('ride_group_name') ? (fields.ride_group_name ?? null) : (existing?.ride_group_name ?? null),
+    tags:                    has('tags') ? (fields.tags ?? []) : (existing?.tags ?? []),
+    external_id:             has('external_id') ? (fields.external_id ?? null) : (existing?.external_id ?? null),
   };
 
   if (isNew) {
@@ -171,6 +198,76 @@ export function savePerson(fields) {
 
 export function deletePerson(id) {
   save(KEYS.athletes, load(KEYS.athletes).filter(p => p.id !== id));
+}
+
+/**
+ * Re-points a local-only athlete id to its backend counterpart everywhere
+ * in the local store, after the coach Adds or Matches it during Phase 3.2
+ * reconciliation (see src/reconcile.js). Idempotent: a no-op when
+ * `fromId === toId` or when `fromId` isn't referenced anywhere.
+ *
+ * What moves:
+ *  - observation.athlete_id: every `fromId` -> `toId`.
+ *  - confirmed_level.athlete_id: every `fromId` -> `toId`; if that produces
+ *    two entries for the same (athlete_id, skill) — i.e. `toId` already had
+ *    a confirmed level for a skill `fromId` also had one for — the entry
+ *    with the newer `confirmed_at` wins (same LWW rule as src/sync.js), the
+ *    other is dropped.
+ *  - photo (src/storage.js's PHOTO_KEY map): `fromId`'s photo moves to
+ *    `toId` ONLY if `toId` doesn't already have one; otherwise `fromId`'s
+ *    photo is simply dropped (never overwrites an existing `toId` photo).
+ *  - person record: the local `fromId` person record is always removed
+ *    afterward — Match/Add both make the backend row authoritative, and the
+ *    next sync pull creates/refreshes the `toId` person locally if it
+ *    isn't already present. Never leaves a dangling `fromId` duplicate.
+ *
+ * @param {string} fromId local-only athlete id being replaced
+ * @param {string} toId backend athlete id it now maps to
+ */
+export function remapAthleteId(fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+
+  // ── Observations: reassign athlete_id ─────────────────────────────────
+  const obs = load(KEYS.observations);
+  let obsChanged = false;
+  const remappedObs = obs.map(o => {
+    if (o.athlete_id !== fromId) return o;
+    obsChanged = true;
+    return { ...o, athlete_id: toId };
+  });
+  if (obsChanged) save(KEYS.observations, remappedObs);
+
+  // ── Confirmed levels: reassign athlete_id, then LWW-resolve any
+  //    (athlete_id, skill) collision the remap just created ────────────
+  const remappedConfirmed = load(KEYS.confirmedLevels).map(c =>
+    c.athlete_id === fromId ? { ...c, athlete_id: toId } : c
+  );
+  const bySkillKey = new Map();
+  for (const c of remappedConfirmed) {
+    const key = `${c.athlete_id}::${c.skill}`;
+    const prior = bySkillKey.get(key);
+    if (!prior || new Date(c.confirmed_at) > new Date(prior.confirmed_at)) {
+      bySkillKey.set(key, c);
+    }
+  }
+  save(KEYS.confirmedLevels, Array.from(bySkillKey.values()));
+
+  // ── Photo: move only if the target has none ───────────────────────────
+  try {
+    const photos = getStore().readObject(PHOTO_KEY) ?? {};
+    if (fromId in photos) {
+      if (!(toId in photos)) photos[toId] = photos[fromId];
+      delete photos[fromId];
+      getStore().writeObject(PHOTO_KEY, photos);
+    }
+  } catch (e) {
+    log.error('athlete.remap.photo.failed', { from: fromId, to: toId, error: String(e) });
+  }
+
+  // ── Person record: drop the local fromId row — never a dangling dupe ──
+  save(KEYS.athletes, load(KEYS.athletes).filter(p => p.id !== fromId));
+
+  log.info('athlete.remap', { from: fromId, to: toId });
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +296,18 @@ export function getRosterFilter() {
 
 export function saveRosterFilter(filter) {
   getStore().writeRaw(KEYS.rosterFilter, filter);
+}
+
+// Ride-group filter (Phase 3.2) — separate from the role filter above so
+// "Athletes" + "JV Boys" can be applied together. `'all'` means no group
+// filtering; any other value is a `ride_group_name` string, or the literal
+// `'__unassigned__'` for people with no ride_group_name.
+export function getRosterGroupFilter() {
+  return getStore().readRaw(KEYS.rosterGroupFilter) ?? 'all';
+}
+
+export function saveRosterGroupFilter(filter) {
+  getStore().writeRaw(KEYS.rosterGroupFilter, filter);
 }
 
 // ---------------------------------------------------------------------------
@@ -448,6 +557,60 @@ export function savePhoto(athleteId, dataUrl) {
 }
 
 // ---------------------------------------------------------------------------
+// Sync identity cache (Phase 3.2 — ride-group UI + reconciliation)
+//
+// src/sync.js writes these two caches on every successful syncNow() so the
+// roster view can read "my group(s)" and "which athletes are local-only"
+// SYNCHRONOUSLY, without ever blocking a render on a network call — the
+// offline-first constraint that governs this whole module. Both read back
+// null when there's no cache yet (never synced / signed out / unconfigured),
+// which is exactly the signal the view uses to hide the feature entirely.
+// ---------------------------------------------------------------------------
+const IDENTITY_KEY = 'mtb_identity';
+const REMOTE_ROSTER_IDS_KEY = 'mtb_remote_roster_ids';
+
+/**
+ * @returns {{ personas: Array<{person_id:string, role:string, team_id:string, ride_group_id:string|null, name:string}>, cached_at: string }|null}
+ */
+export function getCachedIdentity() {
+  try { return getStore().readObject(IDENTITY_KEY); }
+  catch { return null; }
+}
+
+/**
+ * @param {Array<object>} personas the `personas` array from GET /api/me
+ */
+export function saveCachedIdentity(personas) {
+  try {
+    getStore().writeObject(IDENTITY_KEY, { personas: personas ?? [], cached_at: new Date().toISOString() });
+  } catch (e) {
+    log.error('identity.cache.save.failed', { error: String(e) });
+  }
+}
+
+export function clearCachedIdentity() {
+  try { getStore().writeObject(IDENTITY_KEY, null); }
+  catch { /* best-effort */ }
+}
+
+/**
+ * @returns {string[]|null} ids present in the backend roster as of the last
+ *   successful pull, or null when there has never been one.
+ */
+export function getRemoteRosterIds() {
+  try { return getStore().readObject(REMOTE_ROSTER_IDS_KEY); }
+  catch { return null; }
+}
+
+/**
+ * @param {string[]} ids
+ */
+export function saveRemoteRosterIds(ids) {
+  try { getStore().writeObject(REMOTE_ROSTER_IDS_KEY, ids ?? []); }
+  catch (e) { log.error('remote_roster_ids.save.failed', { error: String(e) }); }
+}
+
+// ---------------------------------------------------------------------------
 // Team / league settings (white-label name, coach display name)
 // ---------------------------------------------------------------------------
 const TEAM_SETTINGS_KEY = 'mtb_team_settings';
@@ -459,6 +622,48 @@ export function getTeamSettings() {
 export function saveTeamSettings(settings) {
   const existing = getTeamSettings();
   getStore().writeObject(TEAM_SETTINGS_KEY, { ...existing, ...settings });
+}
+
+// ---------------------------------------------------------------------------
+// Local data reset ("Clear local data & re-sync" — Settings, HC-facing but
+// available to anyone signed in or not; src/main.js gates the re-sync half
+// on being signed in, not this function). Wipes ONLY roster/derived data
+// that a backend pull can fully reconstruct — never the coach's own
+// identity/team config, and never a Supabase auth token (those live under
+// `sb-*` keys this module never touches at all).
+// ---------------------------------------------------------------------------
+
+// Every key this function removes. Deliberately explicit (not "everything
+// except an allowlist") so a new KEYS entry added later does NOT get wiped
+// by default — a future storage.js key must be added here on purpose.
+const LOCAL_ROSTER_DATA_KEYS = [
+  KEYS.athletes,
+  KEYS.observations,
+  KEYS.confirmedLevels,
+  PHOTO_KEY,
+  KEYS.attendance,
+  KEYS.practices,
+  REMOTE_ROSTER_IDS_KEY,
+  IDENTITY_KEY,
+  KEYS.rosterFilter,
+  KEYS.rosterGroupFilter,
+];
+
+/**
+ * Removes only the local-storage keys listed in LOCAL_ROSTER_DATA_KEYS —
+ * roster (people), observations, confirmed levels, photos, attendance,
+ * practices, the cached remote-roster-id set, the cached identity, and the
+ * two roster filter selections. Deliberately does NOT touch `mtb_coach`,
+ * `mtb_team`, `mtb_team_settings`, or any Supabase `sb-*` auth key — those
+ * are the coach's own profile/config and sign-in session, not data a
+ * backend re-sync repopulates. Call sites (src/main.js) follow this with
+ * `runSync()` when signed in so the wiped roster/observations/confirmed-
+ * levels are immediately re-pulled; offline or signed out this is just a
+ * clean local wipe.
+ */
+export function clearLocalRosterData() {
+  LOCAL_ROSTER_DATA_KEYS.forEach(key => getStore().remove(key));
+  log.info('storage.local_cleared', { keys: LOCAL_ROSTER_DATA_KEYS.length });
 }
 
 // ---------------------------------------------------------------------------

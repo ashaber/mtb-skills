@@ -13,6 +13,10 @@ import {
   getPhoto, savePhoto,
   getTeamSettings, saveTeamSettings,
   getRosterFilter, saveRosterFilter,
+  getRosterGroupFilter, saveRosterGroupFilter,
+  getRemoteRosterIds, saveRemoteRosterIds,
+  remapAthleteId,
+  clearLocalRosterData,
   findTodaysPractice, createPractice, endPractice, reopenPractice, savePractice,
   getPractices, toggleAttendance, getAttendance,
   exportAll, importAll, exportAttendance,
@@ -24,7 +28,7 @@ import { SKILL_IDS } from './rubric.js';
 import { loadRubricContent } from './rubric-content.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import { isAuthConfigured, signInWithGoogle, signOut, getUser, getAccessToken, onAuthChange } from './auth.js';
-import { syncNow } from './sync.js';
+import { syncNow, api } from './sync.js';
 import { BACKEND_URL } from './env.js';
 import { parseCsv, mapRows, guessMapping, postImport } from './roster-import.js';
 import QRCode from 'qrcode';
@@ -34,6 +38,7 @@ import {
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
   modalSettings, modalReflection, modalOnboarding, modalRosterImport,
+  modalReconcile, modalAssignGroup,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -47,6 +52,7 @@ const s = {
   draft:           {},
   rubricSkill:     SKILL_IDS[0],
   roster_filter:   getRosterFilter(),
+  roster_group_filter: getRosterGroupFilter(), // Phase 3.2 — ride-group filter, 'all' | '__unassigned__' | a ride_group_name
   taking_attendance: false,
   today_practice:  null,
   settingsQR:      null,
@@ -57,6 +63,12 @@ const s = {
   syncAt:          null,     // ISO timestamp of last sync attempt
   syncing:         false,
 };
+
+// Phase 3.2 reconciliation sheet state — { athleteId, submitting: null|'add'|'match'|'delete', error } | null
+let _reconcile = null;
+
+// HC/TD-only "reassign ride group" sheet state — { athleteId, submitting: null|'save', error } | null
+let _assignGroup = null;
 
 // ── Camera / import state ─────────────────────────────────────────────────────
 let _cameraStream = null;
@@ -183,11 +195,45 @@ async function runSync() {
   const result = await syncNow();
   s.syncing = false;
   if (result) {
-    s.syncSummary = { pulled: result.pulled, pushed: result.pushed, error: result.error };
+    s.syncSummary = { pulled: result.pulled, pushed: result.pushed, skipped: result.skipped, error: result.error };
     s.syncAt = new Date().toISOString();
-    flash(result.error ? 'Sync finished with errors' : `Synced — ${result.pulled} pulled, ${result.pushed} pushed`);
+    // `skipped` = local-only athletes' records held back from push (they'd
+    // 403) — not an error; a nudge to reconcile. Shown only when there was
+    // no hard error and something was actually skipped.
+    const skippedNote = result.skipped ? ` · ${result.skipped} pending (tap ⚠ local only)` : '';
+    flash(result.error
+      ? 'Sync finished with errors'
+      : `Synced — ${result.pulled} pulled, ${result.pushed} pushed${skippedNote}`);
   }
   draw();
+}
+
+// "Clear local data & re-sync" (Settings → Local data). The wipe itself
+// always runs; the re-sync half is gated on being signed in
+// (isAuthConfigured() && s.authUser) — offline/signed-out there's nothing
+// to re-pull yet, so it's just a clean local reset.
+async function clearLocalData() {
+  if (!confirm('Clear this device\'s roster and re-sync from the backend? Your coach profile and sign-in stay.')) return;
+
+  clearLocalRosterData();
+  // Local UI state referencing wiped roster data (expanded row, in-progress
+  // draft levels, roster filters) must reset in step with the wipe, else a
+  // stale athlete id/filter lingers in `s` after the underlying record is
+  // gone.
+  s.expandedId = null;
+  s.draft = {};
+  s.roster_filter = getRosterFilter();
+  s.roster_group_filter = getRosterGroupFilter();
+  log.info('settings.clear_local_data');
+
+  if (isAuthConfigured() && s.authUser) {
+    await runSync(); // re-pull — runSync() itself draw()s + flash()es its own summary
+    draw();
+    flash('Local data cleared — re-synced');
+  } else {
+    draw();
+    flash('Local data cleared');
+  }
 }
 
 async function initAuthSync() {
@@ -295,6 +341,167 @@ function submitRosterImport() {
       _rosterImport.error = err?.message || String(err);
       log.error('roster_import.failed', { error: _rosterImport.error });
       renderRosterImport();
+    });
+}
+
+// ── Reconciliation (Phase 3.2) ────────────────────────────────────────────────
+// Opened by tapping a "⚠ local only" badge on the roster (src/views.js's
+// viewRoster, gated on isAuthConfigured() && s.authUser — invisible
+// otherwise). Add/Match re-point the local id to the backend one via
+// storage.js's remapAthleteId so observations/confirmed-levels/photo all
+// carry over; Delete just drops the local-only record.
+function renderReconcile() {
+  const scroll = document.querySelector('#sheet .sheet-scroll');
+  if (scroll) scroll.innerHTML = modalReconcile(_reconcile);
+}
+
+/**
+ * Shared finish for Add/Match: makes `remotePerson` the local record for
+ * `remotePerson.id` (upserting any roster fields it carries), remaps every
+ * local reference from `localId` to it, and optimistically folds the new id
+ * into the cached remote-roster-id set so the "local only" badge clears
+ * immediately rather than waiting for the next sync pull.
+ */
+function _finishReconcile(localId, remotePerson) {
+  savePerson({
+    id:              remotePerson.id,
+    name:            remotePerson.name,
+    role:            remotePerson.role || 'athlete',
+    ride_group_id:   remotePerson.ride_group_id ?? null,
+    ride_group_name: remotePerson.ride_group_name ?? null,
+    tags:            remotePerson.tags ?? [],
+    external_id:     remotePerson.external_id ?? null,
+    grade:           remotePerson.grade ?? null,
+    category:        remotePerson.category ?? null,
+  });
+  remapAthleteId(localId, remotePerson.id);
+
+  const cachedIds = getRemoteRosterIds() || [];
+  if (!cachedIds.includes(remotePerson.id)) saveRemoteRosterIds([...cachedIds, remotePerson.id]);
+
+  if (s.expandedId === localId) s.expandedId = null;
+  delete s.draft[localId];
+
+  _reconcile = null;
+  closeModal();
+  draw();
+}
+
+function submitReconcileAdd(localId) {
+  if (!_reconcile || _reconcile.submitting) return;
+  const local = getPeople().find(p => p.id === localId);
+  if (!local) return;
+  const groupId = document.getElementById('reconcile-add-group')?.value || '';
+  if (!groupId) {
+    _reconcile.error = 'Select a ride group first.';
+    renderReconcile();
+    return;
+  }
+
+  _reconcile.submitting = 'add';
+  _reconcile.error = null;
+  renderReconcile();
+
+  api('/api/athletes', {
+    method: 'POST',
+    body: { name: local.name, ride_group_id: groupId, grade: local.grade ?? null, category: local.category ?? null },
+  })
+    .then(created => {
+      log.info('reconcile.add', { local_id: localId, backend_id: created.id });
+      flash(`${created.name} added to your team roster`);
+      _finishReconcile(localId, created);
+    })
+    .catch(err => {
+      _reconcile.submitting = null;
+      _reconcile.error = err?.message || 'Could not add athlete.';
+      log.error('reconcile.add.failed', { athlete_id: localId, error: _reconcile.error });
+      renderReconcile();
+    });
+}
+
+function submitReconcileMatch(localId) {
+  if (!_reconcile || _reconcile.submitting) return;
+  const local = getPeople().find(p => p.id === localId);
+  if (!local) return;
+  const matchId = document.getElementById('reconcile-match-select')?.value || '';
+  if (!matchId) {
+    _reconcile.error = 'Choose an athlete to match to first.';
+    renderReconcile();
+    return;
+  }
+  const matched = getPeople().find(p => p.id === matchId);
+  if (!matched) return;
+
+  // Matching is entirely local (the target person was already synced down
+  // by a prior pull) — no network round trip needed.
+  log.info('reconcile.match', { local_id: localId, backend_id: matched.id });
+  flash(`Linked to ${matched.name}`);
+  _finishReconcile(localId, matched);
+}
+
+function submitReconcileDelete(localId) {
+  if (!_reconcile || _reconcile.submitting) return;
+  const local = getPeople().find(p => p.id === localId);
+  if (!local) return;
+  if (!confirm(`Delete ${local.name}? This removes it and its observations from this device only.`)) return;
+
+  deleteAthlete(localId);
+  if (s.expandedId === localId) s.expandedId = null;
+  delete s.draft[localId];
+  log.info('reconcile.delete', { athlete_id: localId });
+  flash(`${local.name} removed`);
+  _reconcile = null;
+  closeModal();
+  draw();
+}
+
+// ── Reassign ride group (HC/TD-only) ──────────────────────────────────────────
+// Opened by tapping the "⋯ Group" affordance on a roster row (src/views.js's
+// athleteRowHTML, gated on isHcOrTd(getCachedIdentity()?.personas) — a plain
+// ride-group coach never sees this control). POSTs POST /api/roster/assign;
+// the backend's RLS person_update policy is the actual authorization
+// boundary, this is purely a client-side UI gate.
+function renderAssignGroup() {
+  const scroll = document.querySelector('#sheet .sheet-scroll');
+  if (scroll) scroll.innerHTML = modalAssignGroup(_assignGroup);
+}
+
+function submitAssignGroup(athleteId) {
+  if (!_assignGroup || _assignGroup.submitting) return;
+  const local = getPeople().find(p => p.id === athleteId);
+  if (!local) return;
+
+  const selectEl = document.getElementById('assign-group-select');
+  const rideGroupId = selectEl?.value || null; // '' (the "Unassigned" option) -> null
+
+  _assignGroup.submitting = 'save';
+  _assignGroup.error = null;
+  renderAssignGroup();
+
+  api('/api/roster/assign', {
+    method: 'POST',
+    body: { person_id: athleteId, ride_group_id: rideGroupId },
+  })
+    .then(updated => {
+      log.info('assign_group.save', { athlete_id: athleteId, ride_group_id: updated.ride_group_id });
+      // Apply the server's response locally immediately, rather than
+      // waiting for the next syncNow() pull — savePerson merge-preserves
+      // every other field (see its doc comment in src/storage.js).
+      savePerson({
+        id:              updated.id,
+        ride_group_id:   updated.ride_group_id,
+        ride_group_name: updated.ride_group_name,
+      });
+      flash(`${updated.name} moved to ${updated.ride_group_name || 'Unassigned'}`);
+      _assignGroup = null;
+      closeModal();
+      draw();
+    })
+    .catch(err => {
+      _assignGroup.submitting = null;
+      _assignGroup.error = err?.message || 'Could not reassign group.';
+      log.error('assign_group.save.failed', { athlete_id: athleteId, error: _assignGroup.error });
+      renderAssignGroup();
     });
 }
 
@@ -531,6 +738,28 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'filter-roster-group') {
+    s.roster_group_filter = f;
+    saveRosterGroupFilter(f);
+    log.info('roster.filter_group', { filter: f });
+    draw();
+    return;
+  }
+
+  if (action === 'open-reconcile') {
+    _reconcile = { athleteId: id, submitting: null, error: null };
+    log.info('reconcile.open', { athlete_id: id });
+    openModal(modalReconcile(_reconcile));
+    return;
+  }
+
+  if (action === 'open-assign-group') {
+    _assignGroup = { athleteId: id, submitting: null, error: null };
+    log.info('assign_group.open', { athlete_id: id });
+    openModal(modalAssignGroup(_assignGroup));
+    return;
+  }
+
   if (action === 'start-attendance') {
     s.today_practice = s.today_practice || createPractice();
     s.taking_attendance = true;
@@ -680,6 +909,11 @@ function onAppClick(e) {
       flash('Signed out');
       draw();
     });
+    return;
+  }
+
+  if (action === 'clear-local-data') {
+    clearLocalData();
     return;
   }
 
@@ -890,6 +1124,12 @@ function onSheetClick(e) {
     draw();
     return;
   }
+
+  if (action === 'reconcile-add')    { submitReconcileAdd(el.dataset.id);    return; }
+  if (action === 'reconcile-match')  { submitReconcileMatch(el.dataset.id);  return; }
+  if (action === 'reconcile-delete') { submitReconcileDelete(el.dataset.id); return; }
+
+  if (action === 'save-assign-group') { submitAssignGroup(el.dataset.id); return; }
 }
 
 // ── Delegated input listeners ─────────────────────────────────────────────────

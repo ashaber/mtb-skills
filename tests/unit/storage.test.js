@@ -1,13 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   generateId,
-  getAthletes, saveAthlete, deleteAthlete,
+  getAthletes, saveAthlete, deleteAthlete, savePerson, getPeople,
   saveObservation, getObservations,
   setConfirmedLevel, getConfirmedLevels, getAthleteConfirmedLevels,
   getCoach, saveCoach, getTeamId,
   getPhoto, savePhoto,
   exportAll, importAll,
-  createPractice, getPractices,
+  createPractice, getPractices, toggleAttendance, getAttendance,
+  remapAthleteId,
+  getCachedIdentity, saveCachedIdentity, clearCachedIdentity,
+  getRemoteRosterIds, saveRemoteRosterIds,
+  getRosterFilter, saveRosterFilter, getRosterGroupFilter, saveRosterGroupFilter,
+  getTeamSettings, saveTeamSettings,
+  clearLocalRosterData,
 } from '../../src/storage.js';
 
 beforeEach(() => {
@@ -268,6 +274,163 @@ describe('photos', () => {
   });
 });
 
+describe('remapAthleteId', () => {
+  it('is a no-op when fromId === toId', () => {
+    const a = saveAthlete({ name: 'Rider' });
+    saveObservation({ athlete_id: a.id, skill: 'braking', level_observed: 2 });
+    remapAthleteId(a.id, a.id);
+    expect(getObservations({ athlete_id: a.id })).toHaveLength(1);
+    expect(getAthletes().find(p => p.id === a.id)).toBeTruthy();
+  });
+
+  it('is a no-op when there is nothing to remap (unknown fromId)', () => {
+    expect(() => remapAthleteId('nonexistent-local-id', generateId())).not.toThrow();
+    expect(getAthletes()).toHaveLength(0);
+  });
+
+  it('is a no-op when fromId or toId is missing/falsy', () => {
+    const a = saveAthlete({ name: 'Rider' });
+    expect(() => remapAthleteId(null, 'x')).not.toThrow();
+    expect(() => remapAthleteId(a.id, null)).not.toThrow();
+    expect(getAthletes()).toHaveLength(1);
+  });
+
+  it('remaps observation.athlete_id from fromId to toId, leaving other athletes untouched', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const other = saveAthlete({ name: 'Someone Else' });
+    saveObservation({ athlete_id: local.id, skill: 'braking', level_observed: 2 });
+    saveObservation({ athlete_id: local.id, skill: 'cornering', level_observed: 3 });
+    saveObservation({ athlete_id: other.id, skill: 'braking', level_observed: 4 });
+
+    const backendId = generateId();
+    remapAthleteId(local.id, backendId);
+
+    expect(getObservations({ athlete_id: local.id })).toHaveLength(0);
+    expect(getObservations({ athlete_id: backendId })).toHaveLength(2);
+    expect(getObservations({ athlete_id: other.id })).toHaveLength(1);
+  });
+
+  it('remaps confirmed_level.athlete_id when there is no collision', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    setConfirmedLevel({ athlete_id: local.id, skill: 'braking', level: 3, confirmed_at: '2026-01-01T00:00:00.000Z' });
+
+    const backendId = generateId();
+    remapAthleteId(local.id, backendId);
+
+    expect(getConfirmedLevels({ athlete_id: local.id })).toHaveLength(0);
+    const remapped = getConfirmedLevels({ athlete_id: backendId, skill: 'braking' });
+    expect(remapped).toHaveLength(1);
+    expect(remapped[0].level).toBe(3);
+  });
+
+  it('LWW-resolves a confirmed_level collision, keeping the newer confirmed_at', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const backendId = generateId();
+
+    // toId already has an older confirmed level for the same skill.
+    setConfirmedLevel({ athlete_id: backendId, skill: 'braking', level: 2, confirmed_at: '2026-01-01T00:00:00.000Z' });
+    // fromId has a NEWER one for the same skill — should win after remap.
+    setConfirmedLevel({ athlete_id: local.id, skill: 'braking', level: 5, confirmed_at: '2026-02-01T00:00:00.000Z' });
+
+    remapAthleteId(local.id, backendId);
+
+    const levels = getConfirmedLevels({ athlete_id: backendId, skill: 'braking' });
+    expect(levels).toHaveLength(1);
+    expect(levels[0].level).toBe(5);
+    expect(levels[0].confirmed_at).toBe('2026-02-01T00:00:00.000Z');
+  });
+
+  it('LWW-resolves a collision keeping the OLDER toId entry when it is newer than fromId\'s', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const backendId = generateId();
+
+    setConfirmedLevel({ athlete_id: backendId, skill: 'cornering', level: 4, confirmed_at: '2026-03-01T00:00:00.000Z' });
+    setConfirmedLevel({ athlete_id: local.id, skill: 'cornering', level: 1, confirmed_at: '2026-01-01T00:00:00.000Z' });
+
+    remapAthleteId(local.id, backendId);
+
+    const levels = getConfirmedLevels({ athlete_id: backendId, skill: 'cornering' });
+    expect(levels).toHaveLength(1);
+    expect(levels[0].level).toBe(4);
+  });
+
+  it('moves a photo from fromId to toId when toId has none', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const backendId = generateId();
+    savePhoto(local.id, 'data:image/png;base64,LOCAL=');
+
+    remapAthleteId(local.id, backendId);
+
+    expect(getPhoto(backendId)).toBe('data:image/png;base64,LOCAL=');
+    expect(getPhoto(local.id)).toBeNull();
+  });
+
+  it('drops (does not overwrite) fromId photo when toId already has one', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const backendId = generateId();
+    savePhoto(backendId, 'data:image/png;base64,BACKEND=');
+    savePhoto(local.id, 'data:image/png;base64,LOCAL=');
+
+    remapAthleteId(local.id, backendId);
+
+    expect(getPhoto(backendId)).toBe('data:image/png;base64,BACKEND=');
+    expect(getPhoto(local.id)).toBeNull();
+  });
+
+  it('is safe when neither side has a photo', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const backendId = generateId();
+    expect(() => remapAthleteId(local.id, backendId)).not.toThrow();
+    expect(getPhoto(backendId)).toBeNull();
+  });
+
+  it('removes the local fromId person record after remap (no dangling duplicate)', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const backendId = generateId();
+    remapAthleteId(local.id, backendId);
+    expect(getAthletes().find(p => p.id === local.id)).toBeUndefined();
+  });
+
+  it('keeps an existing toId person record untouched when one is already present locally', () => {
+    const local = saveAthlete({ name: 'Local Only' });
+    const backendPerson = savePerson({ id: generateId(), name: 'Backend Copy', role: 'athlete' });
+    remapAthleteId(local.id, backendPerson.id);
+    const all = getPeople();
+    expect(all.find(p => p.id === local.id)).toBeUndefined();
+    expect(all.find(p => p.id === backendPerson.id)?.name).toBe('Backend Copy');
+    expect(all).toHaveLength(1);
+  });
+});
+
+describe('sync identity cache (getCachedIdentity / getRemoteRosterIds)', () => {
+  it('getCachedIdentity returns null before any sync', () => {
+    expect(getCachedIdentity()).toBeNull();
+  });
+
+  it('saveCachedIdentity / getCachedIdentity round-trip personas', () => {
+    const personas = [{ person_id: 'p1', role: 'coach', team_id: 't1', ride_group_id: 'g1', name: 'Coach A' }];
+    saveCachedIdentity(personas);
+    const cached = getCachedIdentity();
+    expect(cached.personas).toEqual(personas);
+    expect(cached.cached_at).toBeTruthy();
+  });
+
+  it('clearCachedIdentity resets to null', () => {
+    saveCachedIdentity([{ person_id: 'p1' }]);
+    clearCachedIdentity();
+    expect(getCachedIdentity()).toBeNull();
+  });
+
+  it('getRemoteRosterIds returns null before any sync', () => {
+    expect(getRemoteRosterIds()).toBeNull();
+  });
+
+  it('saveRemoteRosterIds / getRemoteRosterIds round-trip', () => {
+    saveRemoteRosterIds(['a1', 'a2']);
+    expect(getRemoteRosterIds()).toEqual(['a1', 'a2']);
+  });
+});
+
 describe('local date — practice and observation timestamps', () => {
   it('createPractice records local calendar date, not UTC', () => {
     const p = createPractice();
@@ -287,5 +450,75 @@ describe('local date — practice and observation timestamps', () => {
   it('date format is YYYY-MM-DD with zero-padded month and day', () => {
     const p = createPractice();
     expect(p.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('clearLocalRosterData', () => {
+  function seedEverything() {
+    // Roster / derived data — every key clearLocalRosterData must remove.
+    const a = saveAthlete({ name: 'Rider' });
+    saveObservation({ athlete_id: a.id, skill: 'braking', level_observed: 3 });
+    setConfirmedLevel({ athlete_id: a.id, skill: 'braking', level: 3 });
+    savePhoto(a.id, 'data:image/png;base64,xxx');
+    const practice = createPractice();
+    toggleAttendance(practice.id, a.id);
+    saveCachedIdentity([{ person_id: 'p1', role: 'coach', team_id: 't1', ride_group_id: null, name: 'Coach' }]);
+    saveRemoteRosterIds([a.id]);
+    saveRosterFilter('athletes');
+    saveRosterGroupFilter('JV Boys');
+
+    // Data that must SURVIVE — coach profile, team, team settings, and a
+    // Supabase auth key (never touched by this module at all).
+    saveCoach({ name: 'Coach Andrew' });
+    getTeamId(); // ensures mtb_team is populated
+    saveTeamSettings({ name: 'Idaho League' });
+    localStorage.setItem('sb-fakeproject-auth-token', JSON.stringify({ access_token: 'fake' }));
+
+    return { athleteId: a.id, practiceId: practice.id };
+  }
+
+  it('removes only the roster/derived keys, preserving coach/team/team_settings/sb-*', () => {
+    seedEverything();
+
+    clearLocalRosterData();
+
+    // Roster + derived data gone.
+    expect(getPeople()).toHaveLength(0);
+    expect(getObservations()).toHaveLength(0);
+    expect(getConfirmedLevels()).toHaveLength(0);
+    expect(getPractices()).toHaveLength(0);
+    expect(getCachedIdentity()).toBeNull();
+    expect(getRemoteRosterIds()).toBeNull();
+    expect(getRosterFilter()).toBe('all');
+    expect(getRosterGroupFilter()).toBe('all');
+    expect(localStorage.getItem('mtb_photos')).toBeNull();
+    expect(localStorage.getItem('mtb_attendance')).toBeNull();
+
+    // Coach / team / team settings / Supabase auth token preserved.
+    expect(getCoach()?.name).toBe('Coach Andrew');
+    expect(localStorage.getItem('mtb_team')).not.toBeNull();
+    expect(getTeamSettings().name).toBe('Idaho League');
+    expect(localStorage.getItem('sb-fakeproject-auth-token')).not.toBeNull();
+  });
+
+  it('removes exactly the documented key list from localStorage', () => {
+    seedEverything();
+
+    const removedKeys = [
+      'mtb_athletes', 'mtb_observations', 'mtb_confirmed_levels', 'mtb_photos',
+      'mtb_attendance', 'mtb_practices', 'mtb_remote_roster_ids', 'mtb_identity',
+      'mtb_roster_filter', 'mtb_roster_group_filter',
+    ];
+    const preservedKeys = ['mtb_coach', 'mtb_team', 'mtb_team_settings', 'sb-fakeproject-auth-token'];
+
+    clearLocalRosterData();
+
+    removedKeys.forEach(key => expect(localStorage.getItem(key)).toBeNull());
+    preservedKeys.forEach(key => expect(localStorage.getItem(key)).not.toBeNull());
+  });
+
+  it('is a no-op-safe call when nothing was ever seeded', () => {
+    expect(() => clearLocalRosterData()).not.toThrow();
+    expect(getPeople()).toHaveLength(0);
   });
 });

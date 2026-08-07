@@ -97,7 +97,11 @@ export function mapRows(rows, mapping = {}) {
       ride_group: _cell(row, mapping.rideGroupCol) || null,
       grade: _cell(row, mapping.gradeCol) || null,
       category: _cell(row, mapping.categoryCol) || null,
-      external_id: null,
+      // external_id is the strongest merge key (app/roster.py). Real PitZone
+      // exports here carry no per-person GUID, but our OWN roster export can
+      // stamp `person.id` into an "External ID" column so a later re-import
+      // matches exactly instead of falling back to email+name.
+      external_id: _cell(row, mapping.externalIdCol) || null,
     });
   }
   return out;
@@ -116,6 +120,10 @@ const _GUESS_PATTERNS = {
   rideGroupCol: ['ride group', 'lead coach', 'group'],
   gradeCol: ['grade', 'year'],
   categoryCol: ['racing category', 'category', 'cat'],
+  // Distinct multiword ID headers only — never a bare 'id' substring, which
+  // would false-match columns like "Rider Email". Covers a future PitZone/
+  // NICA GUID and our own export's "External ID" column.
+  externalIdCol: ['pit zone id', 'pitzone id', 'nica id', 'registration id', 'external id', 'guid'],
 };
 
 function _findColumn(columns, substrings) {
