@@ -1,0 +1,11 @@
+{
+  "projects": { "default": "mtb-skills-ashaber" },
+  "targets": {
+    "mtb-skills-ashaber": {
+      "hosting": {
+        "itg": ["mtb-skills-itg"],
+        "prod": ["mtb-skills-prod"]
+      }
+    }
+  }
+}
