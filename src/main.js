@@ -14,7 +14,7 @@ import {
   getTeamSettings, saveTeamSettings,
   getRosterFilter, saveRosterFilter,
   getRosterGroupFilter, saveRosterGroupFilter,
-  getRemoteRosterIds, saveRemoteRosterIds,
+  getRemoteRosterIds, saveRemoteRosterIds, getCachedIdentity,
   remapAthleteId,
   clearLocalRosterData,
   findTodaysPractice, createPractice, endPractice, reopenPractice, savePractice,
@@ -194,6 +194,16 @@ async function runSync() {
   draw();
   const result = await syncNow();
   s.syncing = false;
+  // Backend mode: the coach's identity IS the signed-in persona (GET /api/me),
+  // not the Phase-1 onboarding profile. Mirror it into the local coach record
+  // so getCoach() matches the backend — and any stray coach left by the
+  // no-backend onboarding flow is overwritten in place rather than lingering
+  // as a duplicate. Prefer an HC/TD persona when the caller has several.
+  const personas = getCachedIdentity()?.personas || [];
+  if (personas.length) {
+    const primary = personas.find(p => p.role === 'head_coach' || p.role === 'team_director') || personas[0];
+    saveCoach({ id: primary.person_id, name: primary.name });
+  }
   if (result) {
     s.syncSummary = { pulled: result.pulled, pushed: result.pushed, skipped: result.skipped, error: result.error };
     s.syncAt = new Date().toISOString();
@@ -1333,7 +1343,12 @@ window.__test_onQRDetected = onQRDetected;
   _generateSettingsQR();
   log.info('app.init', { people: getPeople().length, observations: getObservations().length });
   draw();
-  if (!getCoach() && getPeople().length === 0) {
+  // Manual name/league onboarding is a no-backend vestige: in backend mode
+  // (auth configured) the coach's identity comes from Google sign-in + their
+  // GET /api/me persona (mirrored into getCoach() by runSync), so prompting
+  // for a name here just creates a second, unlinked coach. Only show it in
+  // the pure offline/no-backend build.
+  if (!isAuthConfigured() && !getCoach() && getPeople().length === 0) {
     openModal(modalOnboarding());
     setTimeout(() => document.getElementById('inp-ob-name')?.focus(), 80);
   }
