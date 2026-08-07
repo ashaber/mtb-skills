@@ -27,6 +27,7 @@ import {
 import { isAuthConfigured } from './auth.js';
 import { mapRows } from './roster-import.js';
 import { detectLocalOnly, autoMatchByName, resolveMyGroups, isHcOrTd } from './reconcile.js';
+import { BACKEND_URL, envLabel } from './env.js';
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmt = iso => iso ? new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
@@ -43,6 +44,11 @@ const EDIT  = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColo
 const MORE  = `<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>`;
 const DOWNLOAD = `<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>`;
 const CHECK_CIRCLE = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>`;
+// HC/TD-only "reassign ride group" affordance icon — small people glyph,
+// swapped in for the old "⋯ Group" text pill (read badly as dashes + all
+// caps). Tooltip carries the verb ("Reassign ride group"); the icon just
+// signals "group".
+const GROUP_ICON = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>`;
 const EMPTY_CIRCLE = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/></svg>`;
 
 // ── Ride-group UI + reconciliation (Phase 3.2) ────────────────────────────────
@@ -244,7 +250,7 @@ function athleteRowHTML(a, s, practice, attendingIds, attendanceMode, rideGroupU
         </div>
       </button>
       ${isLocalOnly && !attendanceMode ? `<button class="local-only-badge" data-a="open-reconcile" data-id="${a.id}" title="Not synced to your team's backend roster yet — tap to Add, Match, or Delete">${WARN} local only</button>` : ''}
-      ${canAssignGroup && !attendanceMode ? `<button class="group-assign-btn" data-a="open-assign-group" data-id="${a.id}" title="Reassign ride group">⋯ Group</button>` : ''}
+      ${canAssignGroup && !attendanceMode ? `<button class="group-assign-btn" data-a="open-assign-group" data-id="${a.id}" title="Reassign ride group" aria-label="Reassign ride group">${GROUP_ICON}</button>` : ''}
       ${!attendanceMode ? `<button class="chips-caret" data-a="toggle-expand" data-id="${a.id}">
         ${chips}
         <svg class="caret${open?' caret--open':''}" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--dim)" stroke-width="2.4" stroke-linecap="round"><path d="M5 8l5 5 5-5"/></svg>
@@ -548,8 +554,9 @@ export function viewSettings(s) {
         <span class="settings-section-label">About</span>
         <p class="settings-about">A rubric-based skill assessment tool for NICA MTB coaches — three foundational skills across five levels defined by what breaks, when, and at what threshold. Log observations, confirm levels, and see trail readiness at a glance. Works fully offline. No login required.</p>
         <p class="settings-about" style="margin-top:8px">Want this for your team or league? <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
-        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry · v${__APP_VERSION__}</p>
+        <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry</p>
         <a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
+        <p class="settings-about" style="margin-top:10px;color:var(--dim);font-size:11px">v${__APP_VERSION__} · ${__GIT_SHA__} · ${envLabel(BACKEND_URL)}</p>
       </div>
     </div>`;
 }

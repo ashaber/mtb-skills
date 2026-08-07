@@ -31,6 +31,7 @@ import { isAuthConfigured, signInWithGoogle, signOut, getUser, getAccessToken, o
 import { syncNow, api } from './sync.js';
 import { BACKEND_URL } from './env.js';
 import { parseCsv, mapRows, guessMapping, postImport } from './roster-import.js';
+import { initPwaUpdate } from './pwa-update.js';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
@@ -133,14 +134,17 @@ function draw() {
   drawTabBar();
   window.scrollTo(0, 0);
   window._mtbState = s;
-  if (FEEDBACK_MODE) window.MTB_TRACK?.('page_view', { page: s.tab });
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+// D24: page_view fires here (once per actual tab change) rather than in
+// draw() (which runs many times per interaction — every expand, every
+// draft-level tap — and was firing a page_view analytics event on each one).
 function switchTab(tab) {
   clearStack();
   s.tab = tab;
   if (tab === 'settings' && !s.settingsQR) _generateSettingsQR();
+  if (FEEDBACK_MODE) window.MTB_TRACK?.('page_view', { page: s.tab });
   draw();
 }
 
@@ -1357,4 +1361,6 @@ window.__test_onQRDetected = onQRDetected;
   }
   // Additive, offline-first: no-ops entirely when auth isn't configured.
   initAuthSync();
+  // Additive: no-ops entirely outside a production build. See src/pwa-update.js.
+  initPwaUpdate();
 })();

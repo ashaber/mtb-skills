@@ -1,10 +1,29 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Read the single source of truth (public/rubric.json) at config-load time and
+// inline its text via `define`, rather than `import`-ing it from src/rubric-default.js.
+// A direct `import data from '../public/rubric.json'` resolves to a dev-server
+// URL under /public/... which trips Vite's "assets in public dir cannot be
+// imported from JS" warning (see src/rubric-default.js). Reading it here with
+// fs avoids that entirely while keeping public/rubric.json as the only place
+// content is edited — both the runtime fetch (rubric-content.js -> /rubric.json)
+// and this bundled fallback read the same file.
+const rubricDefaultJson = fs.readFileSync(path.resolve(__dirname, 'public/rubric.json'), 'utf-8');
 
 export default defineConfig({
   base: process.env.GITHUB_PAGES ? '/mtb-skills/' : '/',
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    // CI sets GIT_SHA; local dev/build without it falls back to 'dev' so
+    // Settings can always show *something* distinguishing a build.
+    __GIT_SHA__: JSON.stringify((process.env.GIT_SHA || 'dev').slice(0, 7)),
+    __RUBRIC_DEFAULT_JSON__: JSON.stringify(rubricDefaultJson),
   },
   plugins: [
     VitePWA({
