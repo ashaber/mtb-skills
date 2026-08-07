@@ -72,5 +72,5 @@ jobs:
             --image "$IMG:${{ github.sha }}" \
             --region ${{ env.GCP_REGION }} --platform managed \
             --min-instances=0 --max-instances=2 --allow-unauthenticated \
-            --set-env-vars=STORE_BACKEND=db,GIT_SHA=${{ github.sha }},GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }},ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }} \
+            --set-env-vars=STORE_BACKEND=db,GIT_SHA=${{ github.sha }},GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }},ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }},SUPABASE_URL=${{ vars.SUPABASE_URL }} \
             --set-secrets=DATABASE_URL=${{ steps.env.outputs.db_secret }}:latest,SESSION_SECRET=${{ steps.env.outputs.session_secret }}:latest
