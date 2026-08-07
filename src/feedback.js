@@ -3,23 +3,29 @@
  * Only loaded when ?feedback=true is in the URL.
  * Exports initFeedback() — called once from main.js boot.
  *
- * Routing (Phase 3 feedback→db): `type:'feedback'` submissions go to the
- * backend's anonymous POST /api/feedback (see src/env.js's BACKEND_URL and
- * backend/app/routes.py) when a backend is configured; `type:'engagement'`
- * usage-tracking pings (_flushEngagement) are UNCHANGED — they still post
- * to the Google Sheet webhook exclusively, via its own `mtb_pending_*`
- * offline queue. When BACKEND_URL is set but a feedback POST fails
- * (offline, 5xx, etc.), the payload is queued under its OWN
- * `mtb_fb_pending_backend_*` localStorage key and retried against the
- * BACKEND on the next drain — never against the sheet. That queue is
- * drained on `initFeedback()` (app boot) and after every subsequent
- * successful feedback POST, so a coach who submits offline gets caught up
- * automatically the next time the backend is reachable. Net effect: every
- * feedback item — submitted online or recovered from offline — lands in
- * the backend `feedback` table; the sheet is used for engagement only. If
- * BACKEND_URL is empty entirely (a no-backend build, e.g. local/dev), the
- * legacy sheet POST/offline-queue path is still used for feedback too —
- * there is no backend to hold a queue against in that configuration.
+ * Routing (Phase 3 feedback+engagement→db): `type:'feedback'` submissions
+ * go to the backend's anonymous POST /api/feedback, and `type:'engagement'`
+ * usage-tracking pings (_flushEngagement) go to the backend's anonymous
+ * POST /api/engagement (see src/env.js's BACKEND_URL and
+ * backend/app/routes.py) — both ONLY when a backend is configured. This is
+ * the last stream that was still using the Google Sheet webhook
+ * (CLAUDE.md's Phase 2 sheet path); once BACKEND_URL is set, the sheet is
+ * unused entirely.
+ *
+ * Each stream gets its OWN offline queue (see `_makeBackendQueue` below):
+ * feedback under `mtb_fb_pending_backend_*`, engagement under
+ * `mtb_eng_pending_backend_*`. When BACKEND_URL is set but a POST fails
+ * (offline, 5xx, etc.), the payload is queued under its stream's own key
+ * and retried against the BACKEND on the next drain — never against the
+ * sheet, and never cross-queued into the other stream's key. Both queues
+ * are drained on `initFeedback()` (app boot) and after every subsequent
+ * successful POST of their own type, so a coach who submits/pings offline
+ * gets caught up automatically the next time the backend is reachable.
+ *
+ * If BACKEND_URL is empty entirely (a no-backend build, e.g. local/dev),
+ * BOTH streams fall back to the legacy sheet POST/offline-queue path
+ * (`_postToSheetOrQueue` / `mtb_pending_*`) — there is no backend to hold
+ * either queue against in that configuration.
  */
 
 import log from './log.js';
@@ -27,7 +33,6 @@ import { BACKEND_URL } from './env.js';
 
 const SHEETS_KEY = 'mtb_sheets_url';
 const SESSION_KEY = 'mtb_feedback_session';
-const FB_BACKEND_QUEUE_PREFIX = 'mtb_fb_pending_backend_';
 
 let _session = null;
 let _events = [];
@@ -50,10 +55,11 @@ export function initFeedback() {
   _session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
   _startEngagement();
   _addFeedbackButton();
-  // Catch up any feedback left queued from a prior offline session (see
-  // module docstring) -- a no-op if BACKEND_URL is unset or the queue is
-  // empty.
-  _drainFeedbackBackendQueue();
+  // Catch up anything left queued from a prior offline session, for BOTH
+  // streams (see module docstring) -- a no-op per-queue if BACKEND_URL is
+  // unset or that queue is empty.
+  _feedbackBackendQueue.drain();
+  _engagementBackendQueue.drain();
 }
 
 // ── Engagement tracker ────────────────────────────────────────────────────────
@@ -421,69 +427,90 @@ function _submitFeedback() {
   setTimeout(_closeFeedbackModal, 1600);
 }
 
-// ── Post routing: backend (feedback, own queue) / sheet (engagement, and
-// feedback ONLY in a no-backend build) ────────────────────────────────────────
+// ── Post routing: backend (feedback + engagement, each with its own queue)
+// / sheet (only when BACKEND_URL is unset — a no-backend build) ──────────────
+
+/**
+ * Builds the backend-post + offline-queue trio for one `type` stream
+ * (feedback, engagement). Both streams need the exact same three
+ * behaviors — POST to their own endpoint, queue under their own
+ * localStorage-key prefix on failure, drain that queue back to the same
+ * endpoint — so this factory keeps that logic in one place rather than
+ * duplicating it per stream (the feedback build introduced the pattern
+ * with `_postFeedbackToBackend`/`_queueFeedbackForBackend`/
+ * `_drainFeedbackBackendQueue`; engagement reuses it instead of copy-
+ * pasting a second near-identical trio).
+ *
+ * @param {string} endpointPath - e.g. '/api/feedback'
+ * @param {string} queuePrefix  - localStorage key prefix for this stream's
+ *   own offline queue, e.g. 'mtb_fb_pending_backend_'
+ */
+function _makeBackendQueue(endpointPath, queuePrefix) {
+  function post(payload) {
+    return fetch(`${BACKEND_URL}${endpointPath}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(res => {
+      if (!res.ok) throw new Error(endpointPath + ' backend responded ' + res.status);
+    });
+  }
+
+  function enqueue(payload) {
+    localStorage.setItem(queuePrefix + Date.now(), JSON.stringify(payload));
+  }
+
+  function drain() {
+    if (!BACKEND_URL) return; // nothing to drain against
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(queuePrefix))
+      .forEach(k => {
+        let payload;
+        try {
+          payload = JSON.parse(localStorage.getItem(k));
+        } catch {
+          localStorage.removeItem(k); // corrupt entry -- drop rather than retry forever
+          return;
+        }
+        post(payload)
+          .then(() => localStorage.removeItem(k))
+          .catch(() => { /* still unreachable -- leave queued, retry on next drain */ });
+      });
+  }
+
+  return { post, enqueue, drain };
+}
+
+const _feedbackBackendQueue = _makeBackendQueue('/api/feedback', 'mtb_fb_pending_backend_');
+const _engagementBackendQueue = _makeBackendQueue('/api/engagement', 'mtb_eng_pending_backend_');
 
 function _post(payload) {
-  if (payload.type === 'feedback') {
-    if (BACKEND_URL) {
-      _postFeedbackToBackend(payload)
-        .then(() => {
-          // A successful post is also a good moment to catch up anything
-          // still stuck from an earlier offline attempt.
-          _drainFeedbackBackendQueue();
-        })
-        .catch(err => {
-          log.warn('feedback.backend_post_failed', { error: String(err) });
-          _queueFeedbackForBackend(payload);
-        });
-      return;
-    }
-    // No backend configured at all (no-backend build) -- there is no
-    // backend queue to hold this against, so feedback uses the legacy
-    // sheet path, same as before BACKEND_URL existed.
-    _postToSheetOrQueue(payload);
+  const backendQueue =
+    payload.type === 'feedback' ? _feedbackBackendQueue :
+    payload.type === 'engagement' ? _engagementBackendQueue :
+    null;
+
+  if (backendQueue && BACKEND_URL) {
+    backendQueue.post(payload)
+      .then(() => {
+        // A successful post is also a good moment to catch up anything
+        // still stuck from an earlier offline attempt, for this stream.
+        backendQueue.drain();
+      })
+      .catch(err => {
+        log.warn(payload.type + '.backend_post_failed', { error: String(err) });
+        backendQueue.enqueue(payload);
+      });
     return;
   }
+  // Either an unrecognized `type`, or BACKEND_URL is empty entirely
+  // (no-backend build) -- there's no backend queue to hold this against,
+  // so it uses the legacy sheet path, same as before BACKEND_URL existed.
   _postToSheetOrQueue(payload);
 }
 
-function _postFeedbackToBackend(payload) {
-  return fetch(`${BACKEND_URL}/api/feedback`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).then(res => {
-    if (!res.ok) throw new Error('feedback backend responded ' + res.status);
-  });
-}
-
-// ── Feedback's own offline queue (backend-bound only — never the sheet) ──────
-
-function _queueFeedbackForBackend(payload) {
-  localStorage.setItem(FB_BACKEND_QUEUE_PREFIX + Date.now(), JSON.stringify(payload));
-}
-
-function _drainFeedbackBackendQueue() {
-  if (!BACKEND_URL) return; // nothing to drain against
-  Object.keys(localStorage)
-    .filter(k => k.startsWith(FB_BACKEND_QUEUE_PREFIX))
-    .forEach(k => {
-      let payload;
-      try {
-        payload = JSON.parse(localStorage.getItem(k));
-      } catch {
-        localStorage.removeItem(k); // corrupt entry -- drop rather than retry forever
-        return;
-      }
-      _postFeedbackToBackend(payload)
-        .then(() => localStorage.removeItem(k))
-        .catch(() => { /* still unreachable -- leave queued, retry on next drain */ });
-    });
-}
-
-// ── Sheets POST / offline queue (engagement's only path; feedback's path
-// only in a no-backend build) ─────────────────────────────────────────────────
+// ── Sheets POST / offline queue (fallback for both streams, only used in a
+// no-backend build — see module docstring) ────────────────────────────────────
 
 function _postToSheetOrQueue(payload) {
   const url = window.MTB_SHEETS_URL || localStorage.getItem(SHEETS_KEY);
