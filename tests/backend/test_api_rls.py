@@ -428,3 +428,270 @@ def test_unlinked_auth_user_gets_403_not_a_coach(client, seed: dict[str, Any]) -
 
     assert resp.status_code == 403
     assert resp.json() == {"error": "not a recognized coach"}
+
+
+# --------------------------------------------------------------------------
+# POST /api/practices -- mirrors POST /api/observations' ride-group/HC/
+# cross-team scoping exactly (0010_practice_attendance.sql's RLS policies
+# are copy-derived from observation's).
+# --------------------------------------------------------------------------
+
+
+def test_post_practice_for_own_group_succeeds(client, seed: dict[str, Any]) -> None:
+    resp = client.post(
+        "/api/practices",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"ride_group_id": str(seed["group_a1"])},
+    )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["team_id"] == str(seed["team_t"])
+    assert body["ride_group_id"] == str(seed["group_a1"])
+    assert body["created_by"] == str(seed["coach_a1_person"])
+    assert body["status"] == "active"
+
+    # Visible on a subsequent GET by the same coach.
+    listing = client.get("/api/practices", headers=_auth_header(seed["coach_a1_auth"]))
+    assert body["id"] in {row["id"] for row in listing.json()}
+
+
+def test_post_practice_omitting_ride_group_defaults_to_callers_own_group(client, seed: dict[str, Any]) -> None:
+    resp = client.post("/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json={})
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["ride_group_id"] == str(seed["group_a1"])
+    assert body["team_id"] == str(seed["team_t"])
+
+
+def test_post_practice_for_sibling_group_is_denied(client, seed: dict[str, Any]) -> None:
+    resp = client.post(
+        "/api/practices",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"ride_group_id": str(seed["group_a2"])},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "cannot create practice for that group"}
+
+
+def test_post_practice_for_other_teams_group_is_denied(client, seed: dict[str, Any]) -> None:
+    resp = client.post(
+        "/api/practices",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"ride_group_id": str(seed["group_b"])},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "cannot create practice for that group"}
+
+
+def test_hc_can_post_practice_for_a_ride_group_that_isnt_their_own(client, seed: dict[str, Any]) -> None:
+    resp = client.post(
+        "/api/practices",
+        headers=_auth_header(seed["hc_auth"]),
+        json={"ride_group_id": str(seed["group_a2"])},
+    )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["ride_group_id"] == str(seed["group_a2"])
+    assert body["created_by"] == str(seed["hc_person"])
+
+
+def test_hc_can_post_team_wide_practice_with_no_ride_group(client, seed: dict[str, Any]) -> None:
+    resp = client.post("/api/practices", headers=_auth_header(seed["hc_auth"]), json={})
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["ride_group_id"] is None
+    assert body["team_id"] == str(seed["team_t"])
+
+
+def test_get_practices_scoped_to_coach_a1s_own_group(client, seed: dict[str, Any]) -> None:
+    own = client.post(
+        "/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json={"ride_group_id": str(seed["group_a1"])}
+    ).json()
+    other = client.post(
+        "/api/practices", headers=_auth_header(seed["coach_a2_auth"]), json={"ride_group_id": str(seed["group_a2"])}
+    ).json()
+
+    resp = client.get("/api/practices", headers=_auth_header(seed["coach_a1_auth"]))
+
+    assert resp.status_code == 200
+    ids = {row["id"] for row in resp.json()}
+    assert own["id"] in ids
+    assert other["id"] not in ids
+
+
+def test_post_practice_with_client_id_is_idempotent(client, seed: dict[str, Any]) -> None:
+    practice_id = str(uuid.uuid4())
+    payload = {"id": practice_id, "ride_group_id": str(seed["group_a1"])}
+
+    first = client.post("/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json=payload)
+    assert first.status_code == 201
+    assert first.json()["id"] == practice_id
+
+    second = client.post("/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json=payload)
+    assert second.status_code in (200, 201)
+    assert second.json()["id"] == practice_id
+
+    listing = client.get("/api/practices", headers=_auth_header(seed["coach_a1_auth"]))
+    assert [row["id"] for row in listing.json()].count(practice_id) == 1
+
+
+# --------------------------------------------------------------------------
+# POST /api/attendance -- LWW upsert by (practice_id, person_id). Scoping is
+# keyed on the TARGET PERSON's ride_group/team (same _resolve_athlete_scope
+# pattern as observations/confirmed-levels), independent of who created the
+# parent practice row.
+# --------------------------------------------------------------------------
+
+
+def test_post_attendance_for_own_group_athlete_succeeds(client, seed: dict[str, Any]) -> None:
+    practice_id = client.post(
+        "/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json={"ride_group_id": str(seed["group_a1"])}
+    ).json()["id"]
+
+    resp = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": practice_id, "person_id": str(seed["athlete_a1"]), "status": "attending"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["practice_id"] == practice_id
+    assert body["person_id"] == str(seed["athlete_a1"])
+    assert body["status"] == "attending"
+    assert body["ride_group_id"] == str(seed["group_a1"])
+    assert body["marked_by"] == str(seed["coach_a1_person"])
+
+
+def test_post_attendance_for_a_coach_in_own_group_succeeds(client, seed: dict[str, Any]) -> None:
+    # Coaches are attendable too (same "coaches assessable" posture as
+    # observation -- see app/routes.py's _resolve_athlete_scope docstring).
+    practice_id = client.post(
+        "/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json={"ride_group_id": str(seed["group_a1"])}
+    ).json()["id"]
+
+    resp = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": practice_id, "person_id": str(seed["coach_a1_person"])},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["person_id"] == str(seed["coach_a1_person"])
+
+
+def test_post_attendance_for_sibling_group_athlete_is_denied(client, seed: dict[str, Any]) -> None:
+    practice_id = client.post(
+        "/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json={"ride_group_id": str(seed["group_a1"])}
+    ).json()["id"]
+
+    resp = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": practice_id, "person_id": str(seed["athlete_a2"])},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "cannot mark attendance for that person"}
+
+
+def test_post_attendance_for_other_teams_athlete_is_denied(client, seed: dict[str, Any]) -> None:
+    practice_id = client.post(
+        "/api/practices", headers=_auth_header(seed["hc_auth"]), json={"ride_group_id": str(seed["group_a1"])}
+    ).json()["id"]
+
+    resp = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": practice_id, "person_id": str(seed["athlete_b"])},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "cannot mark attendance for that person"}
+
+
+def test_hc_can_post_attendance_for_a_ride_group_that_isnt_their_own(client, seed: dict[str, Any]) -> None:
+    practice_id = client.post(
+        "/api/practices", headers=_auth_header(seed["hc_auth"]), json={"ride_group_id": str(seed["group_a2"])}
+    ).json()["id"]
+
+    resp = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["hc_auth"]),
+        json={"practice_id": practice_id, "person_id": str(seed["athlete_a2"])},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ride_group_id"] == str(seed["group_a2"])
+    assert body["marked_by"] == str(seed["hc_person"])
+
+
+def test_attendance_post_upserts_lww_not_a_duplicate_row(client, seed: dict[str, Any]) -> None:
+    practice_id = client.post(
+        "/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json={"ride_group_id": str(seed["group_a1"])}
+    ).json()["id"]
+
+    first = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": practice_id, "person_id": str(seed["athlete_a1"]), "status": "attending"},
+    )
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["status"] == "attending"
+
+    second = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": practice_id, "person_id": str(seed["athlete_a1"]), "status": "absent"},
+    )
+    assert second.status_code == 200
+    second_body = second.json()
+    assert second_body["id"] == first_body["id"], "LWW upsert must update the same row, not insert a new one"
+    assert second_body["status"] == "absent"
+    assert second_body["marked_at"] >= first_body["marked_at"]
+
+    listing = client.get("/api/attendance", headers=_auth_header(seed["coach_a1_auth"]))
+    matching = [
+        row
+        for row in listing.json()
+        if row["practice_id"] == practice_id and row["person_id"] == str(seed["athlete_a1"])
+    ]
+    assert len(matching) == 1
+    assert matching[0]["status"] == "absent"
+
+
+def test_get_attendance_filtered_by_practice_id(client, seed: dict[str, Any]) -> None:
+    practice1 = client.post(
+        "/api/practices", headers=_auth_header(seed["coach_a1_auth"]), json={"ride_group_id": str(seed["group_a1"])}
+    ).json()["id"]
+    client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": practice1, "person_id": str(seed["athlete_a1"])},
+    )
+
+    resp = client.get(f"/api/attendance?practice_id={practice1}", headers=_auth_header(seed["coach_a1_auth"]))
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["practice_id"] == practice1
+
+
+def test_post_attendance_for_nonexistent_or_invisible_practice_is_denied(client, seed: dict[str, Any]) -> None:
+    resp = client.post(
+        "/api/attendance",
+        headers=_auth_header(seed["coach_a1_auth"]),
+        json={"practice_id": str(uuid.uuid4()), "person_id": str(seed["athlete_a1"])},
+    )
+
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "cannot mark attendance for that person"}

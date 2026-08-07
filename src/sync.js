@@ -17,6 +17,15 @@
  *                             compared on `confirmed_at`. Whichever side
  *                             (local or remote) has the newer timestamp
  *                             wins; the other side gets synced to match.
+ *  - Practices:               union by `id` — a coach's/HC's practice
+ *                             session, created once, rarely mutated after
+ *                             (status active->ended is the only edit) — so
+ *                             pulling never overwrites, only adds sessions
+ *                             the local store doesn't have yet.
+ *  - Attendance:               last-write-wins by `practice_id`+`person_id`,
+ *                             compared on the backend's `marked_at` vs the
+ *                             local record's `ts` — same posture as
+ *                             confirmed levels above.
  *
  * Scope note (3.2 deferral): this increment assumes the coach's roster
  * comes from the backend pull. Reconciling PRE-EXISTING local-only
@@ -34,6 +43,8 @@ import {
   savePerson,
   getObservations, saveObservation,
   getConfirmedLevels, setConfirmedLevel,
+  getPractices, upsertPracticeFromRemote,
+  getAllAttendance, upsertAttendanceFromRemote,
   saveCachedIdentity, saveRemoteRosterIds,
 } from './storage.js';
 
@@ -71,6 +82,7 @@ export async function api(path, { method = 'GET', body } = {}) {
 }
 
 const confirmedKey = c => `${c.athlete_id}::${c.skill}`;
+const attendanceKey = a => `${a.practice_id}::${a.person_id}`;
 
 /**
  * Pulls the caller-visible roster/observations/confirmed-levels from the
@@ -98,10 +110,12 @@ export async function syncNow() {
   let pushed = 0;
 
   try {
-    const [remoteRoster, remoteObs, remoteConfirmed, me] = await Promise.all([
+    const [remoteRoster, remoteObs, remoteConfirmed, remotePractices, remoteAttendance, me] = await Promise.all([
       api('/api/roster'),
       api('/api/observations'),
       api('/api/confirmed-levels'),
+      api('/api/practices'),
+      api('/api/attendance'),
       api('/api/me'),
     ]);
 
@@ -161,6 +175,33 @@ export async function syncNow() {
       }
     }
 
+    // ── Practices: union by id ─────────────────────────────────────────
+    const localPractices = getPractices();
+    const localPracticeIds = new Set(localPractices.map(p => p.id));
+    const remotePracticeIds = new Set((remotePractices || []).map(p => p.id));
+
+    for (const p of remotePractices || []) {
+      if (!localPracticeIds.has(p.id)) {
+        upsertPracticeFromRemote(p);
+        pulled++;
+      }
+    }
+
+    // ── Attendance: LWW by (practice_id, person_id), compared on
+    //    marked_at (remote) vs ts (local) — same ordering caveat as
+    //    confirmed levels above: computed before any push-side reads. ────
+    const localAttendance = getAllAttendance();
+    const localAttendanceMap = new Map(localAttendance.map(a => [attendanceKey(a), a]));
+    const remoteAttendanceMap = new Map((remoteAttendance || []).map(a => [attendanceKey(a), a]));
+
+    for (const [key, remote] of remoteAttendanceMap) {
+      const local = localAttendanceMap.get(key);
+      if (!local || new Date(remote.marked_at) > new Date(local.ts)) {
+        upsertAttendanceFromRemote(remote);
+        pulled++;
+      }
+    }
+
     // Athletes the backend knows about (this pull's roster). A local record
     // whose athlete_id isn't here belongs to a LOCAL-ONLY athlete — pushing
     // it would just 403 (`athlete_not_in_scope`) and surface as "sync
@@ -210,6 +251,48 @@ export async function syncNow() {
         pushed++;
       } catch (e) {
         log.error('sync.push.confirmed_level.failed', { key, error: String(e) });
+      }
+    }
+
+    // ── Push: local practices the backend doesn't have yet ───────────────
+    // No local-only-athlete skip guard needed here — a practice isn't
+    // owned by an athlete/person the backend might not recognize, only by
+    // the (already-authorized) caller and their own ride_group/team.
+    for (const p of localPractices) {
+      if (remotePracticeIds.has(p.id)) continue;
+      try {
+        await api('/api/practices', {
+          method: 'POST',
+          body: {
+            id:            p.id,
+            ride_group_id: p.ride_group_id ?? undefined,
+            session_date:  p.date,
+            status:        p.status,
+          },
+        });
+        pushed++;
+      } catch (e) {
+        log.error('sync.push.practice.failed', { id: p.id, error: String(e) });
+      }
+    }
+
+    // ── Push: local attendance that's new or newer than remote ───────────
+    for (const [key, local] of localAttendanceMap) {
+      const remote = remoteAttendanceMap.get(key);
+      if (remote && !(new Date(local.ts) > new Date(remote.marked_at))) continue;
+      if (!remoteRosterIdSet.has(local.person_id)) { skipped++; continue; }
+      try {
+        await api('/api/attendance', {
+          method: 'POST',
+          body: {
+            practice_id: local.practice_id,
+            person_id:   local.person_id,
+            status:      local.status,
+          },
+        });
+        pushed++;
+      } catch (e) {
+        log.error('sync.push.attendance.failed', { key, error: String(e) });
       }
     }
 

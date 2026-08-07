@@ -53,6 +53,60 @@ class ConfirmedLevelIn(BaseModel):
     level: int = Field(ge=1, le=5)
 
 
+class PracticeStatus(str, Enum):
+    """Matches the `status` check constraint on `practice`
+    (supabase/migrations/0010_practice_attendance.sql) and the local
+    frontend model's own active/ended toggle (src/storage.js's
+    createPractice/endPractice/reopenPractice)."""
+
+    active = "active"
+    ended = "ended"
+
+
+class PracticeIn(BaseModel):
+    """POST /api/practices body. `id` is optional and CLIENT-generated,
+    same offline-first idempotent-push pattern as ObservationIn's `id` --
+    see its docstring (client mints the UUID locally, re-posting the same
+    id after a pull is a no-op via `on conflict (id) do nothing`, not a
+    duplicate). `session_date` defaults to today (server-assigned) when
+    omitted, same as ObservationIn's `session_date`.
+
+    `ride_group_id` omitted -> app/routes.py's create_practice attributes
+    the practice to the caller's own coach ride_group_id if they have one
+    (the common "my group's practice" case), else their team (a team-wide
+    practice, no single ride group -- HC/TD only, since a plain ride-group
+    coach has no ride_group-less write policy on `practice`, see
+    0010_practice_attendance.sql's practice_insert_ride_group_coach)."""
+
+    id: UUID | None = None
+    ride_group_id: UUID | None = None
+    session_date: date | None = None
+    status: PracticeStatus | None = None
+
+
+class AttendanceStatus(str, Enum):
+    """Matches the `status` check constraint on `attendance`
+    (supabase/migrations/0010_practice_attendance.sql) and the local
+    frontend model's attending/absent toggle (src/storage.js's
+    toggleAttendance)."""
+
+    attending = "attending"
+    absent = "absent"
+
+
+class AttendanceIn(BaseModel):
+    """POST /api/attendance body. Upserted last-write-wins by
+    `(practice_id, person_id)` -- see app/routes.py. `person_id` mirrors
+    ObservationIn's `athlete_id`: coaches are attendable too, same
+    "coaches are assessable" posture as observation/confirmed_level (see
+    app/routes.py's `_resolve_athlete_scope` docstring) -- this field is
+    deliberately not role-filtered."""
+
+    practice_id: UUID
+    person_id: UUID
+    status: AttendanceStatus = AttendanceStatus.attending
+
+
 # Matches the `role` check constraint on `person`
 # (supabase/migrations/0001_schema.sql) and app/identity.py's COACH_ROLES
 # plus 'athlete'.

@@ -28,7 +28,15 @@ from app.db import rls_connection
 from app.deps import Caller, get_caller, get_settings_dep
 from app.identity import Persona
 from app.logging import get_logger
-from app.schemas import AssignRideGroupIn, AthleteIn, ConfirmedLevelIn, ObservationIn, RosterImportIn
+from app.schemas import (
+    AssignRideGroupIn,
+    AthleteIn,
+    AttendanceIn,
+    ConfirmedLevelIn,
+    ObservationIn,
+    PracticeIn,
+    RosterImportIn,
+)
 
 log = get_logger("app.routes")
 
@@ -85,6 +93,33 @@ def _confirmed_level_row_to_dict(row: tuple) -> dict[str, Any]:
         "skill": skill,
         "level": level,
         "confirmed_at": confirmed_at.isoformat() if isinstance(confirmed_at, datetime) else confirmed_at,
+    }
+
+
+def _practice_row_to_dict(row: tuple) -> dict[str, Any]:
+    (practice_id, team_id, ride_group_id, session_date, status, created_by, created_at) = row
+    return {
+        "id": str(practice_id),
+        "team_id": str(team_id),
+        "ride_group_id": _uuid_or_none(ride_group_id),
+        "session_date": session_date.isoformat() if isinstance(session_date, date) else session_date,
+        "status": status,
+        "created_by": _uuid_or_none(created_by),
+        "created_at": created_at.isoformat() if isinstance(created_at, datetime) else created_at,
+    }
+
+
+def _attendance_row_to_dict(row: tuple) -> dict[str, Any]:
+    (attendance_id, practice_id, person_id, team_id, ride_group_id, status, marked_by, marked_at) = row
+    return {
+        "id": str(attendance_id),
+        "practice_id": str(practice_id),
+        "person_id": str(person_id),
+        "team_id": str(team_id),
+        "ride_group_id": _uuid_or_none(ride_group_id),
+        "status": status,
+        "marked_by": _uuid_or_none(marked_by),
+        "marked_at": marked_at.isoformat() if isinstance(marked_at, datetime) else marked_at,
     }
 
 
@@ -357,6 +392,186 @@ def upsert_confirmed_level(
         raise HTTPException(status_code=403, detail="cannot record for that athlete")
 
     return _confirmed_level_row_to_dict(row)
+
+
+# ==========================================================================
+# practices
+# ==========================================================================
+
+
+@router.get("/practices")
+def list_practices(
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> list[dict[str, Any]]:
+    with rls_connection(settings.database_url, caller.sub) as conn:
+        rows = conn.execute(
+            """
+            select id, team_id, ride_group_id, session_date, status, created_by, created_at
+            from practice
+            order by session_date desc, created_at desc
+            """
+        ).fetchall()
+    return [_practice_row_to_dict(row) for row in rows]
+
+
+@router.post("/practices", status_code=201)
+def create_practice(
+    body: PracticeIn,
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    session_date = body.session_date or date.today()
+    practice_id = body.id or uuid.uuid4()
+    status_value = body.status.value if body.status is not None else "active"
+
+    with rls_connection(settings.database_url, caller.sub) as conn:
+        if body.ride_group_id is not None:
+            # Same "resolve the TARGET group's team through the caller's own
+            # RLS scope" idiom as create_athlete/assign_ride_group above --
+            # a ride_group the caller can't see (not their own group, and
+            # they aren't HC/TD on that team) returns zero rows here.
+            group_row = conn.execute(
+                "select team_id from ride_group where id = %s",
+                (body.ride_group_id,),
+            ).fetchone()
+            if group_row is None:
+                log.warn("practices.ride_group_not_in_scope", ride_group_id=str(body.ride_group_id), sub=caller.sub)
+                raise HTTPException(status_code=403, detail="cannot create practice for that group")
+            team_id = group_row[0]
+            ride_group_id: uuid.UUID | None = body.ride_group_id
+        else:
+            # No ride_group given -- attribute to the caller's own coach
+            # ride_group_id (the common "my group's practice" case) if they
+            # have one, else their team (a team-wide practice, no single
+            # ride_group -- only an HC/TD persona's insert actually succeeds
+            # against this team_id/NULL-ride_group_id pair under
+            # 0010_practice_attendance.sql's RLS; a plain coach persona
+            # falling into this branch would still 403 at the INSERT below).
+            own_group_persona = next((p for p in caller.personas if p.ride_group_id is not None), None)
+            persona = own_group_persona or caller.personas[0]
+            team_id = uuid.UUID(persona.team_id)
+            ride_group_id = uuid.UUID(persona.ride_group_id) if own_group_persona else None
+
+        coach = _select_attributing_coach(caller.personas, ride_group_id)
+
+        try:
+            # Client-minted id + `on conflict do nothing`, same idempotent-
+            # push posture as create_observation.
+            row = conn.execute(
+                """
+                insert into practice (id, team_id, ride_group_id, session_date, status, created_by)
+                values (%s, %s, %s, %s, %s, %s)
+                on conflict (id) do nothing
+                returning id, team_id, ride_group_id, session_date, status, created_by, created_at
+                """,
+                (practice_id, team_id, ride_group_id, session_date, status_value, coach.person_id),
+            ).fetchone()
+
+            if row is None:
+                row = conn.execute(
+                    """
+                    select id, team_id, ride_group_id, session_date, status, created_by, created_at
+                    from practice where id = %s
+                    """,
+                    (practice_id,),
+                ).fetchone()
+        except psycopg.errors.InsufficientPrivilege as exc:
+            log.warn("practices.insert_denied", sub=caller.sub, error=str(exc))
+            raise HTTPException(status_code=403, detail="cannot create practice for that group") from exc
+
+    if row is None:
+        raise HTTPException(status_code=409, detail="practice id already exists")
+
+    return _practice_row_to_dict(row)
+
+
+# ==========================================================================
+# attendance
+# ==========================================================================
+
+
+@router.get("/attendance")
+def list_attendance(
+    practice_id: uuid.UUID | None = None,
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> list[dict[str, Any]]:
+    with rls_connection(settings.database_url, caller.sub) as conn:
+        if practice_id is not None:
+            rows = conn.execute(
+                """
+                select id, practice_id, person_id, team_id, ride_group_id, status, marked_by, marked_at
+                from attendance
+                where practice_id = %s
+                order by marked_at desc
+                """,
+                (practice_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                select id, practice_id, person_id, team_id, ride_group_id, status, marked_by, marked_at
+                from attendance
+                order by marked_at desc
+                """
+            ).fetchall()
+    return [_attendance_row_to_dict(row) for row in rows]
+
+
+@router.post("/attendance")
+def upsert_attendance(
+    body: AttendanceIn,
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    with rls_connection(settings.database_url, caller.sub) as conn:
+        try:
+            # Same pattern as create_observation/upsert_confirmed_level:
+            # team_id/ride_group_id are derived from the TARGET person's own
+            # row (never trusted from the request body), through the SAME
+            # rls_connection the write itself runs in -- the caller can only
+            # mark attendance for a person they can already see.
+            team_id, ride_group_id = _resolve_athlete_scope(conn, body.person_id)
+        except _AthleteNotInScope as exc:
+            log.warn("attendance.person_not_in_scope", person_id=str(body.person_id), sub=caller.sub)
+            raise HTTPException(status_code=403, detail="cannot mark attendance for that person") from exc
+
+        # Confirm the practice itself exists and is RLS-visible to this
+        # caller before the INSERT -- practice_id has a NOT NULL FK to
+        # `practice`, so an invisible/nonexistent id would otherwise surface
+        # as a raw ForeignKeyViolation (500) instead of a clean 403.
+        practice_row = conn.execute("select id from practice where id = %s", (body.practice_id,)).fetchone()
+        if practice_row is None:
+            log.warn("attendance.practice_not_in_scope", practice_id=str(body.practice_id), sub=caller.sub)
+            raise HTTPException(status_code=403, detail="cannot mark attendance for that person")
+
+        coach = _select_attributing_coach(caller.personas, ride_group_id)
+
+        try:
+            # LWW upsert by (practice_id, person_id) -- unique index in
+            # 0010_practice_attendance.sql. Same posture as
+            # upsert_confirmed_level's LWW-by-(athlete_id, skill): re-marking
+            # a person's attendance updates the SAME row rather than
+            # inserting a duplicate.
+            row = conn.execute(
+                """
+                insert into attendance (practice_id, person_id, team_id, ride_group_id, status, marked_by)
+                values (%s, %s, %s, %s, %s, %s)
+                on conflict (practice_id, person_id) do update
+                set status = excluded.status, marked_by = excluded.marked_by, marked_at = now()
+                returning id, practice_id, person_id, team_id, ride_group_id, status, marked_by, marked_at
+                """,
+                (body.practice_id, body.person_id, team_id, ride_group_id, body.status.value, coach.person_id),
+            ).fetchone()
+        except psycopg.errors.InsufficientPrivilege as exc:
+            log.warn("attendance.upsert_denied", person_id=str(body.person_id), sub=caller.sub, error=str(exc))
+            raise HTTPException(status_code=403, detail="cannot mark attendance for that person") from exc
+
+    if row is None:  # pragma: no cover - RETURNING always yields a row on a successful INSERT/UPDATE
+        raise HTTPException(status_code=403, detail="cannot mark attendance for that person")
+
+    return _attendance_row_to_dict(row)
 
 
 # ==========================================================================
