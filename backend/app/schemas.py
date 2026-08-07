@@ -13,7 +13,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Skill(str, Enum):
@@ -264,6 +264,86 @@ class AthleteIn(BaseModel):
         if not stripped:
             raise ValueError("name must not be blank")
         return stripped
+
+
+class FeedbackIn(BaseModel):
+    """POST /api/feedback body -- the 💬 feedback-modal payload
+    (src/feedback.js's `_submitFeedback`), routed to this ANONYMOUS backend
+    endpoint instead of the Google Sheet (supabase/migrations/0011_feedback.sql).
+
+    No auth on this endpoint (app/routes.py's `POST /api/feedback` has no
+    `Depends(get_caller)`) -- there is no persona behind a feedback
+    submission, identity is entirely self-reported in these fields. That
+    makes this the one open (unauthenticated) write surface in the backend,
+    so validation here IS the spam/abuse guard, not just a data-shape
+    check: every text field is length-capped, and at least one of
+    `comment` / `has_drawing` must be present (mirrors the frontend's own
+    submit-ready check in src/feedback.js's `_checkSubmitReady`).
+
+    `type` is accepted but not required/validated against a fixed value --
+    the frontend always sends `'feedback'` (the `'engagement'` stream never
+    reaches this endpoint, see src/feedback.js's routing), but this schema
+    doesn't need to police that; it's the caller's job to only POST feedback
+    submissions here in the first place.
+
+    `ConfigDict(extra="ignore")` -- forward-compat: the frontend payload may
+    grow fields (e.g. `timestamp`) this backend doesn't persist yet; an
+    unknown key should never 400 a feedback submission.
+
+    `screenshot` / `drawing` are base64 PNG data URLs (`canvas.toDataURL`) --
+    capped at ~3MB of base64 text each, matching the practical ceiling of a
+    single mobile-viewport canvas snapshot with generous headroom, not an
+    arbitrary round number. `user_agent` is deliberately NOT a field here --
+    app/routes.py captures it server-side from the request's `User-Agent`
+    header, never trusting a client-supplied value for it.
+    """
+
+    # `populate_by_name=True` -- the frontend sends camelCase keys
+    # (`userName`, `hasDrawing`, `screenshotUrl`, `drawingUrl`); the Python
+    # side uses snake_case field names to match every other schema/route in
+    # this module. `extra="ignore"` per the forward-compat note above.
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    type: str | None = None
+    page: str | None = Field(default=None, max_length=500)
+    role: str | None = Field(default=None, max_length=500)
+    user_name: str | None = Field(default=None, max_length=500, alias="userName")
+    email: str | None = Field(default=None, max_length=500)
+    league: str | None = Field(default=None, max_length=500)
+    team: str | None = Field(default=None, max_length=500)
+    comment: str | None = Field(default=None, max_length=5000)
+    has_drawing: bool = Field(default=False, alias="hasDrawing")
+    screenshot: str | None = Field(default=None, max_length=3_000_000, alias="screenshotUrl")
+    drawing: str | None = Field(default=None, max_length=3_000_000, alias="drawingUrl")
+    app_version: str | None = Field(default=None, max_length=500, alias="appVersion")
+
+    @field_validator("comment")
+    @classmethod
+    def _blank_comment_to_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @field_validator("user_name", "email", "league", "team", "page", "role", "app_version")
+    @classmethod
+    def _blank_optional_to_none(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @model_validator(mode="after")
+    def _require_comment_or_drawing(self) -> "FeedbackIn":
+        # A plain @field_validator("has_drawing") would NOT fire when the
+        # client omits `hasDrawing` entirely (pydantic v2 skips per-field
+        # validators on a field that falls back to its default, unless
+        # `validate_default=True`) -- a model-level `mode="after"` validator
+        # runs unconditionally on the fully-built model instead, so an
+        # omitted `hasDrawing` + omitted/blank `comment` is still caught.
+        if not self.comment and not self.has_drawing:
+            raise ValueError("feedback must include a comment or a drawing")
+        return self
 
 
 class AssignRideGroupIn(BaseModel):

@@ -2,7 +2,19 @@
  * src/feedback.js — Conference feedback & engagement tracking.
  * Only loaded when ?feedback=true is in the URL.
  * Exports initFeedback() — called once from main.js boot.
+ *
+ * Routing (Phase 3 feedback→db): `type:'feedback'` submissions go to the
+ * backend's anonymous POST /api/feedback (see src/env.js's BACKEND_URL and
+ * backend/app/routes.py) when a backend is configured; `type:'engagement'`
+ * usage-tracking pings (_flushEngagement) are UNCHANGED — they still post
+ * to the Google Sheet webhook exclusively. If BACKEND_URL is empty (a
+ * no-backend build) or the backend POST fails for any reason, feedback
+ * falls back to the existing sheet POST/offline-queue path — a backend
+ * hiccup must never lose a coach's feedback.
  */
+
+import log from './log.js';
+import { BACKEND_URL } from './env.js';
 
 const SHEETS_KEY = 'mtb_sheets_url';
 const SESSION_KEY = 'mtb_feedback_session';
@@ -15,6 +27,11 @@ const _sessionStart = Date.now();
 const _esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // ── Public API ────────────────────────────────────────────────────────────────
+
+// Exported alongside initFeedback so tests/unit/feedback.test.js can drive
+// the feedback→backend / sheet-fallback routing directly, without needing
+// to puppet the full modal DOM+canvas+html2canvas flow just to reach it.
+export { _post };
 
 export function initFeedback() {
   _injectCSS();
@@ -378,9 +395,33 @@ function _submitFeedback() {
   setTimeout(_closeFeedbackModal, 1600);
 }
 
-// ── Sheets POST / offline queue ───────────────────────────────────────────────
+// ── Post routing: backend (feedback only) → sheet / offline queue ────────────
 
 function _post(payload) {
+  if (payload.type === 'feedback' && BACKEND_URL) {
+    _postFeedbackToBackend(payload).catch(err => {
+      log.warn('feedback.backend_post_failed', { error: String(err) });
+      _postToSheetOrQueue(payload);
+    });
+    return;
+  }
+  _postToSheetOrQueue(payload);
+}
+
+function _postFeedbackToBackend(payload) {
+  return fetch(`${BACKEND_URL}/api/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).then(res => {
+    if (!res.ok) throw new Error('feedback backend responded ' + res.status);
+  });
+}
+
+// ── Sheets POST / offline queue (fallback path for feedback; the only path
+// for engagement pings) ───────────────────────────────────────────────────────
+
+function _postToSheetOrQueue(payload) {
   const url = window.MTB_SHEETS_URL || localStorage.getItem(SHEETS_KEY);
   if (!url) { _queue(payload); return; }
   fetch(url, {
