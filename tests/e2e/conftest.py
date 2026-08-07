@@ -66,10 +66,14 @@ def page(request, base_url: str):
         pg.reload()
         try:
             yield pg
-            # WebKit rejects SW/module loading on plain HTTP (expected in test env)
+            # WebKit rejects SW/module loading on plain HTTP (expected in test
+            # env; production is HTTPS). The vite-plugin-pwa `virtual:pwa-register`
+            # path surfaces the same block under WebKit's "access control checks"
+            # message, so it's filtered alongside the older SW-load wording.
             real_errors = [e for e in js_errors
                            if 'sw.js load failed' not in e
-                           and 'Importing a module script failed' not in e]
+                           and 'Importing a module script failed' not in e
+                           and 'due to access control checks' not in e]
             assert not real_errors, f'Uncaught JS errors: {real_errors}'
         finally:
             ctx.close()

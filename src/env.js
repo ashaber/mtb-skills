@@ -20,3 +20,19 @@ export const SUPABASE_URL = readEnv('VITE_SUPABASE_URL');
 export const SUPABASE_ANON_KEY = readEnv('VITE_SUPABASE_ANON_KEY');
 export const BACKEND_URL = readEnv('VITE_BACKEND_URL');
 export const GOOGLE_CLIENT_ID = readEnv('VITE_GOOGLE_CLIENT_ID');
+
+/**
+ * Pure label for which backend a build is pointed at, derived from the
+ * backend URL rather than a separate env var — so there's one source of
+ * truth and Settings can never show an environment label that disagrees
+ * with where API calls are actually going (D25).
+ *
+ * @param {string} url - typically BACKEND_URL; pass explicitly for testing.
+ * @returns {'ITG' | 'PROD' | 'local'}
+ */
+export function envLabel(url) {
+  const u = url || '';
+  if (u.includes('mtb-api-itg')) return 'ITG';
+  if (u.includes('mtb-api-prod')) return 'PROD';
+  return 'local';
+}
