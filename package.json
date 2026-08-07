@@ -1,6 +1,6 @@
 {
   "name": "mtb-skills",
-  "version": "0.2.2",
+  "version": "0.3.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
