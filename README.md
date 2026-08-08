@@ -2,7 +2,9 @@
 
 **Live app:** https://ashaber.github.io/mtb-skills/
 
-A coach-facing skill assessment tool for NICA mountain bike coaches. Log observations, confirm skill levels, and know which trails each rider is genuinely ready for — fully offline, no login required.
+A coach-facing skill assessment tool for NICA mountain bike coaches. Log observations, confirm skill levels, and know which trails each rider is genuinely ready for — **fully offline, no login required**, with **optional Google sign-in** that adds team visibility (a coach's data syncs to a per-team backend so their head coach and co-coaches can see it). See [Onboarding & team visibility](#onboarding--team-visibility-phase-3).
+
+**Deployed app:** ITG (staging) https://mtb-skills-itg.web.app · Prod https://mtb-skills-prod.web.app
 
 Rubric by Andrew Shaber, Renee Kline & Tim Curry.
 
@@ -103,9 +105,46 @@ Full narrative: origin story, rubric design principles, motor learning alignment
 
 See [ROADMAP.md](ROADMAP.md) for the full phased plan:
 - **Phase 1:** ✅ Local HTML app, localStorage, fully offline
-- **Phase 2:** PWA + Google Sheets backend, offline-first sync, Google OAuth
-- **Phase 3:** Native mobile (iOS/Android)
-- **Phase 4:** Multi-tenant backend (league-level visibility, NICA/HubSpot/PitZone roster integration)
+- **Phase 2:** ✅ PWA (installable, offline pre-cache) + Google Sheets / PitZone roster import
+- **Phase 3:** ✅ Supabase backend — Google auth, per-team visibility via RLS, roster / practice-attendance / feedback / usage all DB-backed; deployed ITG + prod (Cloud Run + Firebase)
+- **Phase 4:** Native mobile (iOS/Android); HubSpot/PitZone deeper integration; access-request self-serve onboarding
+
+## Onboarding & team visibility (Phase 3)
+
+The app is offline-first and works with **no account**. Signing in with Google adds **team visibility**: a coach's roster, observations, confirmed levels, practices, and attendance sync to a FastAPI + Supabase backend, scoped per team by Postgres Row-Level Security — so a head coach and co-coaches see each other's data, and no one sees another team's minors' data. There are two environments: **ITG** (staging) and **Prod**, each a separate Supabase project.
+
+### Onboard a coach (their team is already set up)
+1. Open the app URL → **Sign in with Google**.
+2. Their Google email is matched to their coach record on the team roster (created by the roster import) and linked automatically — they immediately see their ride group / team.
+3. If their email isn't on the roster yet, they see nothing until the head coach imports them (or, once built, an access-request approval).
+
+### Onboard a team
+1. The head coach signs in (their coach record must exist — see the new-league seed below for the very first HC).
+2. **Settings → import roster** from a PitZone CSV. Records are matched by **email + name together** (PitZone email is family-level and names collide, so both are required); a stable ID column is used when present.
+3. Import creates coach + athlete `person` rows. Each coach then signs in and auto-links by email; the head coach can reassign athletes to ride groups from the roster.
+
+### Onboard a new league / the first head coach (one-time SQL seed)
+The first head coach per team has no record yet (chicken-and-egg). Seed it once in the Supabase SQL editor for that environment:
+
+```sql
+with l as (
+  insert into league (id, name) values (gen_random_uuid(), 'League Name') returning id
+), t as (
+  insert into team (id, league_id, name) select gen_random_uuid(), l.id, 'Team Name' from l returning id
+)
+insert into person (id, team_id, ride_group_id, role, name, email)
+select gen_random_uuid(), t.id, null, 'head_coach', 'Full Name', 'their@email.com' from t;
+```
+
+Then that HC signs in → auto-links by email → imports the team roster. **Each league's data is fully isolated by RLS** — a coach in one league never sees another's.
+
+### Scaling past 100 users (OAuth)
+Google sign-in runs through the **OAuth consent screen**, not Firebase — Firebase only serves the frontend, so it does not bypass the consent screen's Test-users list. In **Testing** status that list caps at **100 users**. Before the pilot grows, **publish the consent screen** (Google Cloud → APIs & Services → OAuth consent screen → *Publish app*). Sign-in uses only non-sensitive scopes (`openid`, `email`, `profile`), so production publishing needs **no Google verification** and removes the cap — any Google account can then sign in.
+
+### Deployment
+- **Frontend** → Firebase Hosting (`deploy-frontend.yml`, per-env sites `mtb-skills-{itg,prod}`).
+- **Backend** (FastAPI) → Cloud Run (`deploy-backend.yml`, services `mtb-api-{itg,prod}`), auth via WIF, secrets in Secret Manager.
+- **Data** → Supabase Postgres (two projects). Both workflows are `workflow_dispatch`; **`supabase/migrations/*.sql` are applied manually to each Supabase project** (idempotent, in order).
 
 ## Development
 
@@ -148,7 +187,7 @@ npm run build         # outputs to dist/
 npm run preview       # serve dist/ locally before deploy
 ```
 
-Deploys automatically to GitHub Pages on push to `main` via GitHub Actions.
+Phase 1–2 deployed to GitHub Pages automatically on push to `main`. Phase 3 deploys to **Firebase Hosting** (frontend) + **Cloud Run** (backend) per environment — see [Deployment](#deployment) above; both are `workflow_dispatch` (`gh workflow run deploy-frontend.yml -f environment=itg|prod`, likewise `deploy-backend.yml`).
 
 ## Alignment
 
