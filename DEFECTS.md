@@ -284,11 +284,11 @@ makes gestures possible but did not implement the gesture detection.
 
 ## D22 — Scan hint: mention camera mode as a possible blocker
 
-**Status:** Open  
+**Status:** Fixed  
 **Type:** Minor enhancement  
 **Source:** Coach feedback, 2026-06-28 — "figured out camera was configured to blur anything that is not my face which is why it wouldn't scan QR code"  
 **Symptom:** The scan modal hint says "Point camera at a QR code from another coach's device." If the camera is in portrait/face-blur mode (common Samsung default), the QR code is blurred out and won't scan. Coach has no idea why.  
-**Fix:** Update `views.js` `modalScanCard` hint text to: "Point camera at a QR code from another coach's device. If scan isn't working, check that your camera app isn't set to portrait or face-blur mode."  
+**Fix:** Updated `views.js:1273` hint text to: "Point camera at a QR code from another coach's device. If scan isn't working, check that your camera app isn't set to portrait or face-blur mode."  
 **File:** `src/views.js:984`, `.scan-hint` element.
 
 ---

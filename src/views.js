@@ -1270,7 +1270,7 @@ export function modalScanCard() {
     <div class="scan-card-body">
       <video id="scan-video" class="scan-video" playsinline muted autoplay></video>
       <canvas id="scan-canvas" style="display:none"></canvas>
-      <p class="scan-hint" id="scan-hint">Point camera at a QR code from another coach's device.</p>
+      <p class="scan-hint" id="scan-hint">Point camera at a QR code from another coach's device. If scan isn't working, check that your camera app isn't set to portrait or face-blur mode.</p>
     </div>
     <div style="height:12px"></div>`;
 }
