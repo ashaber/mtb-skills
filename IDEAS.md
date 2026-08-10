@@ -223,3 +223,26 @@ On submit:
 - Does PitZone expose a public API for roster lookup, or is export-to-sheet the intended integration path?
 - Can individual athletes have their own PitZone login, or is the family account always the entry point?
 - What GUID format does PitZone use — numeric, UUID, other?
+
+### IDEA-021 — League staff & detailed RBAC
+
+**Context:** Phase 3 ships four roles enforced by Postgres RLS (`supabase/migrations/0002_rls.sql`). Current capabilities:
+- `coach` — sees & writes (observations / confirmed-levels / practice / attendance) **only for their own ride group** (`app_caller_ride_group_ids()` = groups where they are the `role='coach'` occupant).
+- `head_coach` / `team_director` — see & write the **whole team**, incl. roster management (import, reassign groups). Functionally identical (`app_caller_hc_team_ids()` covers both).
+- `league_staff` — sees **every team in their league** (via `app_caller_league_team_ids()`) but **read-only** — there are NO league_staff insert/update policies. Pure oversight.
+- One person = exactly one role; one auth_user links to one person (no multi-hat).
+
+**Gaps surfaced in pilot-leadership discussion (Tim/Eddie/Nate + andrew all "league staff who float across teams and rate"):**
+- **No league-wide WRITE role.** People who work across teams and record ratings don't fit today: `league_staff` can't write, HC/TD is per-team. Interim workaround used for the pilot: put everyone on one team as `coach`/HC/TD.
+- **Options for a real fix:**
+  - **A (recommended first):** give `league_staff` **league-scoped write** — mirror the HC insert/update policies but keyed on `app_caller_league_team_ids()`, for observation / confirmed_level / practice / attendance. A "league super-coach." "Temporary coach any group" then falls out for free (they see + can write any group in the league). Optionally extend to roster admin (person insert/update) league-wide; hold that at first (least blast radius).
+  - **B:** **multi-persona** — one auth_user → multiple person rows (e.g. scoped coach on team X + viewer elsewhere), requiring the deferred `X-Persona-Id` "which hat" picker (`app/deps.py` TODO). More flexible, more UI.
+- **Capability vs. role.** `lead`/`sweep` are currently `person.tags` (folksonomy, no authz). A future permission model could gate specific actions (attendance-taking, promote/demote, medical-info visibility) on capabilities rather than coarse roles — turning RBAC into ABAC-lite.
+- **Onboarding tie-in:** the designed-but-unbuilt **access-request flow** (login-with-no-persona → pending → admin approves + assigns role/team/group) removes today's manual SQL seed + role-set for every new person.
+
+**Recommendation:** Ship **A** as a small RLS migration when league-wide staff become real (not just a single-team pilot). Reach for B / capabilities only when someone genuinely needs to be a *scoped* coach on one team while a viewer elsewhere — the single-role model covers everything until then.
+
+**Open questions:**
+- Should league-wide write include roster management, or only ratings/attendance? (Blast-radius vs. convenience.)
+- Is a league-wide *write* role even desirable, or should cross-team work always be explicit per-team grants (auditability)?
+- Do lead/sweep ever need to *gate* behavior, or do they stay purely descriptive?
