@@ -15,10 +15,12 @@ import { SKILLS, TRAIL_GUIDE, COACH_NOTES } from './rubric-content.js';
 import {
   getPeople, getAthletes, getAthleteConfirmedLevels, getObservations,
   getCoach, getPhoto, getTeamSettings, exportAll,
-  getAttendance, getAttendanceStatus, getPractices,
+  getAttendance, getAttendanceStatus, getPractices, getAllAttendance,
+  getConfirmedLevels,
   CATEGORIES,
   getRosterGroupFilter, getRemoteRosterIds, getCachedIdentity,
 } from './storage.js';
+import { buildHcDashboardRows, DEFAULT_WINDOW_SIZE } from './hc-dashboard.js';
 import {
   LV, pName, initials, readyRowHTML, readyRowDetailHTML, trendSVG, postureSVG,
   levelSelectorHTML, scoreChip, suggestLevel, TRAIL_META, trailMarkSVG, readyTrails,
@@ -525,6 +527,12 @@ export function viewSettings(s) {
         <button class="btn btn-outline" data-a="open-roster-import">Import roster from CSV</button>
       </div>` : ''}
 
+      ${isAuthConfigured() && s.authUser && isHcOrTd(getCachedIdentity()?.personas) ? `<div class="settings-section">
+        <span class="settings-section-label">Team</span>
+        <p class="settings-about" style="margin-bottom:10px">See every athlete's ride group, recent attendance, and current confirmed level per skill in one table. Head-coach/team-director only.</p>
+        <button class="btn btn-outline" data-a="open-hc-dashboard">Team dashboard</button>
+      </div>` : ''}
+
       <div class="settings-section">
         <span class="settings-section-label">Share App</span>
         <p class="settings-about" style="margin-bottom:10px">Scan to open on another device — works offline after first load.</p>
@@ -557,6 +565,72 @@ export function viewSettings(s) {
         <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry</p>
         <a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
         <p class="settings-about" style="margin-top:10px;color:var(--dim);font-size:11px">v${__APP_VERSION__} · ${__GIT_SHA__} · ${envLabel(BACKEND_URL)}</p>
+      </div>
+    </div>`;
+}
+
+// ── HC/TD Team Dashboard (Phase 3.4 MVP — layer content, drill-in from
+// Settings) ─────────────────────────────────────────────────────────────────
+// Read-only current-state snapshot: name, ride group, attendance over the
+// last DEFAULT_WINDOW_SIZE practices, and current confirmed level per
+// skill. Deliberately does NOT include a "falling behind" flag, ride-
+// group-move tooling, or a progress-over-time chart — see
+// src/hc-dashboard.js's module docstring for why (both are still-open
+// product questions in docs/PHASE3_TEAM_VISIBILITY_PLAN.md, not something
+// this build should invent). Reads from the local store only — the same
+// roster/attendance/confirmed-level data already pulled by src/sync.js's
+// GET /api/roster, /api/attendance, /api/confirmed-levels — so this view
+// makes no network calls of its own and stays offline-first like the rest
+// of the app.
+//
+// Entry point (Settings) already gates on isHcOrTd(); this view repeats
+// the check as defense-in-depth (mirrors _hcAssignGroupActive's posture)
+// so a direct pushLayer() call can never render team-wide data to a
+// caller whose cached persona isn't HC/TD. This is a client-side UI gate
+// only, same posture as isHcOrTd()'s own docstring: RLS on the backend is
+// the actual authorization boundary for every row this table displays.
+export function viewHcDashboard(s) {
+  const backBtn = `<div class="topbar"><button class="topbar-back" data-a="go-settings">${BACK} Settings</button><span class="topbar-title">TEAM DASHBOARD</span><div></div></div>`;
+
+  if (!isHcOrTd(getCachedIdentity()?.personas)) {
+    return `${backBtn}<div class="card-scroll"><p class="empty-micro" style="padding:16px">Head-coach or team-director access required.</p></div>`;
+  }
+
+  const rows = buildHcDashboardRows({
+    people:          getPeople({ role: 'athlete' }),
+    practices:       getPractices(),
+    attendance:      getAllAttendance(),
+    confirmedLevels: getConfirmedLevels(),
+  });
+
+  const tableRows = rows.length
+    ? rows.map(r => `
+        <tr>
+          <td class="hc-dash-name">${esc(r.name)}</td>
+          <td class="hc-dash-group">${r.ride_group_name ? esc(r.ride_group_name) : '—'}</td>
+          <td class="hc-dash-attend">${r.attended}/${r.total}</td>
+          ${SKILL_IDS.map(sk => `<td><span class="hc-dash-lv" style="background:${LV[r.levels[sk]]}">${r.levels[sk] || '—'}</span></td>`).join('')}
+        </tr>`).join('')
+    : `<tr><td colspan="${3 + SKILL_IDS.length}"><p class="empty-micro" style="padding:16px">No athletes on the roster yet.</p></td></tr>`;
+
+  return `
+    ${backBtn}
+    <div class="card-scroll">
+      <div class="hdr" style="padding:16px 16px 8px">
+        <p class="settings-about">One row per athlete. Attendance = last ${DEFAULT_WINDOW_SIZE} practices. Levels are the currently confirmed level per skill (— = unset).</p>
+      </div>
+      <div class="hc-dash-table-wrap">
+        <table class="hc-dash-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Ride group</th>
+              <th>Attendance</th>
+              ${SKILL_IDS.map(sk => `<th>${SKILLS[sk].name}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
       </div>
     </div>`;
 }
