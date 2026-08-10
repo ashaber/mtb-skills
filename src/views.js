@@ -17,7 +17,7 @@ import {
   getCoach, getPhoto, getTeamSettings, exportAll,
   getAttendance, getAttendanceStatus, getPractices,
   CATEGORIES,
-  getRosterGroupFilter, getRemoteRosterIds, getCachedIdentity,
+  getRosterGroupFilter, getRemoteRosterIds, getCachedIdentity, getActivePersonaId,
 } from './storage.js';
 import {
   LV, pName, initials, readyRowHTML, readyRowDetailHTML, trendSVG, postureSVG,
@@ -26,7 +26,7 @@ import {
 } from './ui.js';
 import { isAuthConfigured } from './auth.js';
 import { mapRows } from './roster-import.js';
-import { detectLocalOnly, autoMatchByName, resolveMyGroups, isHcOrTd } from './reconcile.js';
+import { detectLocalOnly, autoMatchByName, resolveMyGroups, isHcOrTd, resolveActivePersona, personaRoleLabel } from './reconcile.js';
 import { BACKEND_URL, envLabel } from './env.js';
 
 const esc = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -502,6 +502,7 @@ export function viewSettings(s) {
             <span style="font:700 15px/1.3 var(--font-body)">${esc(s.authUser.name || s.authUser.email || 'Coach')}</span>
             ${s.authUser.name && s.authUser.email ? `<span class="settings-about">${esc(s.authUser.email)}</span>` : ''}
           </div>
+          ${_teamSwitcherSettingsRow()}
           <p class="settings-about" style="margin-bottom:10px">${
             s.syncing
               ? 'Syncing…'
@@ -1234,6 +1235,68 @@ export function modalAssignGroup(state) {
       <button class="btn btn-primary" data-m="save-assign-group" data-id="${esc(athlete.id)}" ${state.submitting ? 'disabled' : ''}>${state.submitting === 'save' ? 'Saving…' : 'Save'}</button>
     </div>
     <div style="height:12px"></div>`;
+}
+
+// ── Team switcher (D26) ────────────────────────────────────────────────────
+// Opened either automatically (src/main.js's runSync(), when GET /api/me
+// resolves >1 personas and none is selected yet) or manually from the
+// Settings "Switch team" row (`_teamSwitcherSettingsRow` below). Mirrors
+// modalAssignGroup's exact shape (select + Save button) rather than
+// inventing a new "pick one of several options" pattern -- per
+// docs/NAV_FLOW_SPEC.md's one test, a lookup/form is a sheet, and this app
+// already has an established sheet idiom for "pick one from a list and
+// save."
+export function modalTeamSwitcher() {
+  const closeBtn = `<button class="ico-btn" data-m="close">✕</button>`;
+  const personas = getCachedIdentity()?.personas || [];
+
+  if (personas.length < 2) {
+    // Defensive only -- src/main.js never opens this sheet for a
+    // single-persona coach (constraint: no picker, no behavior change at
+    // all for that case).
+    return `<div class="modal-head"><span>Switch Team</span>${closeBtn}</div>
+      <div class="fg"><p class="modal-hint">You only coach one team.</p></div>`;
+  }
+
+  const activeId = getActivePersonaId();
+  const options = personas.map(p => {
+    const label = p.team_name ? `${p.team_name} — ${personaRoleLabel(p.role)}` : personaRoleLabel(p.role);
+    return `<option value="${esc(p.person_id)}"${p.person_id === activeId ? ' selected' : ''}>${esc(label)}</option>`;
+  }).join('');
+
+  return `
+    <div class="modal-head"><span>Switch Team</span>${closeBtn}</div>
+    <div class="fg" style="padding-top:0">
+      <p class="modal-hint">You coach on more than one team. Pick which one to view.</p>
+    </div>
+    <div class="fg" style="padding-top:0">
+      <label class="fl" for="team-switch-select">Team</label>
+      <select class="fi" id="team-switch-select">${options}</select>
+    </div>
+    <div class="fg" style="padding-top:0">
+      <button class="btn btn-primary" data-m="save-team-switch">Switch</button>
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+/** Settings → Account row showing the active team + a "Switch team" button
+ * — only ever rendered for a caller with >1 cached persona (a single-
+ * persona coach sees nothing extra at all here). */
+function _teamSwitcherSettingsRow() {
+  const personas = getCachedIdentity()?.personas || [];
+  if (personas.length < 2) return '';
+
+  const active = resolveActivePersona(personas, getActivePersonaId());
+  const label = active
+    ? `${active.team_name || 'Unnamed team'} — ${personaRoleLabel(active.role)}`
+    : 'No team selected yet';
+
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;margin-bottom:12px">
+      <span class="settings-about" style="color:var(--dim)">Coaching on ${personas.length} teams — active team</span>
+      <span style="font:700 15px/1.3 var(--font-body)">${esc(label)}</span>
+      <button class="btn btn-outline" data-a="open-team-switcher" style="margin-top:6px">Switch team</button>
+    </div>`;
 }
 
 export function modalShareCard(a, conf, qrDataUrl) {

@@ -11,6 +11,7 @@ import {
   remapAthleteId,
   getCachedIdentity, saveCachedIdentity, clearCachedIdentity,
   getRemoteRosterIds, saveRemoteRosterIds,
+  getActivePersonaId, saveActivePersonaId,
   getRosterFilter, saveRosterFilter, getRosterGroupFilter, saveRosterGroupFilter,
   getTeamSettings, saveTeamSettings,
   clearLocalRosterData,
@@ -431,6 +432,23 @@ describe('sync identity cache (getCachedIdentity / getRemoteRosterIds)', () => {
   });
 });
 
+describe('active persona (D26 team switcher — getActivePersonaId / saveActivePersonaId)', () => {
+  it('getActivePersonaId returns null before any selection', () => {
+    expect(getActivePersonaId()).toBeNull();
+  });
+
+  it('saveActivePersonaId / getActivePersonaId round-trip', () => {
+    saveActivePersonaId('p1');
+    expect(getActivePersonaId()).toBe('p1');
+  });
+
+  it('saveActivePersonaId(null) clears back to null', () => {
+    saveActivePersonaId('p1');
+    saveActivePersonaId(null);
+    expect(getActivePersonaId()).toBeNull();
+  });
+});
+
 describe('local date — practice and observation timestamps', () => {
   it('createPractice records local calendar date, not UTC', () => {
     const p = createPractice();
@@ -464,6 +482,7 @@ describe('clearLocalRosterData', () => {
     toggleAttendance(practice.id, a.id);
     saveCachedIdentity([{ person_id: 'p1', role: 'coach', team_id: 't1', ride_group_id: null, name: 'Coach' }]);
     saveRemoteRosterIds([a.id]);
+    saveActivePersonaId('p1');
     saveRosterFilter('athletes');
     saveRosterGroupFilter('JV Boys');
 
@@ -507,7 +526,7 @@ describe('clearLocalRosterData', () => {
     const removedKeys = [
       'mtb_athletes', 'mtb_observations', 'mtb_confirmed_levels', 'mtb_photos',
       'mtb_attendance', 'mtb_practices', 'mtb_remote_roster_ids', 'mtb_identity',
-      'mtb_roster_filter', 'mtb_roster_group_filter',
+      'mtb_active_persona_id', 'mtb_roster_filter', 'mtb_roster_group_filter',
     ];
     const preservedKeys = ['mtb_coach', 'mtb_team', 'mtb_team_settings', 'sb-fakeproject-auth-token'];
 

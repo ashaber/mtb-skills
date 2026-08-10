@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { detectLocalOnly, autoMatchByName, resolveMyGroups, isHcOrTd } from '../../src/reconcile.js';
+import {
+  detectLocalOnly, autoMatchByName, resolveMyGroups, isHcOrTd,
+  personaRoleLabel, resolveActivePersona,
+} from '../../src/reconcile.js';
 
 describe('detectLocalOnly', () => {
   it('returns empty array for empty local roster', () => {
@@ -154,5 +157,66 @@ describe('isHcOrTd', () => {
   it('returns false for an unrecognized role, including a malformed entry', () => {
     expect(isHcOrTd([{ role: 'league_staff' }])).toBe(false);
     expect(isHcOrTd([{}])).toBe(false);
+  });
+});
+
+describe('personaRoleLabel (D26 team switcher)', () => {
+  it('maps head_coach to "Head Coach"', () => {
+    expect(personaRoleLabel('head_coach')).toBe('Head Coach');
+  });
+
+  it('maps team_director to "Team Director"', () => {
+    expect(personaRoleLabel('team_director')).toBe('Team Director');
+  });
+
+  it('maps coach to "Coach"', () => {
+    expect(personaRoleLabel('coach')).toBe('Coach');
+  });
+
+  it('maps league_staff to "League Staff"', () => {
+    expect(personaRoleLabel('league_staff')).toBe('League Staff');
+  });
+
+  it('falls back to the raw role string for an unrecognized role', () => {
+    expect(personaRoleLabel('some_future_role')).toBe('some_future_role');
+  });
+
+  it('returns an empty string for null/undefined', () => {
+    expect(personaRoleLabel(null)).toBe('');
+    expect(personaRoleLabel(undefined)).toBe('');
+  });
+});
+
+describe('resolveActivePersona (D26 team switcher)', () => {
+  it('returns null for no personas', () => {
+    expect(resolveActivePersona([], 'p1')).toBeNull();
+    expect(resolveActivePersona(null, 'p1')).toBeNull();
+    expect(resolveActivePersona(undefined, null)).toBeNull();
+  });
+
+  it('a single persona resolves unambiguously regardless of activePersonaId', () => {
+    const only = { person_id: 'p1', role: 'coach' };
+    expect(resolveActivePersona([only], null)).toBe(only);
+    expect(resolveActivePersona([only], 'some-other-id')).toBe(only);
+    expect(resolveActivePersona([only], 'p1')).toBe(only);
+  });
+
+  it('a multi-persona caller with no activePersonaId is ambiguous (null)', () => {
+    const personas = [{ person_id: 'p1' }, { person_id: 'p2' }];
+    expect(resolveActivePersona(personas, null)).toBeNull();
+    expect(resolveActivePersona(personas, undefined)).toBeNull();
+  });
+
+  it('a multi-persona caller resolves to the matching activePersonaId', () => {
+    const personas = [
+      { person_id: 'p1', role: 'team_director' },
+      { person_id: 'p2', role: 'coach' },
+    ];
+    expect(resolveActivePersona(personas, 'p2')).toBe(personas[1]);
+  });
+
+  it('a stale activePersonaId (no longer a current persona) resolves to null', () => {
+    const personas = [{ person_id: 'p1' }, { person_id: 'p2' }];
+    expect(resolveActivePersona(personas, 'p-gone')).toBeNull();
   });
 });

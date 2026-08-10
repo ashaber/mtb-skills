@@ -651,9 +651,10 @@ export function savePhoto(athleteId, dataUrl) {
 // ---------------------------------------------------------------------------
 const IDENTITY_KEY = 'mtb_identity';
 const REMOTE_ROSTER_IDS_KEY = 'mtb_remote_roster_ids';
+const ACTIVE_PERSONA_KEY = 'mtb_active_persona_id';
 
 /**
- * @returns {{ personas: Array<{person_id:string, role:string, team_id:string, ride_group_id:string|null, name:string}>, cached_at: string }|null}
+ * @returns {{ personas: Array<{person_id:string, role:string, team_id:string, ride_group_id:string|null, name:string, team_name:string|null}>, cached_at: string }|null}
  */
 export function getCachedIdentity() {
   try { return getStore().readObject(IDENTITY_KEY); }
@@ -674,6 +675,35 @@ export function saveCachedIdentity(personas) {
 export function clearCachedIdentity() {
   try { getStore().writeObject(IDENTITY_KEY, null); }
   catch { /* best-effort */ }
+}
+
+// ---------------------------------------------------------------------------
+// Active persona (D26 — team switcher). A coach with coaching duties on more
+// than one team (src/sync.js's syncNow gets >1 persona back from GET
+// /api/me) has one `person` row per team; this is which one the app is
+// currently scoped to. Persisted so the choice survives a reload without
+// re-signing-in. Read back null when there's never been a selection (a
+// single-persona coach never needs one at all — src/reconcile.js's
+// resolveActivePersona resolves that case without ever touching this key),
+// which is exactly the signal src/main.js uses to show the "which hat"
+// picker.
+// ---------------------------------------------------------------------------
+
+/**
+ * @returns {string|null} the selected persona's `person_id`, or null if
+ *   none has been chosen yet (or there's only ever been one).
+ */
+export function getActivePersonaId() {
+  try { return getStore().readObject(ACTIVE_PERSONA_KEY); }
+  catch { return null; }
+}
+
+/**
+ * @param {string|null} personId
+ */
+export function saveActivePersonaId(personId) {
+  try { getStore().writeObject(ACTIVE_PERSONA_KEY, personId ?? null); }
+  catch (e) { log.error('active_persona.save.failed', { error: String(e) }); }
 }
 
 /**
@@ -728,6 +758,7 @@ const LOCAL_ROSTER_DATA_KEYS = [
   KEYS.practices,
   REMOTE_ROSTER_IDS_KEY,
   IDENTITY_KEY,
+  ACTIVE_PERSONA_KEY,
   KEYS.rosterFilter,
   KEYS.rosterGroupFilter,
 ];
@@ -735,8 +766,9 @@ const LOCAL_ROSTER_DATA_KEYS = [
 /**
  * Removes only the local-storage keys listed in LOCAL_ROSTER_DATA_KEYS —
  * roster (people), observations, confirmed levels, photos, attendance,
- * practices, the cached remote-roster-id set, the cached identity, and the
- * two roster filter selections. Deliberately does NOT touch `mtb_coach`,
+ * practices, the cached remote-roster-id set, the cached identity, the
+ * active-persona (team switcher) selection, and the two roster filter
+ * selections. Deliberately does NOT touch `mtb_coach`,
  * `mtb_team`, `mtb_team_settings`, or any Supabase `sb-*` auth key — those
  * are the coach's own profile/config and sign-in session, not data a
  * backend re-sync repopulates. Call sites (src/main.js) follow this with

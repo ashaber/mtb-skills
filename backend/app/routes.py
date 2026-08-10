@@ -228,13 +228,73 @@ def _select_attributing_coach(personas: list[Persona], athlete_ride_group_id: uu
 
 
 # ==========================================================================
+# Team scoping -- D26: a caller with >1 persona (a traveling Team Director,
+# or one head coach running several schools' programs -- app/identity.py's
+# MultiplePersonasError doc comment) gets ONE `person` row per team. Before
+# this, every GET below ran with no team_id filter in the SQL at all and let
+# RLS (which ORs together every team the caller has any persona on) decide
+# what came back -- so a multi-persona coach's roster/observations/etc. were
+# silently merged across every reachable team with no way to view one at a
+# time. `team_id` is now an OPTIONAL query param on every list endpoint:
+# omitted, behavior is unchanged (existing single-persona callers see no
+# difference at all); provided, it must be one of the CALLER'S OWN persona
+# team_ids (never trusted beyond that allowlist) -- same "which of the
+# caller's own teams" posture as import_roster's `hc_td_team_ids` check
+# below, just generalized to any role, not only HC/TD.
+# ==========================================================================
+
+
+def _resolve_scope_team_id(caller: Caller, team_id: uuid.UUID | None) -> str | None:
+    """None (no `team_id` query param given) -> None, meaning "no filter" --
+    back-compat for a single-persona caller and for any caller who hasn't
+    picked a team to scope to yet. Otherwise the given team_id must match
+    one of the caller's OWN persona team_ids, or this raises 403 -- a
+    client-supplied team_id is never trusted beyond that allowlist, mirrored
+    from import_roster's own team-ownership check."""
+    if team_id is None:
+        return None
+    caller_team_ids = {p.team_id for p in caller.personas}
+    if str(team_id) not in caller_team_ids:
+        log.warn("team_scope.denied", team_id=str(team_id), sub=caller.sub)
+        raise HTTPException(status_code=403, detail="not your team")
+    return str(team_id)
+
+
+# ==========================================================================
 # GET /api/me
 # ==========================================================================
 
 
 @router.get("/me")
-def get_me(caller: Caller = Depends(get_caller)) -> dict[str, Any]:
-    return {"personas": [_persona_to_dict(p) for p in caller.personas]}
+def get_me(
+    caller: Caller = Depends(get_caller),
+    settings: Settings = Depends(get_settings_dep),
+) -> dict[str, Any]:
+    # `Persona` itself carries no team NAME (only team_id) -- it's resolved
+    # here, in a SEPARATE rls_connection from the one get_caller already
+    # closed (per deps.py's docstring: never reuse that connection), purely
+    # so the frontend's "which hat" team-switcher picker (D26) has something
+    # human-readable to show ("Eugene Composite — Team Director") instead of
+    # a bare role + opaque team_id. RLS's team_select policy already scopes
+    # this to teams the caller can see (their own, via
+    # app_caller_own_team_ids()) -- the caller's own persona team_ids below
+    # are always a subset of that, so this never leaks a team name the
+    # caller couldn't otherwise read.
+    team_ids = [uuid.UUID(p.team_id) for p in caller.personas]
+    team_names: dict[str, str] = {}
+    if team_ids:
+        with rls_connection(settings.database_url, caller.sub) as conn:
+            rows = conn.execute(
+                "select id, name from team where id = any(%s)",
+                (team_ids,),
+            ).fetchall()
+        team_names = {str(row[0]): row[1] for row in rows}
+
+    return {
+        "personas": [
+            {**_persona_to_dict(p), "team_name": team_names.get(p.team_id)} for p in caller.personas
+        ]
+    }
 
 
 # ==========================================================================
@@ -244,18 +304,32 @@ def get_me(caller: Caller = Depends(get_caller)) -> dict[str, Any]:
 
 @router.get("/observations")
 def list_observations(
+    team_id: uuid.UUID | None = None,
     caller: Caller = Depends(get_caller),
     settings: Settings = Depends(get_settings_dep),
 ) -> list[dict[str, Any]]:
+    scoped_team_id = _resolve_scope_team_id(caller, team_id)
     with rls_connection(settings.database_url, caller.sub) as conn:
-        rows = conn.execute(
-            """
-            select id, athlete_id, team_id, coach_id, ride_group_id,
-                   session_date, skill, level_observed, notes
-            from observation
-            order by session_date desc, created_at desc
-            """
-        ).fetchall()
+        if scoped_team_id is not None:
+            rows = conn.execute(
+                """
+                select id, athlete_id, team_id, coach_id, ride_group_id,
+                       session_date, skill, level_observed, notes
+                from observation
+                where team_id = %s
+                order by session_date desc, created_at desc
+                """,
+                (scoped_team_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                select id, athlete_id, team_id, coach_id, ride_group_id,
+                       session_date, skill, level_observed, notes
+                from observation
+                order by session_date desc, created_at desc
+                """
+            ).fetchall()
     return [_observation_row_to_dict(row) for row in rows]
 
 
@@ -334,17 +408,30 @@ def create_observation(
 
 @router.get("/confirmed-levels")
 def list_confirmed_levels(
+    team_id: uuid.UUID | None = None,
     caller: Caller = Depends(get_caller),
     settings: Settings = Depends(get_settings_dep),
 ) -> list[dict[str, Any]]:
+    scoped_team_id = _resolve_scope_team_id(caller, team_id)
     with rls_connection(settings.database_url, caller.sub) as conn:
-        rows = conn.execute(
-            """
-            select id, athlete_id, team_id, coach_id, ride_group_id, skill, level, confirmed_at
-            from confirmed_level
-            order by confirmed_at desc
-            """
-        ).fetchall()
+        if scoped_team_id is not None:
+            rows = conn.execute(
+                """
+                select id, athlete_id, team_id, coach_id, ride_group_id, skill, level, confirmed_at
+                from confirmed_level
+                where team_id = %s
+                order by confirmed_at desc
+                """,
+                (scoped_team_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                select id, athlete_id, team_id, coach_id, ride_group_id, skill, level, confirmed_at
+                from confirmed_level
+                order by confirmed_at desc
+                """
+            ).fetchall()
     return [_confirmed_level_row_to_dict(row) for row in rows]
 
 
@@ -417,17 +504,30 @@ def upsert_confirmed_level(
 
 @router.get("/practices")
 def list_practices(
+    team_id: uuid.UUID | None = None,
     caller: Caller = Depends(get_caller),
     settings: Settings = Depends(get_settings_dep),
 ) -> list[dict[str, Any]]:
+    scoped_team_id = _resolve_scope_team_id(caller, team_id)
     with rls_connection(settings.database_url, caller.sub) as conn:
-        rows = conn.execute(
-            """
-            select id, team_id, ride_group_id, session_date, status, created_by, created_at
-            from practice
-            order by session_date desc, created_at desc
-            """
-        ).fetchall()
+        if scoped_team_id is not None:
+            rows = conn.execute(
+                """
+                select id, team_id, ride_group_id, session_date, status, created_by, created_at
+                from practice
+                where team_id = %s
+                order by session_date desc, created_at desc
+                """,
+                (scoped_team_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                select id, team_id, ride_group_id, session_date, status, created_by, created_at
+                from practice
+                order by session_date desc, created_at desc
+                """
+            ).fetchall()
     return [_practice_row_to_dict(row) for row in rows]
 
 
@@ -510,28 +610,37 @@ def create_practice(
 @router.get("/attendance")
 def list_attendance(
     practice_id: uuid.UUID | None = None,
+    team_id: uuid.UUID | None = None,
     caller: Caller = Depends(get_caller),
     settings: Settings = Depends(get_settings_dep),
 ) -> list[dict[str, Any]]:
+    scoped_team_id = _resolve_scope_team_id(caller, team_id)
+
+    # practice_id and team_id are independent optional filters (both, either,
+    # or neither) -- built as a WHERE clause list rather than four near-
+    # duplicate branches. Every value is still passed as a %s placeholder,
+    # never interpolated, so this is exactly as safe as the fixed-clause
+    # queries above.
+    conditions: list[str] = []
+    params: list[Any] = []
+    if practice_id is not None:
+        conditions.append("practice_id = %s")
+        params.append(practice_id)
+    if scoped_team_id is not None:
+        conditions.append("team_id = %s")
+        params.append(scoped_team_id)
+    where_clause = f"where {' and '.join(conditions)}" if conditions else ""
+
     with rls_connection(settings.database_url, caller.sub) as conn:
-        if practice_id is not None:
-            rows = conn.execute(
-                """
-                select id, practice_id, person_id, team_id, ride_group_id, status, marked_by, marked_at
-                from attendance
-                where practice_id = %s
-                order by marked_at desc
-                """,
-                (practice_id,),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                """
-                select id, practice_id, person_id, team_id, ride_group_id, status, marked_by, marked_at
-                from attendance
-                order by marked_at desc
-                """
-            ).fetchall()
+        rows = conn.execute(
+            f"""
+            select id, practice_id, person_id, team_id, ride_group_id, status, marked_by, marked_at
+            from attendance
+            {where_clause}
+            order by marked_at desc
+            """,
+            params,
+        ).fetchall()
     return [_attendance_row_to_dict(row) for row in rows]
 
 
@@ -597,24 +706,39 @@ def upsert_attendance(
 
 @router.get("/roster")
 def list_roster(
+    team_id: uuid.UUID | None = None,
     caller: Caller = Depends(get_caller),
     settings: Settings = Depends(get_settings_dep),
 ) -> list[dict[str, Any]]:
+    scoped_team_id = _resolve_scope_team_id(caller, team_id)
     with rls_connection(settings.database_url, caller.sub) as conn:
         # LEFT JOIN ride_group so each person carries its group's name (or
         # null). Under RLS the join can only surface a ride_group the caller
         # is already allowed to see (ride_group_select shares person_select's
         # scoping), so this never leaks a group name the caller couldn't
         # otherwise read.
-        rows = conn.execute(
-            """
-            select p.id, p.team_id, p.ride_group_id, p.role, p.name,
-                   p.external_id, p.grade, p.category, p.tags, rg.name
-            from person p
-            left join ride_group rg on rg.id = p.ride_group_id
-            order by p.name
-            """
-        ).fetchall()
+        if scoped_team_id is not None:
+            rows = conn.execute(
+                """
+                select p.id, p.team_id, p.ride_group_id, p.role, p.name,
+                       p.external_id, p.grade, p.category, p.tags, rg.name
+                from person p
+                left join ride_group rg on rg.id = p.ride_group_id
+                where p.team_id = %s
+                order by p.name
+                """,
+                (scoped_team_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                select p.id, p.team_id, p.ride_group_id, p.role, p.name,
+                       p.external_id, p.grade, p.category, p.tags, rg.name
+                from person p
+                left join ride_group rg on rg.id = p.ride_group_id
+                order by p.name
+                """
+            ).fetchall()
     return [_person_row_to_dict(row[:9], ride_group_name=row[9]) for row in rows]
 
 

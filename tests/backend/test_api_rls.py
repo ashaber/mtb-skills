@@ -191,6 +191,7 @@ def test_get_me_returns_coach_a1s_own_persona(client, seed: dict[str, Any]) -> N
         "team_id": str(seed["team_t"]),
         "ride_group_id": str(seed["group_a1"]),
         "name": "Coach A1",
+        "team_name": "Team T",
     }
 
 

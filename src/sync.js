@@ -46,7 +46,9 @@ import {
   getPractices, upsertPracticeFromRemote,
   getAllAttendance, upsertAttendanceFromRemote,
   saveCachedIdentity, saveRemoteRosterIds,
+  getActivePersonaId, saveActivePersonaId,
 } from './storage.js';
+import { resolveActivePersona } from './reconcile.js';
 
 /**
  * Minimal fetch helper: adds the Bearer token + JSON headers, parses the
@@ -110,21 +112,59 @@ export async function syncNow() {
   let pushed = 0;
 
   try {
-    const [remoteRoster, remoteObs, remoteConfirmed, remotePractices, remoteAttendance, me] = await Promise.all([
-      api('/api/roster'),
-      api('/api/observations'),
-      api('/api/confirmed-levels'),
-      api('/api/practices'),
-      api('/api/attendance'),
-      api('/api/me'),
+    // ── Identity resolves FIRST (D26) ─────────────────────────────────────
+    // A caller with >1 persona (backend/app/identity.py's
+    // MultiplePersonasError doc comment: a traveling Team Director, or one
+    // head coach running several schools' programs) must be SCOPED to one
+    // team before pulling anything else -- otherwise every GET below runs
+    // with no team filter at all and RLS alone (which ORs together every
+    // team the caller has any persona on) decides what comes back, merging
+    // every reachable team's roster/observations/etc. into one flat blob
+    // with no way to tell which record belongs to which team (the exact D26
+    // bug). So /api/me is awaited on its own, ahead of the Promise.all pull
+    // below, not raced alongside it.
+    const me = await api('/api/me');
+    const personas = me?.personas || [];
+    saveCachedIdentity(personas);
+
+    let active = resolveActivePersona(personas, getActivePersonaId());
+    if (personas.length === 1) {
+      // Unambiguous regardless of any stored selection -- keeps a
+      // single-persona coach's sync byte-for-byte unchanged (no team_id
+      // filter added below), while still keeping the active-persona cache
+      // consistent for any code that reads it.
+      active = personas[0];
+      saveActivePersonaId(active.person_id);
+    } else if (personas.length > 1 && !active) {
+      // Ambiguous -- the caller hasn't picked a team yet. Pulling anything
+      // now would either merge every team together (the bug this increment
+      // fixes) or arbitrarily guess one, so this bails out here and lets
+      // src/main.js's runSync() show the "which hat" picker instead. Local
+      // data (from a prior sync, if any) is left exactly as it was.
+      log.info('sync.needs_team_selection', { persona_count: personas.length });
+      return { pulled: 0, pushed: 0, needsTeamSelection: true };
+    }
+
+    // Only a MULTI-persona caller's pulls are actually scoped by team_id --
+    // a single-persona caller's requests are byte-for-byte the same URLs as
+    // before this increment (no query string at all), per the D26 task
+    // brief's "single-persona coach must see NO behavior change" constraint.
+    const scopeQuery = personas.length > 1 && active
+      ? `?team_id=${encodeURIComponent(active.team_id)}`
+      : '';
+
+    const [remoteRoster, remoteObs, remoteConfirmed, remotePractices, remoteAttendance] = await Promise.all([
+      api(`/api/roster${scopeQuery}`),
+      api(`/api/observations${scopeQuery}`),
+      api(`/api/confirmed-levels${scopeQuery}`),
+      api(`/api/practices${scopeQuery}`),
+      api(`/api/attendance${scopeQuery}`),
     ]);
 
-    // ── Identity + remote-roster-id cache (Phase 3.2) ─────────────────────
-    // Written on every successful sync so src/views.js can read "my
-    // group(s)" (via src/reconcile.js's resolveMyGroups) and detect
+    // ── Remote-roster-id cache (Phase 3.2) ─────────────────────────────────
+    // Written on every successful sync so src/views.js can detect
     // local-only athletes (src/reconcile.js's detectLocalOnly) SYNCHRONOUSLY
     // — no network call on render, per this module's offline-first header.
-    saveCachedIdentity(me?.personas || []);
     saveRemoteRosterIds((remoteRoster || []).map(r => r.id));
 
     // ── Roster: upsert by id ──────────────────────────────────────────────

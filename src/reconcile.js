@@ -102,3 +102,50 @@ const HC_TD_ROLES = new Set(['head_coach', 'team_director']);
 export function isHcOrTd(personas) {
   return (personas || []).some(p => HC_TD_ROLES.has(p?.role));
 }
+
+// ---------------------------------------------------------------------------
+// Team switcher (D26) — a coach with coaching duties on more than one team
+// (backend/app/identity.py's MultiplePersonasError doc comment: a traveling
+// Team Director, or one head coach running several schools' programs) gets
+// back more than one persona from GET /api/me, one per team. Both helpers
+// below are pure so they're directly unit-testable, same posture as the rest
+// of this module — src/main.js/src/views.js wire them to
+// src/storage.js's getActivePersonaId()/saveActivePersonaId().
+// ---------------------------------------------------------------------------
+
+const ROLE_LABELS = {
+  head_coach:    'Head Coach',
+  team_director: 'Team Director',
+  coach:         'Coach',
+  league_staff:  'League Staff',
+};
+
+/**
+ * @param {string} role
+ * @returns {string} a human-readable label for a persona role, falling back
+ *   to the raw role string for anything not in ROLE_LABELS (forward-
+ *   compatible with a role this client doesn't know about yet).
+ */
+export function personaRoleLabel(role) {
+  return ROLE_LABELS[role] || role || '';
+}
+
+/**
+ * Resolves which persona the app is currently scoped to. A single-persona
+ * caller is unambiguous regardless of any stored selection — this is what
+ * keeps a single-persona coach's experience byte-for-byte unchanged (no
+ * picker, no behavior change): constraint straight from the D26 task brief.
+ * A multi-persona caller resolves to whichever persona matches the stored
+ * `activePersonaId`, or `null` if there isn't one (or it no longer matches
+ * any current persona, e.g. after a re-sync) — `null` is exactly the signal
+ * callers use to show the "which hat" picker.
+ * @param {Array<{person_id:string}>|null|undefined} personas
+ * @param {string|null|undefined} activePersonaId
+ * @returns {object|null}
+ */
+export function resolveActivePersona(personas, activePersonaId) {
+  if (!personas || !personas.length) return null;
+  if (personas.length === 1) return personas[0];
+  if (!activePersonaId) return null;
+  return personas.find(p => p.person_id === activePersonaId) || null;
+}
