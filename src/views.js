@@ -140,14 +140,14 @@ export function viewRoster(s) {
 
   const filterChips = ['all', 'athletes', 'coaches'].map(f => {
     const labels = { all: 'All', athletes: 'Athletes', coaches: 'Coaches' };
-    return `<button class="filter-chip${filter === f ? ' filter-chip--active' : ''}" data-a="filter-roster" data-f="${f}">${labels[f]}</button>`;
+    return `<button class="filter-chip${filter === f ? ' filter-chip--active' : ''}" data-a="filter-roster" data-f="${f}" aria-pressed="${filter === f}">${labels[f]}</button>`;
   }).join('');
 
   const groupFilterChips = (rideGroupUI && groupNames.length) ? `
     <div class="roster-filters roster-filters--group">
-      <button class="filter-chip${groupFilter === 'all' ? ' filter-chip--active' : ''}" data-a="filter-roster-group" data-f="all">All groups</button>
-      ${groupNames.map(name => `<button class="filter-chip${groupFilter === name ? ' filter-chip--active' : ''}" data-a="filter-roster-group" data-f="${esc(name)}">${esc(name)}</button>`).join('')}
-      <button class="filter-chip${groupFilter === UNASSIGNED_GROUP ? ' filter-chip--active' : ''}" data-a="filter-roster-group" data-f="${UNASSIGNED_GROUP}">Unassigned</button>
+      <button class="filter-chip${groupFilter === 'all' ? ' filter-chip--active' : ''}" data-a="filter-roster-group" data-f="all" aria-pressed="${groupFilter === 'all'}">All groups</button>
+      ${groupNames.map(name => `<button class="filter-chip${groupFilter === name ? ' filter-chip--active' : ''}" data-a="filter-roster-group" data-f="${esc(name)}" aria-pressed="${groupFilter === name}">${esc(name)}</button>`).join('')}
+      <button class="filter-chip${groupFilter === UNASSIGNED_GROUP ? ' filter-chip--active' : ''}" data-a="filter-roster-group" data-f="${UNASSIGNED_GROUP}" aria-pressed="${groupFilter === UNASSIGNED_GROUP}">Unassigned</button>
     </div>` : '';
 
   const rosterCount = people.length;
@@ -539,7 +539,7 @@ export function viewSettings(s) {
       ${!feedbackDismissed ? `<div class="settings-section">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <span class="settings-section-label" style="margin-bottom:0">Feedback</span>
-          <button data-a="dismiss-feedback" style="background:none;border:none;color:var(--dim);cursor:pointer;font:500 12px/1 var(--font-body);padding:2px 0">Don't show</button>
+          <button data-a="dismiss-feedback" style="background:none;border:none;color:var(--dim);cursor:pointer;font:500 12px/1 var(--font-body);padding:6px 0;min-height:24px;box-sizing:border-box">Don't show</button>
         </div>
         <label class="settings-toggle-row">
           <span class="settings-toggle-label">
@@ -651,11 +651,11 @@ export function viewCard(s) {
         <span class="topbar-title">${contextLabel}</span>
         <div class="topbar-actions">
           <div class="overflow-wrap">
-            <button class="topbar-ico" data-a="toggle-overflow" aria-label="More options">${MORE}</button>
-            <div class="overflow-menu" id="overflow-menu" style="display:none">
-              <button class="overflow-item" data-a="edit-person" data-id="${a.id}">${EDIT} Edit profile</button>
-              <button class="overflow-item" data-a="share-card" data-id="${a.id}">${SHARE} Share card</button>
-              <button class="overflow-item overflow-item--danger" data-a="del-athlete" data-id="${a.id}">${TRASH} Delete</button>
+            <button class="topbar-ico" data-a="toggle-overflow" aria-label="More options" aria-haspopup="menu" aria-expanded="false">${MORE}</button>
+            <div class="overflow-menu" id="overflow-menu" role="menu" style="display:none">
+              <button class="overflow-item" role="menuitem" data-a="edit-person" data-id="${a.id}">${EDIT} Edit profile</button>
+              <button class="overflow-item" role="menuitem" data-a="share-card" data-id="${a.id}">${SHARE} Share card</button>
+              <button class="overflow-item overflow-item--danger" role="menuitem" data-a="del-athlete" data-id="${a.id}">${TRASH} Delete</button>
             </div>
           </div>
         </div>
@@ -725,7 +725,7 @@ function viewEmpty(s) {
 
   const filterChips = ['all', 'athletes', 'coaches'].map(f => {
     const labels = { all: 'All', athletes: 'Athletes', coaches: 'Coaches' };
-    return `<button class="filter-chip${filter === f ? ' filter-chip--active' : ''}" data-a="filter-roster" data-f="${f}">${labels[f]}</button>`;
+    return `<button class="filter-chip${filter === f ? ' filter-chip--active' : ''}" data-a="filter-roster" data-f="${f}" aria-pressed="${filter === f}">${labels[f]}</button>`;
   }).join('');
 
   return `
@@ -781,7 +781,7 @@ export function viewRubric(s, { sheet = false } = {}) {
         <div class="sheet-head" style="border-bottom:none;padding-bottom:4px">
           <div></div>
           <div class="sheet-title">FIELD GUIDE</div>
-          <button class="sheet-x" data-m="close">✕</button>
+          <button class="sheet-x" data-m="close" aria-label="Close">✕</button>
         </div>
         ${tabBar}
       </div>
@@ -896,7 +896,7 @@ function rubricGuideBody() {
   const minimumRows = Object.entries(TRAIL_MINIMUMS).map(([key, mins]) => {
     const label = TRAIL_LABELS[key];
     return `<tr class="rc-trail-row">
-      <td class="rc-trail-name">${esc(label)}</td>
+      <th class="rc-trail-name" scope="row">${esc(label)}</th>
       <td class="rc-trail-cell">${mins.body_position}</td>
       <td class="rc-trail-cell">${mins.braking}</td>
       <td class="rc-trail-cell">${mins.cornering}</td>
@@ -918,10 +918,10 @@ function rubricGuideBody() {
       <p class="rc-body-sm">${esc(g.minimums_note)}</p>
       <table class="rc-trail-mins">
         <thead><tr>
-          <th class="rc-trail-name"></th>
-          <th class="rc-trail-cell">BP</th>
-          <th class="rc-trail-cell">BRK</th>
-          <th class="rc-trail-cell">CRN</th>
+          <th class="rc-trail-name" scope="col"><span class="sr-only">Trail</span></th>
+          <th class="rc-trail-cell" scope="col">BP</th>
+          <th class="rc-trail-cell" scope="col">BRK</th>
+          <th class="rc-trail-cell" scope="col">CRN</th>
         </tr></thead>
         <tbody>${minimumRows}</tbody>
       </table>
@@ -972,15 +972,15 @@ export function modalAddPerson(defaultRole = 'athlete') {
   return `
     <div class="modal-head">
       <span>Add Person</span>
-      <button class="ico-btn" data-m="close">✕</button>
+      <button class="ico-btn" data-m="close" aria-label="Close">✕</button>
     </div>
     <div class="fg">
       <label class="fl" for="inp-name">Name</label>
       <input class="fi" id="inp-name" type="text" placeholder="Full name" autocapitalize="words">
 
       <div class="role-tabs" style="margin-top:12px">
-        <button class="role-tab${athleteActive ? ' role-tab--active' : ''}" data-m="role-tab" data-role="athlete">Athlete</button>
-        <button class="role-tab${!athleteActive ? ' role-tab--active' : ''}" data-m="role-tab" data-role="coach">Coach</button>
+        <button class="role-tab${athleteActive ? ' role-tab--active' : ''}" data-m="role-tab" data-role="athlete" aria-pressed="${athleteActive}">Athlete</button>
+        <button class="role-tab${!athleteActive ? ' role-tab--active' : ''}" data-m="role-tab" data-role="coach" aria-pressed="${!athleteActive}">Coach</button>
       </div>
       <input type="hidden" id="inp-role" value="${defaultRole}">
 
@@ -999,15 +999,15 @@ export function modalAddPerson(defaultRole = 'athlete') {
       <div id="coach-fields" style="display:${!athleteActive ? 'block' : 'none'};margin-top:8px">
         <label class="fl">NICA Level</label>
         <div class="coach-level-selector">
-          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="1">
+          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="1" aria-pressed="false">
             <span class="clv-n">L1</span>
             <span class="clv-label">Sweep</span>
           </button>
-          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="2">
+          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="2" aria-pressed="false">
             <span class="clv-n">L2</span>
             <span class="clv-label">Coach</span>
           </button>
-          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="3">
+          <button class="coach-lv-btn" data-m="coach-level-btn" data-n="3" aria-pressed="false">
             <span class="clv-n">L3</span>
             <span class="clv-label">Head Coach</span>
           </button>
@@ -1035,7 +1035,7 @@ export function modalEditPerson(person) {
   return `
     <div class="modal-head">
       <span>Edit ${isAthlete ? 'Athlete' : 'Coach'}</span>
-      <button class="ico-btn" data-m="close">✕</button>
+      <button class="ico-btn" data-m="close" aria-label="Close">✕</button>
     </div>
     <div class="fg">
       <input type="hidden" id="inp-person-id" value="${esc(person.id)}">
@@ -1043,8 +1043,8 @@ export function modalEditPerson(person) {
       <input class="fi" id="inp-name" type="text" value="${esc(person.name || '')}" autocapitalize="words">
 
       <div class="role-tabs" style="margin-top:12px">
-        <button class="role-tab${isAthlete ? ' role-tab--active' : ''}" data-m="role-tab" data-role="athlete">Athlete</button>
-        <button class="role-tab${!isAthlete ? ' role-tab--active' : ''}" data-m="role-tab" data-role="coach">Coach</button>
+        <button class="role-tab${isAthlete ? ' role-tab--active' : ''}" data-m="role-tab" data-role="athlete" aria-pressed="${isAthlete}">Athlete</button>
+        <button class="role-tab${!isAthlete ? ' role-tab--active' : ''}" data-m="role-tab" data-role="coach" aria-pressed="${!isAthlete}">Coach</button>
       </div>
       <input type="hidden" id="inp-role" value="${isAthlete ? 'athlete' : 'coach'}">
 
@@ -1063,15 +1063,15 @@ export function modalEditPerson(person) {
       <div id="coach-fields" style="display:${!isAthlete ? 'block' : 'none'};margin-top:8px">
         <label class="fl">NICA Level</label>
         <div class="coach-level-selector">
-          <button class="coach-lv-btn${coachLevel === '1' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="1">
+          <button class="coach-lv-btn${coachLevel === '1' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="1" aria-pressed="${coachLevel === '1'}">
             <span class="clv-n">L1</span>
             <span class="clv-label">Sweep</span>
           </button>
-          <button class="coach-lv-btn${coachLevel === '2' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="2">
+          <button class="coach-lv-btn${coachLevel === '2' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="2" aria-pressed="${coachLevel === '2'}">
             <span class="clv-n">L2</span>
             <span class="clv-label">Coach</span>
           </button>
-          <button class="coach-lv-btn${coachLevel === '3' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="3">
+          <button class="coach-lv-btn${coachLevel === '3' ? ' coach-lv-btn--active' : ''}" data-m="coach-level-btn" data-n="3" aria-pressed="${coachLevel === '3'}">
             <span class="clv-n">L3</span>
             <span class="clv-label">Head Coach</span>
           </button>
@@ -1090,7 +1090,7 @@ export function modalSafetyInfo(a) {
   return `
     <div class="modal-head">
       <span>Safety Info</span>
-      <button class="ico-btn" data-m="close">✕</button>
+      <button class="ico-btn" data-m="close" aria-label="Close">✕</button>
     </div>
     <div class="fg">
       <label class="fl" for="inp-medical">Medical notes</label>
@@ -1115,7 +1115,7 @@ export function modalSafetyInfo(a) {
 // { athleteId, submitting: null|'add'|'match'|'delete', error }.
 export function modalReconcile(state) {
   if (!state?.athleteId) return '';
-  const closeBtn = `<button class="ico-btn" data-m="close">✕</button>`;
+  const closeBtn = `<button class="ico-btn" data-m="close" aria-label="Close">✕</button>`;
   const athlete = getPeople().find(p => p.id === state.athleteId);
   if (!athlete) {
     return `<div class="modal-head"><span>Local Only</span>${closeBtn}</div>
@@ -1136,7 +1136,8 @@ export function modalReconcile(state) {
   const myGroups = resolveMyGroups(identity?.personas, getPeople()).filter(g => g.ride_group_id);
   const canAdd = myGroups.length > 0;
   const groupPicker = myGroups.length > 1
-    ? `<select class="fi" id="reconcile-add-group" style="margin-top:8px">
+    ? `<label class="fl sr-only" for="reconcile-add-group">Ride group</label>
+       <select class="fi" id="reconcile-add-group" style="margin-top:8px">
         ${myGroups.map(g => `<option value="${esc(g.ride_group_id)}">${esc(g.ride_group_name || 'Unnamed group')}</option>`).join('')}
        </select>`
     : (myGroups.length === 1
@@ -1169,7 +1170,8 @@ export function modalReconcile(state) {
     <div class="settings-section" style="padding:16px">
       <span class="settings-section-label">Match to an existing athlete</span>
       ${candidates.length
-        ? `<select class="fi" id="reconcile-match-select">
+        ? `<label class="fl sr-only" for="reconcile-match-select">Choose an athlete to match</label>
+           <select class="fi" id="reconcile-match-select">
              <option value="">— Choose an athlete —</option>
              ${matchOptions}
            </select>
@@ -1206,7 +1208,7 @@ function _teamGroupOptions(people) {
 
 export function modalAssignGroup(state) {
   if (!state?.athleteId) return '';
-  const closeBtn = `<button class="ico-btn" data-m="close">✕</button>`;
+  const closeBtn = `<button class="ico-btn" data-m="close" aria-label="Close">✕</button>`;
   const athlete = getPeople().find(p => p.id === state.athleteId);
   if (!athlete) {
     return `<div class="modal-head"><span>Reassign Group</span>${closeBtn}</div>
@@ -1246,7 +1248,7 @@ export function modalShareCard(a, conf, qrDataUrl) {
   return `
     <div class="modal-head">
       <span>Share Card</span>
-      <button class="ico-btn" data-m="close">✕</button>
+      <button class="ico-btn" data-m="close" aria-label="Close">✕</button>
     </div>
     <div class="share-card-body">
       <img class="share-qr" src="${qrDataUrl}" alt="Athlete QR code">
@@ -1265,7 +1267,7 @@ export function modalScanCard() {
   return `
     <div class="modal-head">
       <span>Scan Athlete Card</span>
-      <button class="ico-btn" data-m="close">✕</button>
+      <button class="ico-btn" data-m="close" aria-label="Close">✕</button>
     </div>
     <div class="scan-card-body">
       <video id="scan-video" class="scan-video" playsinline muted autoplay></video>
@@ -1281,8 +1283,9 @@ export function modalReflection(practice, { ending = false } = {}) {
     { n: 4, emoji: '🙂' }, { n: 5, emoji: '😊' },
   ];
   const currentMood = practice?.mood ?? null;
+  const MOOD_LABELS = { 1: 'Bad', 2: 'Rough', 3: 'Okay', 4: 'Good', 5: 'Great' };
   const moodBtns = MOODS.map(m =>
-    `<button class="mood-btn${currentMood === m.n ? ' mood-btn--active' : ''}" data-m="mood-select" data-n="${m.n}">${m.emoji}</button>`
+    `<button class="mood-btn${currentMood === m.n ? ' mood-btn--active' : ''}" data-m="mood-select" data-n="${m.n}" aria-pressed="${currentMood === m.n}" aria-label="${MOOD_LABELS[m.n]}">${m.emoji}</button>`
   ).join('');
 
   const isEnded = practice?.status === 'ended';
@@ -1291,7 +1294,7 @@ export function modalReflection(practice, { ending = false } = {}) {
   return `
     <div class="modal-head">
       <span>${ending ? 'End Practice' : 'Practice Notes'}</span>
-      <button class="ico-btn" data-m="close">✕</button>
+      <button class="ico-btn" data-m="close" aria-label="Close">✕</button>
     </div>
     <input type="hidden" id="inp-practice-id" value="${esc(practice?.id ?? '')}">
     <input type="hidden" id="inp-ending" value="${ending ? '1' : '0'}">
@@ -1348,7 +1351,7 @@ export function modalImportPreview(payload, existingAthlete) {
   return `
     <div class="modal-head">
       <span>${existingAthlete ? 'Athlete Match Found' : 'Add Athlete'}</span>
-      <button class="ico-btn" data-m="close">✕</button>
+      <button class="ico-btn" data-m="close" aria-label="Close">✕</button>
     </div>
     <div class="fg">
       ${mergeWarning}
@@ -1391,7 +1394,7 @@ const RI_FIELDS = [
 
 export function modalRosterImport(state) {
   if (!state) return '';
-  const closeBtn = `<button class="ico-btn" data-m="close">✕</button>`;
+  const closeBtn = `<button class="ico-btn" data-m="close" aria-label="Close">✕</button>`;
 
   if (state.step === 'summary' && state.summary) {
     const sum = state.summary;

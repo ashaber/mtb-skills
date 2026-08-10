@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#1c1b18">
   <title>MTB Skills</title>
@@ -13,8 +13,15 @@
       --surface: #ffffff;
       --border:  #e9e5dc;
       --ink:     #1c1b18;
-      --dim:     #8d877a;
-      --accent:  #d94626;
+      /* WCAG 1.4.3: darkened from #8d877a (3.57:1 on --surface) to meet
+         4.5:1 for small text — --dim is used as real body/label text
+         throughout (row-grade, card-grade, settings-about, etc.), not just
+         as a decorative/UI-only color. New value: 5.8:1 on white, 5.2:1 on --bg. */
+      --dim:     #6b6558;
+      /* WCAG 1.4.3: darkened from #d94626 (3.87:1 on --bg / 4.33:1 on white)
+         to meet 4.5:1 for small bold text (.hdr-kicker etc.) and for white
+         button text (.btn-primary). New value: 4.75:1 on --bg, 5.3:1 on white. */
+      --accent:  #c33a1e;
       --l0:#b3aea3; --l1:#dc2626; --l2:#ea580c;
       --l3:#2563eb; --l4:#16a34a; --l5:#7c3aed;
       --font-disp: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -31,6 +38,15 @@
     textarea, input { font-family: inherit; }
 
     #app { max-width: 412px; margin: 0 auto; min-height: 100dvh; }
+
+    /* ── Screen-reader-only utility (visually hidden, still announced) ─────── */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    /* ── Focus visibility ────────────────────────────────────────────────────
+       Inset so the ring is always painted inside the element's own box and
+       is never clipped by an ancestor's overflow:hidden (several cards/rows
+       use overflow:hidden). Uses --accent, which meets 3:1 against --surface. */
+    :focus-visible { outline: none; box-shadow: inset 0 0 0 3px var(--accent); }
 
     /* ── Header ──────────────────────────────────────────────────────────── */
     .hdr { padding: 10px 18px 14px; position: sticky; top: 0; background: var(--bg); z-index: 10; }
@@ -171,7 +187,7 @@
     .progress-list { margin: 0; padding: 0 11px 11px 27px; display: flex; flex-direction: column; gap: 6px; }
     .progress-list li { font: 400 12.5px/1.45 var(--font-body); color: var(--ink); }
 
-    .sb-prog-more { background: none; border: none; padding: 10px 0 0; font: 600 12px/1 var(--font-body); color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: block; }
+    .sb-prog-more { background: none; border: none; padding: 10px 0 8px; min-height: 24px; box-sizing: border-box; font: 600 12px/1 var(--font-body); color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: block; }
 
     /* disqualifier list — moved from the rider card into the guide */
     .rc-fails { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
@@ -180,7 +196,7 @@
     .rc-fail-item { font: 400 13px/1.45 var(--font-body); color: var(--ink); padding-left: 12px; position: relative; }
     .rc-fail-item::before { content: '·'; position: absolute; left: 0; color: var(--dim); }
 
-    .rc-reference-link { display: inline-block; margin-top: 14px; font: 600 13px/1 var(--font-body); color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .rc-reference-link { display: inline-block; margin-top: 14px; padding: 6px 0; min-height: 24px; box-sizing: border-box; font: 600 13px/1 var(--font-body); color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
     .trend-row { display: flex; gap: 12px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0ede5; }
     .trend-spark-wrap { flex-shrink: 0; }
@@ -189,7 +205,7 @@
     .btn-suggest { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px; border-radius: 9px; border: none; color: #fff; font: 700 13px/1 var(--font-disp); letter-spacing: .02em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
     .btn-suggest:active { opacity: .8; }
     .trend-stable { display: block; margin-top: 6px; font: 600 12.5px/1 var(--font-body); color: #5b9b6a; }
-    .sb-guide-link { background: none; border: none; padding: 8px 0 0; font: 600 12px/1 var(--font-body); color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: block; }
+    .sb-guide-link { background: none; border: none; padding: 8px 0 8px; min-height: 24px; box-sizing: border-box; font: 600 12px/1 var(--font-body); color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; display: block; }
 
     .session-actions { display: flex; gap: 8px; margin-top: 12px; }
     .session-actions .btn { flex: 1; }
@@ -283,7 +299,7 @@
     .rc-trail-mins { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 11px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
     .rc-trail-mins thead th { font: 600 11px/1 var(--font-body); color: var(--dim); text-transform: uppercase; letter-spacing: .05em; padding: 8px 13px; text-align: center; border-bottom: 1px solid var(--border); }
     .rc-trail-mins thead th.rc-trail-name { text-align: left; }
-    .rc-trail-row td { padding: 9px 13px; border-top: 1px solid var(--border); }
+    .rc-trail-row td, .rc-trail-row th { padding: 9px 13px; border-top: 1px solid var(--border); }
     .rc-trail-name { font: 700 13px/1 var(--font-body); text-align: left; min-width: 90px; }
     .rc-trail-cell { font: 600 15px/1 var(--font-body); text-align: center; color: var(--text); width: 48px; }
     .rc-guide-list { margin: 0 0 8px; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 5px; }
@@ -291,7 +307,7 @@
 
     /* ── Safety info ── */
     .safety-flag { display: inline-flex; align-items: center; margin-left: 4px; vertical-align: middle; }
-    .safety-edit-link { background: none; border: none; padding: 6px 0 0; font: 400 12px/1 var(--font-body); color: var(--accent); cursor: pointer; display: block; }
+    .safety-edit-link { background: none; border: none; padding: 6px 0 6px; min-height: 24px; box-sizing: border-box; font: 400 12px/1 var(--font-body); color: var(--accent); cursor: pointer; display: block; }
     .safety-card { background: var(--bg); border-radius: 11px; overflow: hidden; }
     .safety-row { display: flex; gap: 10px; padding: 9px 13px; border-top: 1px solid var(--border); }
     .safety-row:first-child { border-top: none; }
@@ -334,7 +350,7 @@
 
     /* ── Roster filter chips ─────────────────────────────────────────────── */
     .roster-filters { display: flex; gap: 6px; margin-top: 8px; }
-    .filter-chip { padding: 6px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--surface); font: 700 11px/1 var(--font-disp); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); cursor: pointer; white-space: nowrap; }
+    .filter-chip { padding: 6px 13px; min-height: 24px; box-sizing: border-box; border-radius: 20px; border: 1.5px solid var(--border); background: var(--surface); font: 700 11px/1 var(--font-disp); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); cursor: pointer; white-space: nowrap; }
     .filter-chip:active { opacity: .75; }
     .filter-chip--active { background: var(--ink); border-color: var(--ink); color: #fff; }
 
@@ -442,10 +458,10 @@
   </style>
 </head>
 <body>
-  <div id="app"></div>
+  <main id="app"></main>
   <div id="stack"></div>
   <div id="scrim" class="scrim"></div>
-  <div id="sheet" class="sheet"></div>
+  <div id="sheet" class="sheet" role="dialog" aria-modal="true"></div>
   <nav id="tabbar" class="tabbar" role="tablist"></nav>
   <script>
     window.MTB_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwLBbYB4jbyU7qHj4mchzxryqGJVIUhCbnYc4LMn7D7x3bd_wxR9E9U0Cd4gMdzUrW7mQ/exec';

@@ -164,7 +164,7 @@
 .local-only-badge {
   display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
   background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px;
-  padding: 5px 8px; margin-right: 6px;
+  padding: 5px 8px; min-height: 24px; box-sizing: border-box; margin-right: 6px;
   font: 700 10px/1 var(--font-disp); letter-spacing: .04em; text-transform: uppercase; color: #92400e;
   cursor: pointer;
 }

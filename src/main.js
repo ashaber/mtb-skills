@@ -577,6 +577,10 @@ function flash(msg) {
   if (!t) {
     t = document.createElement('div');
     t.id = 'toast';
+    // WCAG 4.1.3 (Status Messages): announce toast text to screen readers
+    // without moving focus — role="status" implies aria-live="polite".
+    t.setAttribute('role', 'status');
+    t.setAttribute('aria-live', 'polite');
     document.body.appendChild(t);
   }
   t.textContent = msg;
@@ -604,6 +608,7 @@ function onAppClick(e) {
     const el = e.target.closest('[data-a]');
     if (!el || el.dataset.a !== 'toggle-overflow') {
       menu.style.display = 'none';
+      document.querySelector('[data-a="toggle-overflow"]')?.setAttribute('aria-expanded', 'false');
     }
   }
 
@@ -625,7 +630,11 @@ function onAppClick(e) {
 
   if (action === 'toggle-overflow') {
     const m = document.getElementById('overflow-menu');
-    if (m) m.style.display = m.style.display === 'none' ? 'block' : 'none';
+    if (m) {
+      const opening = m.style.display === 'none';
+      m.style.display = opening ? 'block' : 'none';
+      el.setAttribute('aria-expanded', String(opening));
+    }
     return;
   }
 
@@ -966,7 +975,9 @@ function onSheetClick(e) {
     const role = el.dataset.role;
     document.getElementById('inp-role').value = role;
     document.querySelectorAll('.role-tab').forEach(btn => {
-      btn.classList.toggle('role-tab--active', btn.dataset.role === role);
+      const active = btn.dataset.role === role;
+      btn.classList.toggle('role-tab--active', active);
+      btn.setAttribute('aria-pressed', String(active));
     });
     document.getElementById('athlete-fields').style.display = role === 'athlete' ? 'block' : 'none';
     document.getElementById('coach-fields').style.display   = role === 'coach'   ? 'block' : 'none';
@@ -995,7 +1006,9 @@ function onSheetClick(e) {
       hidden.value = (current === n) ? '' : n;
     }
     document.querySelectorAll('.mood-btn').forEach(btn => {
-      btn.classList.toggle('mood-btn--active', +btn.dataset.n === n && (+hidden?.value || 0) === n);
+      const active = +btn.dataset.n === n && (+hidden?.value || 0) === n;
+      btn.classList.toggle('mood-btn--active', active);
+      btn.setAttribute('aria-pressed', String(active));
     });
     return;
   }
@@ -1037,7 +1050,9 @@ function onSheetClick(e) {
     const n = el.dataset.n;
     document.getElementById('inp-coach-level').value = n;
     document.querySelectorAll('.coach-lv-btn').forEach(btn => {
-      btn.classList.toggle('coach-lv-btn--active', btn.dataset.n === n);
+      const active = btn.dataset.n === n;
+      btn.classList.toggle('coach-lv-btn--active', active);
+      btn.setAttribute('aria-pressed', String(active));
     });
     return;
   }
