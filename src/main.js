@@ -35,7 +35,7 @@ import { initPwaUpdate } from './pwa-update.js';
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import {
-  viewRoster, viewCard, viewRubric, viewPractice, viewSettings,
+  viewRoster, viewCard, viewRubric, viewPractice, viewSettings, viewHcDashboard,
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
   modalSettings, modalReflection, modalOnboarding, modalRosterImport,
@@ -618,6 +618,11 @@ function onAppClick(e) {
 
   if (action === 'go-roster') { pop(); draw(); return; }
 
+  // Back button for layers opened from the Settings tab (Team Dashboard) —
+  // same pop-then-redraw as go-roster, just labeled for its origin tab per
+  // docs/NAV_FLOW_SPEC.md's "topbar: back · title · ⋯" convention.
+  if (action === 'go-settings') { pop(); draw(); return; }
+
   if (action === 'go-card') {
     goCard(id);
     return;
@@ -935,6 +940,16 @@ function onAppClick(e) {
     _rosterImport = { step: 'upload', fileName: null, columns: [], rows: [], mapping: {}, importing: false, error: null, summary: null };
     log.info('roster_import.open');
     openModal(modalRosterImport(_rosterImport));
+    return;
+  }
+
+  // Phase 3.4 MVP — HC/TD-only team snapshot (viewHcDashboard in views.js).
+  // Settings already gates this button's visibility on isHcOrTd(); the view
+  // itself re-checks (defense-in-depth), so opening it never depends on
+  // trusting the click alone.
+  if (action === 'open-hc-dashboard') {
+    log.info('hc_dashboard.open');
+    pushLayer(() => viewHcDashboard(s));
     return;
   }
 
