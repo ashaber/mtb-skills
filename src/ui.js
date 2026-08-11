@@ -52,18 +52,23 @@ export const TRAIL_META = {
   black:        { label: 'Black',     kind: 'diamond', color: T_BLACK },
   double_black: { label: 'Dbl Black', kind: 'double',  color: T_BLACK },
 };
+// Decorative — always used inside a wrapper that already carries the
+// accessible name (title/aria-label on the parent <span>, e.g. readyRowHTML
+// / readyRowDetailHTML), so the mark itself is hidden from assistive tech
+// to avoid a redundant, unlabeled announcement.
 export function trailMarkSVG(kind, size = 20, color) {
   const s = size;
   const c = color || (kind === 'circle' ? T_GREEN : kind === 'square' ? T_BLUE : T_BLACK);
+  const hidden = 'aria-hidden="true" focusable="false"';
   if (kind === 'circle')
-    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="${c}"/></svg>`;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" ${hidden}><circle cx="12" cy="12" r="9" fill="${c}"/></svg>`;
   if (kind === 'square')
-    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="${c}"/></svg>`;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" ${hidden}><rect x="4" y="4" width="16" height="16" rx="2" fill="${c}"/></svg>`;
   if (kind === 'diamond')
-    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.5" transform="rotate(45 12 12)" fill="${c}"/></svg>`;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" ${hidden}><rect x="5.5" y="5.5" width="13" height="13" rx="1.5" transform="rotate(45 12 12)" fill="${c}"/></svg>`;
   if (kind === 'double')
-    return `<svg width="${Math.round(s * 1.45)}" height="${s}" viewBox="0 0 35 24"><rect x="3" y="6" width="11" height="11" rx="1.3" transform="rotate(45 8.5 11.5)" fill="${c}"/><rect x="21" y="6" width="11" height="11" rx="1.3" transform="rotate(45 26.5 11.5)" fill="${c}"/></svg>`;
-  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="${c}"/></svg>`;
+    return `<svg width="${Math.round(s * 1.45)}" height="${s}" viewBox="0 0 35 24" ${hidden}><rect x="3" y="6" width="11" height="11" rx="1.3" transform="rotate(45 8.5 11.5)" fill="${c}"/><rect x="21" y="6" width="11" height="11" rx="1.3" transform="rotate(45 26.5 11.5)" fill="${c}"/></svg>`;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" ${hidden}><rect x="3" y="10.5" width="18" height="3" rx="1.5" fill="${c}"/></svg>`;
 }
 
 // level → trail kind (for the posture-level infographic scale legend)
@@ -86,7 +91,10 @@ export function readyRowHTML(conf, size = 18) {
   return Object.entries(TRAIL_META).map(([key, t]) => {
     const on = ready.includes(key);
     const col = (key === 'black' || key === 'double_black') ? (on ? '#16181d' : '#a0a09a') : t.color;
-    return `<span title="${t.label}" style="display:inline-flex;align-items:center;opacity:${on ? 1 : 0.25};filter:${on ? 'none' : 'grayscale(1)'}">${trailMarkSVG(t.kind, size, col)}</span>`;
+    // aria-label mirrors `title` — `title` alone isn't reliably announced by
+    // mobile screen readers (no hover state to trigger it on a touch UI).
+    const label = `${t.label}${on ? ' ready' : ' not ready'}`;
+    return `<span title="${t.label}" aria-label="${label}" style="display:inline-flex;align-items:center;opacity:${on ? 1 : 0.25};filter:${on ? 'none' : 'grayscale(1)'}">${trailMarkSVG(t.kind, size, col)}</span>`;
   }).join('');
 }
 
@@ -100,9 +108,13 @@ export function readyRowDetailHTML(conf, size = 20) {
     const col = isDark ? (ready ? '#16181d' : '#a0a09a') : t.color;
     const mark = `<span style="opacity:${ready ? 1 : 0.3}">${trailMarkSVG(t.kind, size, col)}</span>`;
     const status = ready
-      ? `<span class="rdt-check">✓</span>`
-      : `<span class="rdt-fail">${blockers.join(' · ')}</span>`;
-    return `<span class="rdt" title="${t.label}">${mark}${status}</span>`;
+      ? `<span class="rdt-check" aria-hidden="true">✓</span>`
+      : `<span class="rdt-fail" aria-hidden="true">${blockers.join(' · ')}</span>`;
+    // aria-label mirrors `title` (unreliable on mobile screen readers) and
+    // replaces the raw ✓ / abbreviation-list content, which reads poorly
+    // on its own without the visual context.
+    const label = `${t.label}: ${ready ? 'ready' : 'blocked by ' + blockers.join(', ')}`;
+    return `<span class="rdt" title="${t.label}" aria-label="${label}">${mark}${status}</span>`;
   }).join('');
 }
 
@@ -134,7 +146,8 @@ export function postureSVG(skill, level, color, size = 120) {
   const lean = skill === 'cornering' ? (level - 1) * 2.2 : 0;
   const W = size, H = Math.round(size * (108 / 150));
   const bc = '#c9ccd2';
-  return `<svg width="${W}" height="${H}" viewBox="0 0 150 108" fill="none" aria-label="Level ${level} posture">
+  const skillLabel = skill === 'body_position' ? 'Body position' : skill === 'braking' ? 'Braking' : skill === 'cornering' ? 'Cornering' : skill;
+  return `<svg width="${W}" height="${H}" viewBox="0 0 150 108" fill="none" role="img" aria-label="${skillLabel} posture at level ${level}">
   <line x1="8" y1="99" x2="142" y2="99" stroke="#e6e3dc" stroke-width="2.5" stroke-linecap="round"/>
   <g transform="rotate(${lean} 79 97)">
     <g stroke="${bc}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -172,7 +185,11 @@ export function trendSVG(history, confirmed, width = 160, height = 46) {
     const sw = i === n - 1 ? 2 : 1.2;
     return `<circle cx="${xi(i)}" cy="${yi(lv)}" r="${r}" fill="${LV[lv]}" stroke="#fff" stroke-width="${sw}"/>`;
   }).join('');
-  return `<svg width="${width}" height="${height}" style="display:block">
+  // The sparkline shows a pattern (trend over time) that the adjacent
+  // text summary doesn't fully capture, so it gets a real accessible name
+  // rather than aria-hidden — oldest-to-newest observed levels.
+  const trendLabel = `Observation trend, oldest to newest: ${data.join(' → ')}`;
+  return `<svg width="${width}" height="${height}" style="display:block" role="img" aria-label="${trendLabel}">
   ${confY !== null ? `<line x1="2" y1="${confY}" x2="${width-2}" y2="${confY}" stroke="${LV[confirmed]}" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.5"/>` : ''}
   <polyline points="${polyPts}" fill="none" stroke="#cdc8bd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   ${dots}</svg>`;
@@ -188,11 +205,12 @@ export function levelSelectorHTML(skill, draftLevel, athleteId, size = 'compact'
       ? `background:${LV[n]};border-color:${LV[n]};color:#fff`
       : `color:${LV[n]};border-color:var(--border)`;
     return `<button class="lv-seg${sel ? ' sel' : ''}" style="${style}"
-      data-a="${action}" data-sk="${skill}" data-n="${n}" data-aid="${athleteId}">
+      data-a="${action}" data-sk="${skill}" data-n="${n}" data-aid="${athleteId}"
+      aria-pressed="${sel}" aria-label="Level ${n}">
       <span class="lv-seg-n">${n}</span>
     </button>`;
   }).join('');
-  return `<div class="lv-selector">${segs}</div>`;
+  return `<div class="lv-selector" role="group" aria-label="Level">${segs}</div>`;
 }
 
 // ── Score chip (roster row) ───────────────────────────────────────────────
@@ -208,7 +226,7 @@ export function levelSelectorHTML(skill, draftLevel, athleteId, size = 'compact'
 //   </span>
 
 export const ICON_FAIL_DECREASE = `
-<svg viewBox="0 0 26 18" fill="none" stroke="currentColor"
+<svg viewBox="0 0 26 18" fill="none" stroke="currentColor" aria-hidden="true" focusable="false"
      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
   <path d="M7 1.5 L1.5 3.8 V8.4 C1.5 12.2 4 14.9 7 16.2
            C10 14.9 12.5 12.2 12.5 8.4 V3.8 Z"/>
@@ -218,7 +236,7 @@ export const ICON_FAIL_DECREASE = `
 </svg>`;
 
 export const ICON_TERRAIN_INCREASE = `
-<svg viewBox="0 0 26 18" fill="none" stroke="currentColor"
+<svg viewBox="0 0 26 18" fill="none" stroke="currentColor" aria-hidden="true" focusable="false"
      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
   <polyline points="1,16 4.5,8.5 7.5,11.5 11,4 16,16"/>
   <line x1="1" y1="16" x2="16" y2="16" stroke-opacity=".3"/>
@@ -227,7 +245,7 @@ export const ICON_TERRAIN_INCREASE = `
 </svg>`;
 
 export const ICON_SKILL_INCREASE = `
-<svg viewBox="0 0 26 18" fill="none" stroke="currentColor"
+<svg viewBox="0 0 26 18" fill="none" stroke="currentColor" aria-hidden="true" focusable="false"
      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
   <polyline points="1.5,16 1.5,13 6,13 6,9.5 10.5,9.5 10.5,6 16,6"/>
   <line x1="6"    y1="13"  x2="6"    y2="16" stroke-opacity=".25"/>
