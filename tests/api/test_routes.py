@@ -50,6 +50,42 @@ def _fake_rls_connection(database_url: str, sub: str) -> Iterator[None]:
     yield None
 
 
+class _FakeConn:
+    """Minimal stand-in for a psycopg connection: `.execute(query, params)`
+    returns self so `.fetchall()` / `.fetchone()` can chain, same as the
+    real psycopg cursor-less `Connection.execute` this codebase uses
+    everywhere. `rows` is whatever the test wants the query to "return" --
+    this file never inspects the query text, only asserts on the route's
+    response, so one fake serves any of the team-name / roster / etc.
+    lookups a route might make."""
+
+    def __init__(self, rows: list[tuple] | None = None) -> None:
+        self._rows = rows or []
+
+    def execute(self, query: str, params: Any = None) -> "_FakeConn":
+        return self
+
+    def fetchall(self) -> list[tuple]:
+        return self._rows
+
+    def fetchone(self) -> tuple | None:
+        return self._rows[0] if self._rows else None
+
+
+def _fake_rls_connection_factory(rows: list[tuple] | None = None):
+    """Builds a fake `rls_connection(database_url, sub)` context manager
+    that yields a `_FakeConn(rows)` -- for monkeypatching `app.routes.
+    rls_connection` (the routes module's OWN import of it, separate from
+    `app.deps.rls_connection` used by `get_caller`) so a route handler that
+    reaches a real query doesn't try to hit the placeholder DB URL."""
+
+    @contextmanager
+    def _conn(database_url: str, sub: str) -> Iterator[_FakeConn]:
+        yield _FakeConn(rows)
+
+    return _conn
+
+
 # --------------------------------------------------------------------------
 # Every /api route requires a Bearer token.
 # --------------------------------------------------------------------------
@@ -148,6 +184,14 @@ def test_get_me_returns_resolved_personas_when_recognized(client, monkeypatch: p
     )
     monkeypatch.setattr("app.deps.rls_connection", _fake_rls_connection)
     monkeypatch.setattr("app.deps.resolve_personas", lambda conn, sub: [persona])
+    # get_me (D26) opens its OWN rls_connection to look up team names -- a
+    # SEPARATE import from app.deps.rls_connection above (routes.py imports
+    # it directly from app.db), so it needs its own fake here or this test
+    # would try to actually connect to the placeholder DB URL.
+    monkeypatch.setattr(
+        "app.routes.rls_connection",
+        _fake_rls_connection_factory([(uuid.UUID(persona.team_id), "Team Test")]),
+    )
 
     token = _make_token()
     resp = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
@@ -161,9 +205,58 @@ def test_get_me_returns_resolved_personas_when_recognized(client, monkeypatch: p
                 "team_id": persona.team_id,
                 "ride_group_id": persona.ride_group_id,
                 "name": persona.name,
+                "team_name": "Team Test",
             }
         ]
     }
+
+
+def test_get_me_team_name_is_none_when_team_lookup_finds_no_row(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Belt-and-braces: a team_id with no matching `team` row (shouldn't
+    normally happen -- FK-backed -- but the lookup must degrade to `None`,
+    not KeyError/500, if it ever does)."""
+    persona = Persona(
+        person_id=str(uuid.uuid4()),
+        role="coach",
+        team_id=str(uuid.uuid4()),
+        ride_group_id=None,
+        name="Coach Test",
+    )
+    monkeypatch.setattr("app.deps.rls_connection", _fake_rls_connection)
+    monkeypatch.setattr("app.deps.resolve_personas", lambda conn, sub: [persona])
+    monkeypatch.setattr("app.routes.rls_connection", _fake_rls_connection_factory([]))
+
+    token = _make_token()
+    resp = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    assert resp.json()["personas"][0]["team_name"] is None
+
+
+def test_get_me_returns_a_team_name_per_persona_for_a_multi_persona_caller(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The D26 scenario this whole increment is about: a traveling coach
+    with personas on more than one team, each with its own team_name."""
+    team_a, team_b = str(uuid.uuid4()), str(uuid.uuid4())
+    persona_a = Persona(person_id=str(uuid.uuid4()), role="team_director", team_id=team_a, ride_group_id=None, name="Traveling TD")
+    persona_b = Persona(person_id=str(uuid.uuid4()), role="coach", team_id=team_b, ride_group_id=str(uuid.uuid4()), name="Traveling TD")
+    monkeypatch.setattr("app.deps.rls_connection", _fake_rls_connection)
+    monkeypatch.setattr("app.deps.resolve_personas", lambda conn, sub: [persona_a, persona_b])
+    monkeypatch.setattr(
+        "app.routes.rls_connection",
+        _fake_rls_connection_factory([(uuid.UUID(team_a), "Team A"), (uuid.UUID(team_b), "Team B")]),
+    )
+
+    token = _make_token()
+    resp = client.get("/api/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+    personas = resp.json()["personas"]
+    assert len(personas) == 2
+    assert {p["team_name"] for p in personas} == {"Team A", "Team B"}
 
 
 # --------------------------------------------------------------------------
@@ -252,5 +345,86 @@ def test_post_practices_rejects_invalid_body(authed_client, bad_body: dict[str, 
 )
 def test_post_attendance_rejects_invalid_body(authed_client, bad_body: dict[str, Any]) -> None:
     resp = authed_client.post("/api/attendance", json=bad_body)
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "invalid request"
+
+
+# --------------------------------------------------------------------------
+# D26 -- optional `team_id` query param on the list endpoints. A caller with
+# more than one persona (a traveling coach) needs to scope a GET to exactly
+# one of THEIR OWN teams; a team_id that isn't one of the caller's own
+# persona team_ids must 403, never silently served or silently ignored.
+# Mirrors import_roster's existing "which of the caller's own teams" check
+# (routes.py's `hc_td_team_ids`), generalized to `_resolve_scope_team_id`
+# for any role, on the read side.
+# --------------------------------------------------------------------------
+
+_TEAM_SCOPED_GET_ROUTES = [
+    "/api/roster",
+    "/api/observations",
+    "/api/confirmed-levels",
+    "/api/practices",
+    "/api/attendance",
+]
+
+
+@pytest.fixture
+def authed_client_team(client, monkeypatch: pytest.MonkeyPatch):
+    """Like `authed_client`, but exposes the fixed caller's OWN team_id
+    alongside the client, so team-scoping tests can build both an "own
+    team" and an "someone else's team" team_id query param."""
+    from app import main as main_module
+
+    persona = Persona(
+        person_id=str(uuid.uuid4()),
+        role="coach",
+        team_id=str(uuid.uuid4()),
+        ride_group_id=str(uuid.uuid4()),
+        name="Coach Test",
+    )
+    fake_caller = Caller(sub=str(uuid.uuid4()), personas=[persona])
+    main_module.app.dependency_overrides[get_caller] = lambda: fake_caller
+    yield client, persona.team_id
+    main_module.app.dependency_overrides.pop(get_caller, None)
+
+
+@pytest.mark.parametrize("path", _TEAM_SCOPED_GET_ROUTES, ids=_TEAM_SCOPED_GET_ROUTES)
+def test_team_id_not_one_of_callers_own_teams_is_denied(authed_client_team, path: str) -> None:
+    client, _own_team_id = authed_client_team
+    someone_elses_team = str(uuid.uuid4())
+    resp = client.get(path, params={"team_id": someone_elses_team})
+    assert resp.status_code == 403
+    assert resp.json() == {"error": "not your team"}
+
+
+@pytest.mark.parametrize("path", _TEAM_SCOPED_GET_ROUTES, ids=_TEAM_SCOPED_GET_ROUTES)
+def test_team_id_matching_callers_own_team_is_allowed(
+    authed_client_team, monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    client, own_team_id = authed_client_team
+    monkeypatch.setattr("app.routes.rls_connection", _fake_rls_connection_factory([]))
+    resp = client.get(path, params={"team_id": own_team_id})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.parametrize("path", _TEAM_SCOPED_GET_ROUTES, ids=_TEAM_SCOPED_GET_ROUTES)
+def test_team_id_omitted_still_reaches_the_query_unfiltered(
+    authed_client_team, monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    """No `team_id` at all -- back-compat behavior for a single-persona
+    caller (and for any caller who hasn't picked a team to scope to yet):
+    the route still succeeds, unfiltered by team (RLS is still the real
+    authorization backstop, same as before this increment)."""
+    client, _own_team_id = authed_client_team
+    monkeypatch.setattr("app.routes.rls_connection", _fake_rls_connection_factory([]))
+    resp = client.get(path)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_team_id_malformed_is_a_400_not_a_500(authed_client_team) -> None:
+    client, _own_team_id = authed_client_team
+    resp = client.get("/api/roster", params={"team_id": "not-a-uuid"})
     assert resp.status_code == 400
     assert resp.json()["error"] == "invalid request"

@@ -18,6 +18,7 @@ import {
   getPractices, createPractice, upsertPracticeFromRemote,
   getAllAttendance, toggleAttendance, upsertAttendanceFromRemote,
   getCachedIdentity, getRemoteRosterIds,
+  getActivePersonaId, saveActivePersonaId,
 } from '../../src/storage.js';
 
 function jsonResponse(body, { ok = true, status = 200 } = {}) {
@@ -151,6 +152,81 @@ describe('syncNow — identity + remote-roster-id caches (Phase 3.2)', () => {
     await syncNow();
     expect(getCachedIdentity()).toBeNull();
     expect(getRemoteRosterIds()).toBeNull();
+  });
+});
+
+describe('syncNow — D26 team scoping (multi-persona)', () => {
+  // A separate, minimal fetch mock (not the shared mockFetch() above) that
+  // matches on PATH only (query string stripped first) — the shared helper
+  // uses url.endsWith('/api/roster'), which would never match once a
+  // team_id query string is appended, so it can't be reused for these
+  // tests. Records every call so tests can assert on the exact URL
+  // (with or without ?team_id=) each route was hit with.
+  function mockFetchD26({ me, roster = [], observations = [], confirmedLevels = [], practices = [], attendance = [] } = {}) {
+    return vi.fn(async (url) => {
+      const path = url.split('?')[0];
+      if (path.endsWith('/api/me'))               return jsonResponse(me ?? { personas: [] });
+      if (path.endsWith('/api/roster'))            return jsonResponse(roster);
+      if (path.endsWith('/api/observations'))      return jsonResponse(observations);
+      if (path.endsWith('/api/confirmed-levels'))  return jsonResponse(confirmedLevels);
+      if (path.endsWith('/api/practices'))         return jsonResponse(practices);
+      if (path.endsWith('/api/attendance'))        return jsonResponse(attendance);
+      return jsonResponse({ error: 'unhandled in test mock' }, { ok: false, status: 404 });
+    });
+  }
+
+  const PERSONA_A = { person_id: 'pa', role: 'team_director', team_id: 'team-a', ride_group_id: null, name: 'Traveling Coach', team_name: 'Team A' };
+  const PERSONA_B = { person_id: 'pb', role: 'coach', team_id: 'team-b', ride_group_id: 'g1', name: 'Traveling Coach', team_name: 'Team B' };
+
+  it('a single persona is auto-selected and pulls are UNFILTERED (byte-for-byte prior behavior)', async () => {
+    const persona = { person_id: 'p1', role: 'coach', team_id: 't1', ride_group_id: 'g1', name: 'Solo Coach', team_name: 'Solo Team' };
+    const fetchMock = mockFetchD26({ me: { personas: [persona] } });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    expect(result.needsTeamSelection).toBeUndefined();
+    expect(getActivePersonaId()).toBe('p1');
+    const rosterCall = fetchMock.mock.calls.find(([url]) => url.includes('/api/roster'));
+    expect(rosterCall[0]).not.toContain('team_id');
+  });
+
+  it('a multi-persona caller with NO prior selection short-circuits: needsTeamSelection, nothing else pulled', async () => {
+    const fetchMock = mockFetchD26({ me: { personas: [PERSONA_A, PERSONA_B] } });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    expect(result).toEqual({ pulled: 0, pushed: 0, needsTeamSelection: true });
+    expect(getCachedIdentity()?.personas).toEqual([PERSONA_A, PERSONA_B]);
+    // Only /api/me was called -- roster/observations/etc. never fired, so a
+    // multi-team caller's data is never merged before a team is chosen.
+    const nonMeCalls = fetchMock.mock.calls.filter(([url]) => !url.includes('/api/me'));
+    expect(nonMeCalls).toHaveLength(0);
+  });
+
+  it('a multi-persona caller with a valid prior selection scopes every pull to that team_id', async () => {
+    saveActivePersonaId('pb');
+    const fetchMock = mockFetchD26({ me: { personas: [PERSONA_A, PERSONA_B] } });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    expect(result.needsTeamSelection).toBeUndefined();
+    for (const path of ['/api/roster', '/api/observations', '/api/confirmed-levels', '/api/practices', '/api/attendance']) {
+      const call = fetchMock.mock.calls.find(([url]) => url.includes(path));
+      expect(call[0]).toBe(`${call[0].split('?')[0]}?team_id=team-b`);
+    }
+  });
+
+  it('a multi-persona caller whose stored selection no longer matches any current persona needs re-selection', async () => {
+    saveActivePersonaId('stale-persona-id');
+    const fetchMock = mockFetchD26({ me: { personas: [PERSONA_A, PERSONA_B] } });
+    global.fetch = fetchMock;
+
+    const result = await syncNow();
+
+    expect(result).toEqual({ pulled: 0, pushed: 0, needsTeamSelection: true });
   });
 });
 

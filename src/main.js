@@ -15,6 +15,7 @@ import {
   getRosterFilter, saveRosterFilter,
   getRosterGroupFilter, saveRosterGroupFilter,
   getRemoteRosterIds, saveRemoteRosterIds, getCachedIdentity,
+  getActivePersonaId, saveActivePersonaId,
   remapAthleteId,
   clearLocalRosterData,
   findTodaysPractice, createPractice, endPractice, reopenPractice, savePractice,
@@ -29,6 +30,7 @@ import { loadRubricContent } from './rubric-content.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
 import { isAuthConfigured, signInWithGoogle, signOut, getUser, getAccessToken, onAuthChange } from './auth.js';
 import { syncNow, api } from './sync.js';
+import { resolveActivePersona, personaRoleLabel } from './reconcile.js';
 import { BACKEND_URL } from './env.js';
 import { parseCsv, mapRows, guessMapping, postImport } from './roster-import.js';
 import { initPwaUpdate } from './pwa-update.js';
@@ -39,7 +41,7 @@ import {
   modalAddPerson, modalAddAthlete, modalEditPerson,
   modalSafetyInfo, modalShareCard, modalScanCard, modalImportPreview,
   modalSettings, modalReflection, modalOnboarding, modalRosterImport,
-  modalReconcile, modalAssignGroup,
+  modalReconcile, modalAssignGroup, modalTeamSwitcher,
 } from './views.js';
 import {
   pushLayer, pushSheet, pop, clearStack, stackDepth, refreshTopLayer,
@@ -198,16 +200,30 @@ async function runSync() {
   draw();
   const result = await syncNow();
   s.syncing = false;
+
   // Backend mode: the coach's identity IS the signed-in persona (GET /api/me),
   // not the Phase-1 onboarding profile. Mirror it into the local coach record
   // so getCoach() matches the backend — and any stray coach left by the
   // no-backend onboarding flow is overwritten in place rather than lingering
-  // as a duplicate. Prefer an HC/TD persona when the caller has several.
+  // as a duplicate. A single persona is unambiguous (resolveActivePersona);
+  // a multi-persona caller mirrors whichever one is currently active, if any
+  // has been picked yet (see the `needsTeamSelection` branch below for the
+  // "none picked yet" case).
   const personas = getCachedIdentity()?.personas || [];
-  if (personas.length) {
-    const primary = personas.find(p => p.role === 'head_coach' || p.role === 'team_director') || personas[0];
-    saveCoach({ id: primary.person_id, name: primary.name });
+  const active = resolveActivePersona(personas, getActivePersonaId());
+  if (active) saveCoach({ id: active.person_id, name: active.name });
+
+  if (result?.needsTeamSelection) {
+    // D26: a caller with >1 persona and no team picked yet -- syncNow()
+    // deliberately pulled nothing (never guesses, never merges every team
+    // together). Show the "which hat" picker so the coach can choose;
+    // selecting one (selectPersona() below) re-runs sync scoped to it.
+    log.info('team_switch.required', { persona_count: personas.length });
+    draw();
+    openModal(modalTeamSwitcher());
+    return;
   }
+
   if (result) {
     s.syncSummary = { pulled: result.pulled, pushed: result.pushed, skipped: result.skipped, error: result.error };
     s.syncAt = new Date().toISOString();
@@ -219,6 +235,52 @@ async function runSync() {
       ? 'Sync finished with errors'
       : `Synced — ${result.pulled} pulled, ${result.pushed} pushed${skippedNote}`);
   }
+  draw();
+}
+
+// ── Team switcher (D26) ───────────────────────────────────────────────────
+// A coach with coaching duties on more than one team (backend/app/
+// identity.py's MultiplePersonasError doc comment) picks which team's data
+// to view via src/views.js's modalTeamSwitcher(); this applies that choice.
+// Local roster/observations/practices/attendance are cached under GLOBAL
+// localStorage keys (src/storage.js), not per-team, so switching TO a
+// different team than the one currently active must wipe them first (same
+// "clear & re-sync" pattern clearLocalData() already uses for a stale-data
+// reset) — otherwise the previous team's records would just sit alongside
+// the newly-pulled team's, recreating the exact merged-roster bug this
+// increment fixes, just client-side instead of server-side.
+async function selectPersona(personId) {
+  const personas = getCachedIdentity()?.personas || [];
+  const persona = personas.find(p => p.person_id === personId);
+  if (!persona) return;
+
+  const previousId = getActivePersonaId();
+  const switching = previousId && previousId !== personId;
+
+  if (switching) {
+    clearLocalRosterData();
+    s.expandedId = null;
+    s.draft = {};
+    s.today_practice = null;
+    s.taking_attendance = false;
+    s.roster_filter = getRosterFilter();
+    s.roster_group_filter = getRosterGroupFilter();
+  }
+
+  // clearLocalRosterData() (above) wipes the cached identity + active-
+  // persona keys too (src/storage.js's LOCAL_ROSTER_DATA_KEYS) -- restore
+  // both immediately after, never before, so this selection isn't the very
+  // thing that gets wiped.
+  saveCachedIdentity(personas);
+  saveActivePersonaId(personId);
+  saveCoach({ id: persona.person_id, name: persona.name });
+  log.info('team_switch.selected', { role: persona.role, switching });
+
+  closeModal();
+  flash(`Switched to ${persona.team_name || personaRoleLabel(persona.role)}`);
+
+  await runSync();
+  s.today_practice = findTodaysPractice();
   draw();
 }
 
@@ -936,6 +998,12 @@ function onAppClick(e) {
     return;
   }
 
+  if (action === 'open-team-switcher') {
+    log.info('team_switch.open');
+    openModal(modalTeamSwitcher());
+    return;
+  }
+
   if (action === 'open-roster-import') {
     _rosterImport = { step: 'upload', fileName: null, columns: [], rows: [], mapping: {}, importing: false, error: null, summary: null };
     log.info('roster_import.open');
@@ -963,6 +1031,12 @@ function onSheetClick(e) {
   const action = el.dataset.m;
 
   if (action === 'close') { closeModal(); return; }
+
+  if (action === 'save-team-switch') {
+    const personId = document.getElementById('team-switch-select')?.value;
+    if (personId) selectPersona(personId);
+    return;
+  }
 
   if (action === 'save-onboarding') {
     const name = document.getElementById('inp-ob-name')?.value?.trim();
