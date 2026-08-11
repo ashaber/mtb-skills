@@ -83,6 +83,8 @@ Practice process:
 
 ### Later in roadmap: record SOAP notes, incidents and other details
 
+**Addendum (2026-08-10):** Practice plan should be written by HC/TD and distributed to ride-group leads — needs a workout-level field, recommended nutrition, and a scheduled-practice time/date, on top of the venue/EAP fields already specced above.
+
 ### IDEA-012 App Feedback
 - Allow users to give really simple 5 star
 - provide freeform text feedback
@@ -246,3 +248,76 @@ On submit:
 - Should league-wide write include roster management, or only ratings/attendance? (Blast-radius vs. convenience.)
 - Is a league-wide *write* role even desirable, or should cross-team work always be explicit per-team grants (auditability)?
 - Do lead/sweep ever need to *gate* behavior, or do they stay purely descriptive?
+
+---
+
+### IDEA-022 — Rider photo capture via device camera *(parked — build attempted, e2e failing)*
+
+Let a coach launch the device camera directly from the rider card and set the captured frame as the rider photo, instead of only picking an existing file.
+
+**Status:** A build was attempted on branch `feature/idea021-rider-photo-camera` (worktree only, never committed/opened as a PR). Frontend logic is sound — 307/307 Vitest passing (`index.html`, `src/main.js`, `src/storage.js`, `src/views.js`, `tests/unit/storage.test.js`). But the new Playwright e2e suite (`tests/e2e/test_photo_camera.py`, mocks `getUserMedia` via `canvas.captureStream()`) fails 9 of 14 cases:
+
+1. **Capture-ready wait never resolves** — `Page.wait_for_function: Timeout 30000ms exceeded` on capture, retake, and rear-camera-selection tests. Whatever the app waits on before enabling the shutter button (a video frame becoming available) doesn't fire against the mocked `captureStream()` source in headless Playwright — needs investigation into whether this is a real timing bug against a live camera too, or specific to the mock.
+2. **Dynamic import fails against the built app** — `TypeError: Importing a module script failed` on `await import('/src/storage.js')` inside `page.evaluate()`, used by the offline-persistence and JSON-export-roundtrip tests. The e2e fixture serves a production `npm run build` output, where `/src/storage.js` isn't a servable path (bundled/hashed) — this is a test-authoring bug, not an app bug; the test needs to exercise storage through the UI/exposed app API rather than importing source paths that don't exist post-build.
+
+**Next step when picked back up:** fix (1) first since it blocks the actual capture flow in tests; fix (2) is a test-only fix (stop importing `/src/storage.js` directly). Re-run `.venv/bin/pytest tests/e2e/test_photo_camera.py` after both fixes before opening a PR.
+
+---
+
+### IDEA-024 — Engagement/feedback report delivery (Stage 1: signed URL + email)
+
+**Context:** `scripts/engagement_report.py` (shipped) generates a static HTML report over the `feedback`/`engagement` tables, but it's local-only — run by hand with `DATABASE_URL`, opened from disk. No web endpoint exists on purpose (see the script's own docstring: those tables are RLS deny-all with no admin role in the identity model, so a new read endpoint would be an unreviewed admin auth surface).
+
+**Proposed Stage 1 (parked, not yet built):** A scheduled GitHub Action that:
+1. Runs the existing script against `DATABASE_URL_ITG` (or prod)
+2. Uploads the output HTML to a new, private GCS bucket (not the hosting buckets)
+3. Generates a short-lived (~7 day) signed URL — a bearer link, so sharing it with Tim requires no Google account or IAM change on his end, just forwarding the link
+4. Emails the link via **Resend** (chosen over an SMTP/Gmail-app-password approach specifically to avoid tying delivery to a personal Gmail account)
+
+**Blocker:** mtb-skills has no registered custom domain — only Google/GitHub-owned subdomains (`*.web.app`, `ashaber.github.io`), none of which Resend can verify DNS ownership of. Decided to start on **Resend's shared onboarding domain**, which only delivers to the account owner's own verified email — good enough for Andrew, not yet for Tim. Revisit once idahomtb.org DNS access is confirmed or a dedicated domain is registered.
+
+**Infra this would need when built** (scoped, not yet created): a new least-privilege GCP service account (`github-reports` — deliberately *not* reusing the `github-deployer` SA, which has `run.admin`/`artifactregistry.writer`/`firebasehosting.admin` this job doesn't need), a new private bucket, a WIF binding for that SA (same OIDC pattern as `scripts/setup-wif.sh`, no static keys), and two new GitHub secrets (`RESEND_API_KEY`, `GCP_REPORTS_SERVICE_ACCOUNT`).
+
+**Stage 2 (bigger, only if Tim/others need regular self-serve access):** a real admin/league-staff-scoped role + `GET /api/admin/engagement` endpoint behind Supabase Auth + RLS, rendered as an actual view in the app — same pattern as the HC/TD dashboard and team switcher, rather than a regenerated static file.
+
+---
+
+### IDEA-023 — Fitness scale to assist with correct group placement
+
+Raw stub — mechanic not yet defined (what scale, where displayed, does it drive ride-group placement or just inform a coach's judgment). Needs a scoping conversation before this is estimable or buildable.
+
+---
+
+### IDEA-025 — About / reference content refresh + EULA
+
+- `public/about.html` "Learn more" content is out of date — needs a content pass, not code.
+- Add a EULA/terms section to the about page.
+- The Field Guide's "Full written reference" link opening raw Markdown instead of rendered HTML is a real bug, tracked in `DEFECTS.md` D28 (not here — that one has a known cause and fix).
+
+---
+
+### IDEA-026 — Student/parent view
+
+**Parent view:** A parent installs the app and sees only their own student-athlete's data (observations, confirmed levels, trail readiness) — read-only, no roster of other riders.
+
+**Student/athlete view:** Referenced already in `public/about.html`'s FAQ as an external early prototype (healthprof.github.io/mtb_skill_concept) with athlete/coach/head-coach/admin views — this idea is about bringing an athlete-facing view (and now parent report email) into this app itself.
+
+**Why this is the biggest lift on the list, not a quick add:** it's a new persona in the identity model, not a UI feature. It directly collides with [[IDEA-020]]'s PitZone shared-family-email problem — a parent and their student can share one PitZone login, so "parent sees only their kid" requires the same auth_person-style resolution the coach identity model already uses, extended to a role that doesn't exist yet (`person.role` has no `parent`/`athlete-login` value today, and athlete `person` rows are explicitly never linked to a login — see `backend/app/onboarding.py`'s docstring). Needs a real design pass before implementation, not a quick feature branch.
+
+---
+
+### IDEA-027 — Ride-group move request + HC/TD approve workflow
+
+A coach can request to move a rider up or down between ride groups; the app also surfaces recommendations (riders who look mismatched — over- or under-performing for their current group). HC/TD gets accept/reject cards for pending requests.
+
+**Scope:** needs a new data entity (a request/flag, with state: pending/accepted/rejected), new RLS policies for who can create vs. resolve a request, and new UI on both the requesting coach's and the HC/TD's side. Not small — a real feature, not a quick add.
+
+---
+
+### IDEA-028 — League Director / Coach Development Manager (CDM) access
+
+Self-serve league-staff tooling: add teams, configure HC/TD assignments, and (separately, larger) injury stats correlated to skill level and attendance.
+
+**Status of the groundwork:** the design thinking for the first two already exists — [[IDEA-021]] ("league staff & detailed RBAC") named the exact gap: today `league_staff` is **read-only** across every team in their league (`app_caller_league_team_ids()`); there is no league-scoped **write** RLS policy. "Add teams" / "configure HC/TD" both need that write policy built first, then UI on top of it.
+
+**Injury stats correlated to skill/attendance** is a separate, larger item — no injury data model exists at all today; this would be a ground-up feature (new table, new RLS, new UI), not an extension of anything that exists.

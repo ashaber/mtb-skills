@@ -656,8 +656,6 @@ export function viewCard(s) {
        </label>
        <input id="photo-upload" type="file" accept="image/*" style="display:none" data-aid="${a.id}">`;
 
-  const qrDataUrl = s.cardQR?.[a.id];
-
   const skillBlocks = SKILL_IDS.map(sk => {
     const lv         = draft[sk] || 1;
     const confirmedLv = conf[sk] || 0;
@@ -745,7 +743,6 @@ export function viewCard(s) {
             ${metaLabel ? `<span class="card-grade">${metaLabel}</span>` : ''}
             <span class="card-grade" style="margin-left:auto;color:var(--dim)">${totalObs} obs</span>
           </div>
-          ${qrDataUrl ? `<img class="card-hero-qr" src="${qrDataUrl}" alt="Athlete QR code" title="Scan to share">` : ''}
         </div>
       </div>
       ${(a.medical_notes || a.emergency_contact_name || a.emergency_contact_phone) ? `

@@ -60,7 +60,6 @@ const s = {
   today_practice:  null,
   settingsQR:      null,
   feedbackQR:      null,
-  cardQR:          {},
   authUser:        null,     // { email, name } | null — set from src/auth.js, additive to offline-first
   syncSummary:     null,     // { pulled, pushed, error? } | null — last syncNow() result
   syncAt:          null,     // ISO timestamp of last sync attempt
@@ -154,21 +153,6 @@ function goCard(athleteId) {
   ensureDraft(athleteId);
   s.athleteId = athleteId;
   pushLayer(() => viewCard(s));
-  _generateCardQR(athleteId);
-}
-
-function _generateCardQR(athleteId) {
-  const a = getPeople().find(x => x.id === athleteId);
-  if (!a) return;
-  const conf = getAthleteConfirmedLevels(athleteId);
-  const payload = encodeCard(a, conf);
-  const qrPx = Math.round(160 * Math.min(window.devicePixelRatio || 1, 3));
-  QRCode.toDataURL(payload, { width: qrPx, margin: 2, errorCorrectionLevel: 'Q' })
-    .then(qr => {
-      s.cardQR[athleteId] = qr;
-      if (s.athleteId === athleteId && stackDepth() > 0) refreshCard();
-    })
-    .catch(() => {});
 }
 
 function refreshCard() {
@@ -609,9 +593,7 @@ function confirmSession(athleteId) {
   log.info('session.confirm', { athlete_id: athleteId });
   window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId });
   flash('Confirmed levels updated');
-  delete s.cardQR[athleteId];
   refreshCard();
-  _generateCardQR(athleteId);
 }
 
 function confirmOneSkill(athleteId, skill, level) {
@@ -620,9 +602,7 @@ function confirmOneSkill(athleteId, skill, level) {
   log.info('skill.confirm', { athlete_id: athleteId, skill, level });
   window.MTB_TRACK?.('confirm_level', { athlete_id: athleteId, skill });
   flash(`${skill.replace('_', ' ')} confirmed at Lv ${level}`);
-  delete s.cardQR[athleteId];
   refreshCard();
-  _generateCardQR(athleteId);
 }
 
 function scrollExpandedIntoView() {
