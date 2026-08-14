@@ -338,3 +338,20 @@ Andrew, 2026-08-14: a new coach opening the app for the first time needs to know
 4. **Lowest-effort, not interactive:** a short narrated screen recording (Loom or just a phone screen capture) walking through Roster → Practice → Rubric, linked from Settings/About. Zero technical barrier for Tim — record and upload, done — but it's passive video, not something that highlights the live element a coach is actually looking at.
 
 **Recommendation (not yet built):** option 2 — matches the app's existing "structural code + GitHub-editable content" split (`src/rubric.js` vs `public/rubric.json`) instead of introducing a new pattern, keeps the app offline-first, and gives Tim real ongoing ownership of the wording/order without needing a developer for every edit, just for adding an entirely new step.
+
+---
+
+### IDEA-030 — Voice (Claude) as an input mechanism
+
+Andrew, 2026-08-14: hands-free logging while actually coaching — a coach spotting a rider mid-trail can't stop to tap through the app. Speak an observation instead: "Jake's cornering was solid today, bump him to a 3" → parsed into athlete + skill + level, same write as tapping the level pill today.
+
+**Two separate technical pieces, worth naming separately because they have very different constraints:**
+
+1. **Speech-to-text.** The browser's built-in Web Speech API is free and needs no backend, but iOS Safari support is inconsistent/limited — a real problem given coaches are on trail, often on iPhones, per this app's own "real-device test on Android and iOS" DoD item. A bundled on-device model (e.g. Whisper via WASM) would work offline and consistently across browsers but adds real bundle size and CPU cost to a PWA that currently ships one ~560KB JS chunk total.
+2. **Natural-language → structured observation (the actual "Claude" part).** Turning "Jake's cornering was solid, bump him to a 3" into `{athlete_id, skill: 'cornering', level: 3}` needs an LLM call (fuzzy-matching a spoken name against the roster, mapping loose language to the skill enum and 1-5 scale) — this is a real Anthropic API integration: a new backend endpoint (never call the API with a key exposed client-side), a per-call cost, and a hard network requirement.
+
+**Direct tension with the app's core design principle:** this app is offline-first by explicit design — "works fully offline, no login required" is the first line of the About page. Voice-to-structured-observation cannot work offline (step 2 needs a network round-trip no matter what). This would have to be framed as an optional **online enhancement** layered on top of the existing offline tap-based flow, exactly like sign-in/sync already is — never a required path, and it should degrade obviously and immediately (not silently retry/hang) the moment a coach loses signal on trail.
+
+**Scope/privacy note:** should be **push-to-talk, coach-initiated dictation** of a single observation — not passive/ambient listening during practice. Ambient audio capture near minors (student-athletes) would be a real privacy/COPPA-adjacent concern NICA would rightly push back on; explicit, momentary, coach-only dictation avoids that entirely.
+
+**Not scoped/estimated yet** — flagging the idea and its real constraints (iOS STT support, LLM cost per call, offline-first tension, privacy scope) rather than a build plan.
