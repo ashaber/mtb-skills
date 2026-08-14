@@ -55,27 +55,51 @@ Head coaches and team directors only (Settings → Roster Import → **Import
 roster from CSV**, after signing in). This bulk-imports many athletes at
 once instead of adding them one by one.
 
+**File format: CSV only.** The file picker is hard-restricted to `.csv` —
+no `.xlsx`/spreadsheet upload exists. If a template is built in Excel/
+Sheets, it must be exported/saved as CSV before a coach can import it.
+
 **Source:** designed around a real **NICA PitZone CSV export** — either the
 coach roster export or the athlete roster export. Both work; you upload
-whichever one you have.
+whichever one you have. Same importer, same column set, for both files —
+the only thing that distinguishes "this is a coach file" from "this is an
+athlete file" is whether a Role column is mapped at all (see below).
 
 **Column headers the importer auto-detects** (case-insensitive, matches
-common PitZone header wording — you can also map columns by hand if
-auto-detect misses one):
+common PitZone header wording):
 
-| App field | Header patterns it looks for | Required? |
-|---|---|---|
-| First name | "First Name", "First" | Yes (name is required) |
-| Last name | "Last Name", "Last" | Yes |
-| Email | "Email" | No |
-| Role (coach file only) | "Coach Role", "Role" | No — blank = "coach" on a coach file; athlete file rows are always imported as athletes |
-| Ride Group | "Ride Group", "Lead Coach", "Group" | No |
-| Grade | "Grade", "Year" | No — non-numeric values are dropped, not rejected |
-| Category | "Racing Category", "Category", "Cat" | No |
-| External ID | "Pit Zone ID", "PitZone ID", "NICA ID", "Registration ID", "External ID", "GUID" | No, but strongly recommended — see below |
+| App field | Header patterns it looks for | Required? | Hand-mappable if auto-detect misses it? |
+|---|---|---|---|
+| First name | "First Name", "First" | Yes* | Yes |
+| Last name | "Last Name", "Last" | Yes* | Yes |
+| Email | "Email" | No | Yes |
+| Role | "Coach Role", "Role" | No | Yes |
+| Ride Group | "Ride Group", "Lead Coach", "Group" | No | Yes |
+| Grade | "Grade", "Year" | No | Yes |
+| Category | "Racing Category", "Category", "Cat" | No | Yes |
+| External ID | "Pit Zone ID", "PitZone ID", "NICA ID", "Registration ID", "External ID", "GUID" | No, but strongly recommended — see below | **No — auto-detect only, no manual dropdown for this field in the mapping UI.** If a template's ID header doesn't match one of the patterns listed, it silently won't map; give the column one of those exact header names. |
 
-**Role values:** a coach-file "Role" cell containing "hc" → head coach,
-"td" → team director, anything else → coach.
+*A row with no combined first+last name is silently dropped from the
+import, not rejected as an error.
+
+**Role column controls athlete-vs-coach for the WHOLE file, not just a
+per-row default:**
+- **No Role column mapped at all** → every row in the file imports as
+  `athlete`, regardless of any other cell content. This is how an
+  athlete-file template should work — it can omit Role entirely.
+- **Role column mapped, but a given row's cell is blank** → that row
+  imports as `coach` (the fallback for a coach-file row instructor with no
+  explicit hc/td marking).
+- **Role column mapped, cell contains "hc"** → `head_coach`. Contains
+  "td" → `team_director`. Anything else → `coach`.
+
+**No parent/guardian email field exists anywhere in the data model.** This
+isn't a template gap — the `person` table itself has no column for it (only
+`name`, `email`, `role`, `ride_group`, `grade`, `category`, `external_id`).
+A "Parent Email" column in an athlete template today would import and be
+silently discarded; the value goes nowhere. Needs a schema change before a
+template column would do anything (flagged, not building yet — Andrew,
+2026-08-14).
 
 **Why External ID matters:** it's the strongest re-import match key. Without
 it, re-importing the same person matches by email+name — usually fine, but
