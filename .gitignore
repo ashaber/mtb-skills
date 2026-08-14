@@ -11,6 +11,8 @@ __pycache__/
 # CSVs and .docx source files out of git.
 docs/*
 !docs/*.md
+!docs/architecture/
+!docs/architecture/*.md
 .venv/
 coverage/
 .vite/
