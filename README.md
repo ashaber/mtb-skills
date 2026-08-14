@@ -146,6 +146,12 @@ Google sign-in runs through the **OAuth consent screen**, not Firebase — Fireb
 - **Backend** (FastAPI) → Cloud Run (`deploy-backend.yml`, services `mtb-api-{itg,prod}`), auth via WIF, secrets in Secret Manager.
 - **Data** → Supabase Postgres (two projects). Both workflows are `workflow_dispatch`; **`supabase/migrations/*.sql` are applied manually to each Supabase project** (idempotent, in order).
 
+### Stack health check
+```bash
+bash scripts/ops_check.sh
+```
+One-shot, read-only check of both itg and prod: frontend reachable, backend alive (`/health`), database reachable (`/health/db` — the practical "is Supabase paused?" signal, since a paused/unreachable DB fails this without needing `/health` itself to go down), and how many commits the deployed backend is behind `origin/main`. No auth/secrets required — everything it checks is a plain HTTP GET against already-public endpoints.
+
 ## Development
 
 ### Prerequisites
