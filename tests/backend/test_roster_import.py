@@ -465,6 +465,51 @@ def test_unauthenticated_request_gets_401(client, seed: dict[str, Any]) -> None:
     assert resp.status_code == 401
 
 
+def test_self_demotion_mid_batch_names_the_failing_row_and_rolls_back_everything(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    """DEFECTS.md D32, reproduced against a real Postgres + RLS instead of
+    simulated: the importing HC's own row is in the batch, its role cell
+    doesn't resolve to head_coach/team_director (mirrors a real PitZone
+    export's "Team Director"/"Head Coach" full-word labels that the OLD
+    frontend parseRole() failed to recognize -- fixed separately, but the
+    backend must still name the failure clearly regardless of what
+    upstream text-parsing bug produces it), demoting them mid-transaction.
+    Every row after that must fail RLS, the response must name the exact
+    row and explain the likely cause (not a bare RLS string), and nothing
+    from the batch -- including the earlier "successful" rows -- may land,
+    since rls_connection rolls back the whole transaction on any exception.
+    """
+    before_athlete = _unique("Before Demotion Athlete")
+    after_athlete = _unique("After Demotion Athlete")
+
+    resp = client.post(
+        "/api/roster/import",
+        headers=_auth_header(seed["hc_a_auth"]),
+        json={
+            "rows": [
+                {"name": before_athlete, "role": "athlete"},
+                # Matches hc_a_person by (email, name) -- role 'coach' here
+                # demotes them from head_coach mid-transaction.
+                {"name": "HC A", "email": seed["hc_a_email"], "role": "coach"},
+                {"name": after_athlete, "role": "athlete"},
+            ]
+        },
+    )
+
+    assert resp.status_code == 403
+    body = resp.json()["error"]
+    assert "row 3" in body
+    assert after_athlete in body
+    assert "own coach role" in body
+
+    # Nothing from this batch landed -- not even the row processed before
+    # the failure, and the HC's own role is untouched.
+    assert _people_by_team(owner_conn, seed["team_a"], [before_athlete, after_athlete]) == []
+    hc_role = owner_conn.execute("select role from person where id = %s", (seed["hc_a_person"],)).fetchone()
+    assert hc_role[0] == "head_coach"
+
+
 # --------------------------------------------------------------------------
 # Request-body validation.
 # --------------------------------------------------------------------------

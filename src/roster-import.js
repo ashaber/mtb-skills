@@ -64,11 +64,22 @@ export function parseCsv(text) {
  * maps a role column (a coach file) — the athlete file has no role column
  * at all, so `mapRows` below assigns 'athlete' directly without ever
  * calling this.
+ *
+ * Separator-normalized before matching (runs of whitespace/hyphens/
+ * underscores collapsed to a single space) so "Team-Director",
+ * "Team_Director", and "Team   Director" all match the same as "Team
+ * Director" — real rosters aren't consistent about this. Deliberately
+ * NOT fully stripped down to bare letters (e.g. "TeamDirector" with no
+ * separator at all): doing that to the short "hc"/"td" fallback too would
+ * risk false-positive matches inside unrelated concatenated text (e.g.
+ * "Assistant Director" stripped becomes "...antdirector...", which
+ * contains "td"). Normalizing separators only, not removing them, avoids
+ * that risk while still covering the realistic real-world variants.
  * @param {string|null|undefined} value
  * @returns {'head_coach'|'team_director'|'coach'}
  */
 export function parseRole(value) {
-  const v = String(value ?? '').trim().toLowerCase();
+  const v = String(value ?? '').trim().toLowerCase().replace(/[\s\-_]+/g, ' ');
   if (v.includes('head coach')) return 'head_coach';
   if (v.includes('team director')) return 'team_director';
   if (v.includes('hc')) return 'head_coach';
