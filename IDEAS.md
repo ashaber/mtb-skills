@@ -355,3 +355,31 @@ Andrew, 2026-08-14: hands-free logging while actually coaching — a coach spott
 **Scope/privacy note:** should be **push-to-talk, coach-initiated dictation** of a single observation — not passive/ambient listening during practice. Ambient audio capture near minors (student-athletes) would be a real privacy/COPPA-adjacent concern NICA would rightly push back on; explicit, momentary, coach-only dictation avoids that entirely.
 
 **Not scoped/estimated yet** — flagging the idea and its real constraints (iOS STT support, LLM cost per call, offline-first tension, privacy scope) rather than a build plan.
+
+---
+
+### IDEA-031 — Magic link (email OTP) auth, scoped
+
+Already named as a fast-follow in `ROADMAP.md`/`docs/PHASE3_TEAM_VISIBILITY_PLAN.md` ("Google OAuth first, email magic link as a fast-follow") — now a live, confirmed blocker, not a someday item. Scoped 2026-08-14 after pilot kickoff: **every `@live.com` coach who tried "Sign in with Google" got nothing.** Confirmed via `auth.users`: `dcacioppo@live.com` and `j_fiedler@live.com` never even produced a Supabase session row — the Google OAuth flow itself never completed for them, not just an email mismatch afterward. Most likely cause: neither has ever created an actual Google Account tied to their Microsoft/`live.com` address (a `live.com`/`outlook.com` email is not automatically a Google identity), so there's no Google account for the OAuth popup to authenticate against.
+
+**Why this is the right fix, not a workaround:** magic link doesn't require the coach to have any account with a third party at all — just a real inbox.
+
+**Scope, based on reading the actual code:**
+- **Backend: zero changes needed.** `backend/app/deps.py`'s `get_caller` verifies a Supabase JWT and reads its `sub`/`email` claims — completely provider-agnostic. Supabase's magic-link (OTP) flow issues the exact same kind of JWT as Google OAuth does; `app.onboarding.bootstrap_link` matches on the verified `email` claim regardless of which provider produced it. The whole backend auth path is already provider-agnostic by design.
+- **Frontend: one new function, mirroring the existing one.** `src/auth.js`'s `signInWithGoogle()` calls `client.auth.signInWithOAuth({...})`; a new `signInWithMagicLink(email)` would call `client.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })` — same error handling/logging shape as the existing function, `isAuthConfigured()` gate unchanged. `src/views.js`'s Settings → Account sign-in section needs an email input + "Email me a sign-in link" button alongside "Sign in with Google" (not instead of — both should coexist).
+- **Supabase project config (both ITG and prod):** confirm the "Email" (OTP/magic link) provider is enabled in Auth settings on each project, and that the redirect URL allowlist covers the same `*.web.app` origins already configured for Google.
+- **Email deliverability — the part most likely to bite:** Supabase's default built-in email sending has low rate limits and reads as generic/spammy. **Resend is already integrated in this project** (`IDEA-024`'s engagement-report delivery work) — worth configuring Supabase's custom SMTP to send magic-link emails through Resend instead of Supabase's default sender, for reliability and a recognizable "from" address.
+
+**Blocking on:** Andrew setting up a `live.com` test account to validate end-to-end before this ships (his own note). Not yet built.
+
+---
+
+### IDEA-032 — Align confirmed skill level with approved trail level
+
+Tim Curry, in-app feedback 2026-08-14 (Settings tab): "Should we align the skill level with the approved trail level?" Reads as: should trail readiness / "what trails is this rider approved for" be a more explicit, first-class HC/TD-approved status, rather than only the app's own automatic floor-of-confirmed-skills computation? Related to `[[IDEA-001]]` (Trail Network & Ride Plan Checker), which already covers coach-maintained trail minimums, but Tim's question is more specifically about the **approval step** — whether a HC/TD should be able to explicitly sign off "this rider is approved for blue" as its own record, distinct from (though informed by) the raw confirmed-skill-level computation. Not scoped — needs a follow-up conversation with Tim on what "approved" means beyond what trail readiness already computes.
+
+---
+
+### Confirmed independently: in-app onboarding tour ([[IDEA-029]])
+
+Tim Curry, in-app feedback 2026-08-14 (Settings tab), unprompted and before this idea had been shared with him: proposed almost exactly what IDEA-029 already describes — a skippable first-login walkthrough with a "replay tutorial" entry point in Settings, coach and HC/TD flows treated separately (HC/TD's extended to cover roster import and sharing). Real independent validation this is worth building, not just a hypothetical. His exact framing: screenshot/live-view of each page component with arrows + text, skip button, replay button in Settings.
