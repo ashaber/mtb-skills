@@ -14,7 +14,7 @@ import {
   getTeamSettings, saveTeamSettings,
   getRosterFilter, saveRosterFilter,
   getRosterGroupFilter, saveRosterGroupFilter,
-  getRemoteRosterIds, saveRemoteRosterIds, getCachedIdentity,
+  getRemoteRosterIds, saveRemoteRosterIds, getCachedIdentity, saveCachedIdentity,
   getActivePersonaId, saveActivePersonaId,
   remapAthleteId,
   clearLocalRosterData,
