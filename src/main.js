@@ -168,10 +168,11 @@ function refreshCard() {
 }
 
 function _generateSettingsQR() {
-  QRCode.toDataURL('https://ashaber.github.io/mtb-skills/', { width: 200, margin: 2 })
+  const appUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
+  QRCode.toDataURL(appUrl, { width: 200, margin: 2 })
     .then(qr => { s.settingsQR = qr; if (s.tab === 'settings') draw(); })
     .catch(() => {});
-  QRCode.toDataURL('https://ashaber.github.io/mtb-skills/?feedback=true', { width: 200, margin: 2 })
+  QRCode.toDataURL(`${appUrl}?feedback=true`, { width: 200, margin: 2 })
     .then(qr => { s.feedbackQR = qr; if (s.tab === 'settings') draw(); })
     .catch(() => {});
 }

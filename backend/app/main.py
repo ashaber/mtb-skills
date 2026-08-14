@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 import time
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import Settings
+from app.db import check_connectivity
 from app.logging import get_logger
 from app.routes import router as api_router
 
@@ -102,6 +103,22 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"status": "ok"}
+
+    @app.get("/health/db")
+    async def health_db(response: Response) -> dict:
+        # Deliberately separate from /health above: /health is the
+        # Kubernetes/Cloud Run liveness check and must never fail just
+        # because Supabase is paused (restarting a healthy container won't
+        # fix that). This endpoint is for ops visibility only -- hit it from
+        # a status script/dashboard, not a restart policy.
+        start = time.monotonic()
+        try:
+            check_connectivity(settings.database_url)
+        except Exception as exc:
+            response.status_code = 503
+            log.error("health.db failed", error=str(exc))
+            return {"status": "down", "error": str(exc)}
+        return {"status": "ok", "latency_ms": round((time.monotonic() - start) * 1000, 2)}
 
     @app.get("/version")
     async def version() -> dict:
