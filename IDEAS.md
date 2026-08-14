@@ -383,3 +383,19 @@ Tim Curry, in-app feedback 2026-08-14 (Settings tab): "Should we align the skill
 ### Confirmed independently: in-app onboarding tour ([[IDEA-029]])
 
 Tim Curry, in-app feedback 2026-08-14 (Settings tab), unprompted and before this idea had been shared with him: proposed almost exactly what IDEA-029 already describes — a skippable first-login walkthrough with a "replay tutorial" entry point in Settings, coach and HC/TD flows treated separately (HC/TD's extended to cover roster import and sharing). Real independent validation this is worth building, not just a hypothetical. His exact framing: screenshot/live-view of each page component with arrows + text, skip button, replay button in Settings.
+
+---
+
+### IDEA-033 — Ride-group-lead-granted access for floating/sweep coaches
+
+Andrew, 2026-08-14, prepping for a security review: proposed tightening sweep/floating coaches to only their own ride group, "maybe authorized by ride group lead." Checked against the actual RLS policies first — a plain `coach`-role account is *already* scoped to exactly one ride group (`app_caller_ride_group_ids()` in `supabase/migrations/0002_rls.sql`); the `person.tags` column ("sweep"/"lead"/"floater") is purely descriptive and carries no RLS meaning at all (explicitly documented as such in `0007_person_tags.sql`'s own header). So a floating coach today doesn't see *too much* — the actual gap runs the other way: there's no mechanism for a coach to be granted visibility into a *second* specific ride group without being promoted all the way to `head_coach`/`team_director` (whole-team access).
+
+**Scope for a real fix:** a new grant table (e.g. `ride_group_access_grant(person_id, ride_group_id, granted_by, created_at)`), with `app_caller_ride_group_ids()` extended to OR in explicitly-granted groups alongside the coach's own. Grant/revoke would need its own RLS policy — natural fit: only that group's own coach (the "lead") or the team's HC/TD can grant into a group they themselves have standing in. Not built — this is a real schema + RLS change, not a config flip.
+
+---
+
+### IDEA-034 — League staff: request-based access instead of always-on league-wide read
+
+Andrew, 2026-08-14, same security-review prep: proposed league staff request access to a specific team on demand rather than seeing every team in their league by default. Today `league_staff` is always-on read-only across the whole league from the moment their `person` row exists — no request or approval step (`app_caller_league_team_ids()` in `0002_rls.sql`).
+
+**Scope for a real fix:** a grant/request table the `_select` policies would check in place of (or in addition to) the blanket league-wide expansion — e.g. default to zero cross-team visibility for `league_staff`, with a per-team grant a HC/TD approves (mirrors the ride-group-lead grant idea above, one level up the hierarchy). Worth deciding whether "always-on once granted" or "time-boxed" is the right default before building. Related to `[[IDEA-021]]`/`[[IDEA-028]]` (the still-open "league staff has no write policy" gap) — this is the read-side tightening counterpart to that.
