@@ -394,3 +394,23 @@ In `src/views.js` Settings section, add version string near the bottom of the Ab
 **Symptom:** The actual Settings → "Learn more" link goes to `about.html`, which renders correctly (hand-authored HTML, real FAQ section). The bug is one level deeper: the Field Guide's "Full written reference →" link (`src/views.js`) opens `public/rubric-reference.md` directly (`target="_blank"`) — the browser displays it as plain text since the app has no Markdown-rendering dependency anywhere (`package.json` has none).
 **Compounding issue:** `public/rubric-reference.md` is still a literal placeholder ("PLACEHOLDER — to be filled in from the source document") — the content itself isn't finished yet either.
 **Fix:** Convert `rubric-reference.md` to a hand-authored `rubric-reference.html`, matching the existing `about.html` pattern (still GitHub-editable without a build, no new dependency). Update the link in `src/views.js`. Content authoring (filling the placeholder from Tim's source doc) is separate, non-code work.
+
+---
+
+## D29 — `syncNow()`'s `Promise.all` discards all successfully-pulled data if any one endpoint fails
+
+**Status:** Open (real, but NOT the cause of the team-switcher report below — see D30 for the actual bug)
+**Source:** Found while investigating Andrew's "can't select team" report, 2026-08-14 — an initial hypothesis (prod's then-missing `practice`/`attendance` tables causing the switcher's post-select `runSync()` to fail) that turned out not to be the actual cause, but is a real, separate resilience gap worth keeping.
+**Detail:** `src/sync.js`'s `syncNow()` fetches roster/observations/confirmed-levels/practices/attendance via a single `Promise.all([...])` (`src/sync.js:156-162`) — `Promise.all` is all-or-nothing, so ANY one endpoint failing (a future migration gap, a transient 500, etc.) throws away roster/observations/confirmed-levels that had already succeeded in the same pull, rather than degrading gracefully.
+**Fix (not yet built):** swap the pull's `Promise.all` for `Promise.allSettled`, save whatever DID succeed, and only report the ones that failed in `result.error`.
+
+---
+
+## D30 — Team switcher "Switch" button silently no-ops: `saveCachedIdentity` referenced but never imported in `main.js`
+
+**Status:** Fixed
+**Source:** Andrew, 2026-08-14 — "attempted to switch andrew@idahomtb.org to centennial team. button click doesn't work and can't select the team," reproduced via in-app feedback ("selected team, clicked button. dialog remained visible and when closed, shows no team selected") and confirmed via browser console screenshot: `Uncaught (in promise) ReferenceError: saveCachedIdentity is not defined`.
+**Root cause:** `selectPersona()` (`src/main.js`) calls `saveCachedIdentity(personas)` — a real, exported function in `src/storage.js` — but `src/main.js`'s import block never imports it (only `getCachedIdentity` was imported, not its `save` counterpart). The `ReferenceError` threw synchronously mid-function, AFTER `clearLocalRosterData()` had already wiped the cached identity/active-persona keys (the D26 "switching teams" branch) but BEFORE `saveActivePersonaId()` could run to restore them and BEFORE `closeModal()`/`flash()` — exactly matching both symptoms: the sheet never closed (the crash skipped `closeModal()`), and once manually closed, Settings showed "No team selected yet" (the wipe completed, the restore never did).
+**Why existing tests didn't catch it:** no unit or e2e test exercises `selectPersona()`'s actual button-click path end to end — the e2e team-switcher suite (`tests/e2e/test_team_switcher.py`) only covers UI-visibility cases (signed out, stale cached identity) since the real switch flow needs a live authenticated multi-persona backend session, out of scope for the current (unauthenticated, local-storage-only) e2e harness. This project also has no ESLint configured, which would have caught an undefined-reference at lint/build time regardless of test coverage — worth a future IDEA.
+**Fix:** added `saveCachedIdentity` to `src/main.js`'s import from `src/storage.js`. One-line fix, `npm run build` + full Vitest suite both clean.
+**Related, fixed alongside:** `resolve_personas()` (`backend/app/identity.py`) ordered personas by `p.name` with no tiebreaker — with all 4 of Andrew's rows literally named "Andrew Shaber," Postgres doesn't guarantee stable ordering between calls. Added `p.id` as a secondary sort key. Not the cause of this bug, but a related correctness fix found during the same investigation.

@@ -71,7 +71,7 @@ def resolve_personas(conn: psycopg.Connection, sub: str) -> list[Persona]:
         join person p on p.id = ap.person_id
         where ap.auth_user_id = %s
           and p.role = any(%s)
-        order by p.name
+        order by p.name, p.id
         """,
         (sub, list(COACH_ROLES)),
     ).fetchall()
