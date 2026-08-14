@@ -386,11 +386,17 @@ Tim Curry, in-app feedback 2026-08-14 (Settings tab), unprompted and before this
 
 ---
 
-### IDEA-033 — Ride-group-lead-granted access for floating/sweep coaches
+### IDEA-033 — Coach progression levels (L1 floater/sweep → L2 → L3 group lead), no app access until promoted
 
-Andrew, 2026-08-14, prepping for a security review: proposed tightening sweep/floating coaches to only their own ride group, "maybe authorized by ride group lead." Checked against the actual RLS policies first — a plain `coach`-role account is *already* scoped to exactly one ride group (`app_caller_ride_group_ids()` in `supabase/migrations/0002_rls.sql`); the `person.tags` column ("sweep"/"lead"/"floater") is purely descriptive and carries no RLS meaning at all (explicitly documented as such in `0007_person_tags.sql`'s own header). So a floating coach today doesn't see *too much* — the actual gap runs the other way: there's no mechanism for a coach to be granted visibility into a *second* specific ride group without being promoted all the way to `head_coach`/`team_director` (whole-team access).
+Andrew, 2026-08-14, refined across two follow-ups while prepping for a security review. Original framing (tighten a floating coach's RLS scope) turned out to be solving the wrong problem once the actual requirement came out: **L1 (floater/sweep) coaches are adults and real coaches — never student athletes — but shouldn't have app access or be rated at all** until they progress. L2 and L3 (group lead), once promoted, are meant to have **identical access control** — no seniority-based permission tier between them.
 
-**Scope for a real fix:** a new grant table (e.g. `ride_group_access_grant(person_id, ride_group_id, granted_by, created_at)`), with `app_caller_ride_group_ids()` extended to OR in explicitly-granted groups alongside the coach's own. Grant/revoke would need its own RLS policy — natural fit: only that group's own coach (the "lead") or the team's HC/TD can grant into a group they themselves have standing in. Not built — this is a real schema + RLS change, not a config flip.
+**The good news: this needs zero schema/RLS changes**, confirmed by checking both backend and frontend for any hidden assumption that a `coach`-role row always has an email or `ride_group_id` set — there is none, in either.
+
+- **L1:** `person.role = 'coach'` (so they display correctly as a coach everywhere, never conflated with a student athlete), no `email`, no `ride_group_id`, `tags: ['L1']`. Not signing in isn't a permission the app grants or withholds — it's structural: `bootstrap_link`'s email-match has nothing to match against, so there is no credential to compromise for an L1 coach at all. Not rated via `observation`/`confirmed_level` either — nothing requires it; progression to L2 is an HC/TD call, not a computed threshold.
+- **Promotion to L2:** HC/TD sets their email, assigns a `ride_group_id`, updates `tags: ['L2']` — the same `person_update` (HC/TD-only, already-existing) action used for any roster edit. No new endpoint, no new policy.
+- **L2 and L3 already get identical access, automatically**, the moment they share a `ride_group_id` — RLS scopes coach access by ride-group membership, not by seniority (`app_caller_ride_group_ids()`/`observation_insert_ride_group_coach` in `0002_rls.sql` don't distinguish). So "L2 logs a second observation alongside L3," "L2 enters observations for L3," and "L2 becomes group lead for the day when L3 is out" are all already true the instant L2 has that `ride_group_id` — no new mechanism. `ride_group.lead_coach_id` (who's *displayed* as leading) is explicitly advisory/cosmetic today, not RLS-enforced, so "becoming lead for a practice" is a display update, not an access grant.
+
+**Only real follow-up, and it's small:** surfacing `tags` (L1/L2/L3) visibly in the roster/HC-dashboard UI so a HC/TD can actually see and manage this progression at a glance — not scoped in detail yet.
 
 ---
 
