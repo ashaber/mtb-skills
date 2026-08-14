@@ -99,15 +99,30 @@
       ],
       "levels": {
         "1": {
-          "consistency": "Falls apart on anything beyond flat",
+          "consistency": "Beginning to practice new skills ",
           "failure_modes": [
             "Seated or knees pinch saddle",
-            "Rigid",
+            "Rigid, no BBS",
             "Looks at front wheel",
             "No ready",
             "3 Key Essentials absent"
           ],
-          "detail": "Knees pinch saddle or seated rather than standing ready. Rigid on bike — no BBS possible. Looks at front wheel. 3 Key Essentials absent or inconsistent: no deep bend in elbows and knees, elbows not wide, weight not in feet."
+          "detail": "Knees pinch saddle or seated rather than standing ready. Rigid on bike — no BBS possible. Looks at front wheel. 3 Key Essentials absent or inconsistent: no deep bend in elbows and knees, elbows not wide, weight not in feet.",
+          "progression": {
+            "adds": [
+              "May be able to ride standing/out of saddle"
+            ],
+            "resolves": [
+          
+            ],
+            "terrain": "Smooth, predictable ground — packed dirt, grass or paved path",
+            "how_to": [
+              "Teach OTB-101 ready possition and practice in teaching conditions",
+              "Cue: heavy feet, light hands — deep bend in elbows and knees",
+              "Game: Follow-the-leader where lead exhibits correct position",
+              "Session on grass or pavement first so terrain isn't competing for attention"
+            ]
+          }
         },
         "2": {
           "consistency": "Falls apart with distraction or challenge",
@@ -120,17 +135,18 @@
           "detail": "Standing but rigid. Weight shifts forward or back unintentionally — from habit, misunderstanding, or fear. Does not reliably adjust tall/low ready to terrain. BBS S/S and F/B absent or minimal. 3 Key Essentials fail with distraction or challenge.",
           "progression": {
             "adds": [
-              "Stands off the saddle in a ready position",
-              "Eyes lift off the front wheel and scan ahead",
-              "3 Key Essentials appear in calm conditions"
+              "Standing ready position consistently",
+              "3 Key Essentials in calm conditions",
+              "BBS with instruction"
             ],
             "resolves": [
               "No longer seated or pinching the saddle with the knees",
-              "No longer fixated on the front wheel"
+              "eyes not fixated on the front wheel"
             ],
             "terrain": "Smooth, predictable ground — packed dirt, gentle grade, no real obstacles",
             "how_to": [
-              "Ready-position holds: coast a flat straight standing, elbows wide, weight in the feet",
+              "Ready-position static holds to learn heavy feet",
+              "Ride ready position on progressively more challenging terrain (small bumps and rollers) to learn to trust bike",
               "Cue: heavy feet, light hands — deep bend in elbows and knees",
               "Game: red light / green light ridden entirely in standing ready",
               "Session on grass or pavement first so terrain isn't competing for attention"
@@ -138,7 +154,7 @@
           }
         },
         "3": {
-          "consistency": "Falls apart when over-challenged",
+          "consistency": "Good when easy, falls apart when over-challenged",
           "failure_modes": [
             "BBS falls apart under pressure",
             "Pressure control only emerging on features",
@@ -159,8 +175,8 @@
             "terrain": "Rolling singletrack with roots, rocks and small features; moderate grade",
             "how_to": [
               "BBS S/S drill: figure-8s at walking pace, letting the bike lean under a quiet upper body",
-              "Rollers and water bars to introduce intentional fore/aft loading",
-              "Cue: let the bike move underneath you — you stay quiet",
+              "Rollers and water bars to introduce intentional BBS fore/aft",
+              "Cue: let the bike move underneath you — maintain heavy feet light hands",
               "Add speed and distraction progressively; back off the moment form slips"
             ]
           }
@@ -178,7 +194,8 @@
             "adds": [
               "Intentional pressure control — deliberately loads features",
               "Tall/low adjustment automatic across varied terrain",
-              "Runs without conscious attention"
+              "Autonomous vs conscious attention",
+              "Anticipates and responds to upcoming weight shifts"
             ],
             "resolves": [
               "BBS no longer falls apart when over-challenged",
@@ -187,7 +204,8 @@
             "terrain": "Varied with roots and rocks, drops and rollers; often loose, often steep",
             "how_to": [
               "Lunge drills on roll-downs and step-ups to build deliberate F/B loading",
-              "Pump track or rolling-terrain laps for continuous pressure control",
+              "Pump track or rolling-terrain laps for continuous practice of pressure control",
+              "practice incorporating pressure control into cornering and braking",
               "Cue: push the bike into the backside, not just over the top",
               "Raise consequence gradually — form must survive the terrain, not just the drill"
             ]
@@ -198,15 +216,16 @@
           "failure_modes": [
             "Full tactical pressure control any terrain"
           ],
-          "detail": "Low ready automatic under all conditions. Full pumping / pressure control automatic across all features and terrain. Foundation for wheelies and manuals (OTB-301). Fully autonomous — tactical application. Beyond NICA trail scope.",
+          "detail": "Optimal ready position automatic under all conditions. Full pumping / pressure control automatic across all features and terrain. Foundation for wheelies and manuals (OTB-301). Fully autonomous — tactical application. Beyond NICA trail scope.",
           "progression": {
             "adds": [
-              "Full pumping and pressure control automatic in any conditions",
+              "Full pumping and pressure control autonomous in any conditions",
               "Tactical application — position chosen for the feature ahead",
               "Foundation for wheelies and manuals (OTB-301)"
             ],
             "resolves": [
-              "Position essentially never falls apart, even at extreme consequence"
+              "Position essentially never falls apart, even at extreme consequence",
+              "Inefficiencies like riding in ready instead of neutral"
             ],
             "terrain": "Sustained steep and loose, large features and drops — beyond what NICA courses require",
             "how_to": [

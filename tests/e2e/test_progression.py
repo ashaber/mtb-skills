@@ -143,11 +143,12 @@ def test_guide_level_5_has_no_next_level_block(page: Page) -> None:
     expect(page.locator('.rubric-card[data-lv="5"] .progress-details')).to_have_count(0)
 
 
-def test_guide_level_1_has_no_delta_but_has_how_to(page: Page) -> None:
-    """Level 1 has no delta strip, but still tells you how to reach level 2."""
+def test_guide_level_1_has_how_to_progress_to_level_2(page: Page) -> None:
+    """Level 1's own delta strip is optional content (present iff the rubric
+    defines a `progression` block for it — body position's rubric.json now
+    does); what's NOT optional is still telling the coach how to reach level 2."""
     open_guide_skill(page)
     card = page.locator('.rubric-card[data-lv="1"]')
-    expect(card.locator('.rc-prog')).to_have_count(0)
     expect(card.locator('.progress-details')).to_contain_text('How to progress to Level 2')
 
 
@@ -222,7 +223,7 @@ def test_guide_shows_consistency_gate(page: Page) -> None:
     open_guide_skill(page)
     gate = page.locator('.rubric-card[data-lv="3"] .rc-gate')
     expect(gate).to_be_visible()
-    expect(gate).to_contain_text('Falls apart')
+    expect(gate).to_contain_text('falls apart', ignore_case=True)
 
 
 # ── Terrain must not be expressed as a trail rating ──────────────────────────
