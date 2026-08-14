@@ -120,6 +120,18 @@ def rls_connection(database_url: str, sub: str) -> Iterator[psycopg.Connection]:
         conn.close()
 
 
+def check_connectivity(database_url: str, connect_timeout: float = 3.0) -> None:
+    """Open a bare connection and run `SELECT 1`, then close it. No RLS
+    concerns -- touches no tables, returns no rows, just proves the DB is
+    reachable (vs. e.g. a paused Supabase project). Raises whatever
+    `psycopg.connect`/`execute` raises on failure; callers decide how to
+    report that. Used only by the `/health/db` ops-check route in
+    app/main.py -- do not reuse for request-scoped queries (use
+    `rls_connection` for those)."""
+    with psycopg.connect(database_url, connect_timeout=connect_timeout, prepare_threshold=None) as conn:
+        conn.execute("SELECT 1")
+
+
 @contextmanager
 def service_connection(database_url: str) -> Iterator[psycopg.Connection]:
     """⚠️ RLS-BYPASSING connection. Read this whole docstring before calling

@@ -444,10 +444,11 @@ export function viewSettings(s) {
   const feedbackDismissed = localStorage.getItem('mtb_feedback_dismissed') === 'true';
   const coach = getCoach();
 
+  const appUrlLabel = `${window.location.host}${import.meta.env.BASE_URL}`;
   const qrSection = s.settingsQR
     ? `<div class="settings-qr-wrap">
       <img class="settings-qr" src="${s.settingsQR}" alt="App QR code">
-      <span class="settings-qr-url">ashaber.github.io/mtb-skills</span>
+      <span class="settings-qr-url">${esc(appUrlLabel)}</span>
        </div>`
     : `<p class="settings-about" style="text-align:center;color:var(--dim)">Generating QR…</p>`;
 
@@ -540,7 +541,7 @@ export function viewSettings(s) {
         ${s.feedbackQR
           ? `<div class="settings-qr-wrap">
               <img class="settings-qr" src="${s.feedbackQR}" alt="App QR code">
-              <span class="settings-qr-url">ashaber.github.io/mtb-skills</span>
+              <span class="settings-qr-url">${esc(appUrlLabel)}</span>
              </div>`
           : `<p class="settings-about" style="text-align:center;color:var(--dim)">Generating QR…</p>`}
       </div>
@@ -564,7 +565,7 @@ export function viewSettings(s) {
         <p class="settings-about">A rubric-based skill assessment tool for NICA MTB coaches — three foundational skills across five levels defined by what breaks, when, and at what threshold. Log observations, confirm levels, and see trail readiness at a glance. Works fully offline. No login required.</p>
         <p class="settings-about" style="margin-top:8px">Want this for your team or league? <a href="mailto:andrewshaber@gmail.com" style="color:var(--accent)">andrewshaber@gmail.com</a></p>
         <p class="settings-about" style="margin-top:8px;color:var(--dim);font-size:12px">© 2026 Andrew Shaber, Renee Kline &amp; Tim Curry</p>
-        <a href="https://ashaber.github.io/mtb-skills/about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
+        <a href="${import.meta.env.BASE_URL}about.html" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font:600 13px/1 var(--font-body);color:var(--accent);text-decoration:underline;text-underline-offset:2px">Learn more →</a>
         <p class="settings-about" style="margin-top:10px;color:var(--dim);font-size:11px">v${__APP_VERSION__} · ${__GIT_SHA__} · ${envLabel(BACKEND_URL)}</p>
       </div>
     </div>`;
