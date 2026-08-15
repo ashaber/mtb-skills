@@ -196,11 +196,17 @@ validating the whole path end to end before inviting a real coach.
 **i. Enable the provider + redirect URLs** (for **each** of `mtb-itg` and
 `mtb-prod`, same "per project" pattern as step 4c):
 
-1. **Authentication → Providers → Email.** Confirm it's enabled (it's
-   usually on by default) and that OTP/magic-link sign-in is on, not just
-   password auth — the exact toggle wording has moved around in past
-   Supabase dashboard versions, so check what's actually there rather than
-   assuming this doc's phrasing matches today's UI.
+1. **Authentication → Providers → Email.** Confirm it's enabled (usually
+   on by default). **Confirmed 2026-08-15: there is no separate "enable
+   magic link/OTP" toggle** on the current dashboard — the Email provider
+   being on is what enables `signInWithOtp()` (the call
+   `signInWithMagicLink` makes), full stop. The "OTP" fields on this same
+   page (OTP length / expiry, "min chars") tune the *numeric-code* variant
+   of this same flow (a 6-digit code instead of a clickable link) — they
+   don't gate anything and don't apply to what this app sends, since
+   `signInWithMagicLink` passes `emailRedirectTo`, which selects the
+   clickable-link email template instead. Safe to leave those at their
+   defaults; don't go looking for a toggle that isn't there.
 2. **Authentication → URL Configuration → Redirect URLs.** Add the same
    origins already there for Google (the `*.web.app` site for that
    env) — magic link uses the identical `emailRedirectTo` mechanism, so if
