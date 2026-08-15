@@ -520,6 +520,14 @@ export function viewSettings(s) {
         ` : `
           <p class="settings-about" style="margin-bottom:10px">Sign in to sync your roster and observations with your team.</p>
           <button class="btn btn-primary" data-a="sign-in-google">Sign in with Google</button>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+            ${s.magicLinkSent ? `
+              <p class="settings-about" style="color:var(--l4)">Check your email (and spam folder) for a sign-in link — sent to ${esc(s.magicLinkSent)}.</p>
+            ` : `
+              <input class="fi" id="inp-magic-link-email" type="email" placeholder="you@example.com" autocapitalize="off">
+              <button class="btn btn-outline" data-a="sign-in-magic-link">Email me a sign-in link</button>
+            `}
+          </div>
         `}
       </div>` : ''}
 

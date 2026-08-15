@@ -4,9 +4,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // factory below — plain module-scope consts would be hoisted-above by
 // vitest's own transform and read as undefined at mock-eval time.
 const {
-  mockSignInWithOAuth, mockSignOut, mockGetSession, mockOnAuthStateChange, mockCreateClient,
+  mockSignInWithOAuth, mockSignInWithOtp, mockSignOut, mockGetSession, mockOnAuthStateChange, mockCreateClient,
 } = vi.hoisted(() => ({
   mockSignInWithOAuth:  vi.fn(async () => ({ data: { provider: 'google', url: 'https://redirect' }, error: null })),
+  mockSignInWithOtp:    vi.fn(async () => ({ data: {}, error: null })),
   mockSignOut:          vi.fn(async () => ({ error: null })),
   mockGetSession:       vi.fn(async () => ({ data: { session: null }, error: null })),
   mockOnAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
@@ -19,6 +20,7 @@ vi.mock('@supabase/supabase-js', () => ({
     return {
       auth: {
         signInWithOAuth:    mockSignInWithOAuth,
+        signInWithOtp:      mockSignInWithOtp,
         signOut:            mockSignOut,
         getSession:         mockGetSession,
         onAuthStateChange:  mockOnAuthStateChange,
@@ -44,6 +46,14 @@ describe('auth.js — unconfigured (default empty env, matches env.test.js)', ()
     const auth = await import('../../src/auth.js');
     const result = await auth.signInWithGoogle();
     expect(mockSignInWithOAuth).not.toHaveBeenCalled();
+    expect(result.error).toBeTruthy();
+  });
+
+  it('signInWithMagicLink does not call supabase and resolves with an error', async () => {
+    vi.resetModules();
+    const auth = await import('../../src/auth.js');
+    const result = await auth.signInWithMagicLink('coach@example.com');
+    expect(mockSignInWithOtp).not.toHaveBeenCalled();
     expect(result.error).toBeTruthy();
   });
 
@@ -97,6 +107,20 @@ describe('auth.js — configured (env vars present)', () => {
     await auth.signInWithGoogle();
     expect(mockSignInWithOAuth).toHaveBeenCalledTimes(1);
     expect(mockSignInWithOAuth.mock.calls[0][0]).toMatchObject({ provider: 'google' });
+  });
+
+  it('signInWithMagicLink calls supabase signInWithOtp with the given email', async () => {
+    const auth = await import('../../src/auth.js');
+    await auth.signInWithMagicLink('coach@example.com');
+    expect(mockSignInWithOtp).toHaveBeenCalledTimes(1);
+    expect(mockSignInWithOtp.mock.calls[0][0]).toMatchObject({ email: 'coach@example.com' });
+  });
+
+  it('signInWithMagicLink surfaces a supabase error without throwing', async () => {
+    mockSignInWithOtp.mockResolvedValueOnce({ data: null, error: { message: 'rate limited' } });
+    const auth = await import('../../src/auth.js');
+    const result = await auth.signInWithMagicLink('coach@example.com');
+    expect(result.error).toBe('rate limited');
   });
 
   it('getAccessToken returns the current session access token', async () => {

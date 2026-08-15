@@ -68,6 +68,39 @@ export async function signInWithGoogle() {
   }
 }
 
+/**
+ * Sends a magic-link (email OTP) sign-in email via Supabase Auth. Coexists
+ * with signInWithGoogle() rather than replacing it -- some coaches' email
+ * addresses (e.g. live.com/outlook.com) aren't automatically a Google
+ * identity, so "Sign in with Google" produces nothing for them (IDEA-031).
+ * No-ops (with a warn log) when auth isn't configured, same as
+ * signInWithGoogle().
+ * @param {string} email
+ * @returns {Promise<{data?: object, error?: string}>}
+ */
+export async function signInWithMagicLink(email) {
+  const client = getClient();
+  if (!client) {
+    log.warn('auth.signin.unavailable');
+    return { error: 'Auth not configured' };
+  }
+  try {
+    const { data, error } = await client.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (error) {
+      log.error('auth.magiclink.failed', { error: error.message });
+      return { error: error.message };
+    }
+    log.info('auth.magiclink.sent');
+    return { data };
+  } catch (e) {
+    log.error('auth.magiclink.failed', { error: String(e) });
+    return { error: String(e) };
+  }
+}
+
 export async function signOut() {
   const client = getClient();
   if (!client) return;
