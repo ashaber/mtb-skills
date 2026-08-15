@@ -98,16 +98,32 @@ how many elevated-role rows a file is about to grant, which would make it
 easier for a TD to catch their own mistake before submitting — see Open
 Items.
 
-### Planned fast-follow: magic link
+### Magic link (email OTP) — built, pending dashboard config + validation
 
 Email OTP sign-in for coaches without a Google account tied to their email
 — several pilot coaches on `@live.com` addresses hit exactly this gap
 (confirmed: their Google sign-in never even produced a Supabase session,
 not just an email mismatch afterward — no Google account exists for that
-address). No backend change required: token verification is already
-provider-agnostic. See the engineering backlog (`IDEA-031`) for the full
-scope, including the recommended fix for email deliverability (routing
-through Resend, already integrated elsewhere in this project).
+address). Backend needed zero changes: token verification was already
+provider-agnostic before this.
+
+Code-complete both ways: a self-serve button in Settings → Account
+(`src/auth.js`'s `signInWithMagicLink`, coexists with the Google button)
+and `scripts/send_invite.py`, a standalone script an admin can run to
+trigger the same email right after seeding a coach's `person` row directly
+in the database — same public Supabase endpoint either way, so no new
+service-role/admin-API surface. See `IDEAS.md`'s `IDEA-031` for the full
+design writeup.
+
+**Not yet done — both manual, dashboard-side, outside this codebase:**
+enabling Supabase's Email/OTP provider and the redirect URL allowlist on
+ITG and prod, and configuring custom SMTP for deliverability (Supabase's
+default sender is low-rate-limit and often spam-flagged; *not* Resend —
+that was previously mis-stated here and in `IDEAS.md`, corrected 2026-08-15:
+Resend is not actually integrated anywhere in this codebase, only decided
+on for a separate, unbuilt feature). Step-by-step instructions for both,
+plus an end-to-end validation runbook using a real `live.com`/Microsoft
+365 test account, are in `docs/PHASE3_INFRA_SETUP.md` section 4e.
 
 ---
 
