@@ -13,5 +13,9 @@ psycopg[binary]>=3.1,<4.0
 pyjwt[crypto]>=2.9,<3.0
 
 # --- test-only (also installed in CI's backend job) ------------------------
-pytest>=8.0,<9.0
+# Floor raised to 9.0.3 for PYSEC-2026-1845 (predictable /tmp/pytest-of-{user}
+# tempdir name, local privilege/DoS risk on a shared machine) -- not exploitable
+# in CI or the deployed image (pytest isn't shipped there), but this is the
+# dependency pip-audit's CI job checks, so the floor moved rather than an ignore.
+pytest>=9.0.3,<10.0
 httpx>=0.27,<1.0

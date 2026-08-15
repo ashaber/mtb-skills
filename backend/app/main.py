@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import time
 
+import psycopg
 from fastapi import FastAPI, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -114,7 +115,14 @@ def create_app() -> FastAPI:
         start = time.monotonic()
         try:
             check_connectivity(settings.database_url)
-        except Exception as exc:
+        except psycopg.Error as exc:
+            # Specific, not generic: this is the actual failure mode this
+            # endpoint exists to report (connection refused/timeout/auth
+            # failure -- e.g. a paused Supabase project). A bare `except
+            # Exception` here would also swallow a genuine code bug (a
+            # TypeError from a bad settings value, say) and mislabel it as
+            # "database is down" instead of surfacing as the real error via
+            # main.py's own unhandled_exception_handler below.
             response.status_code = 503
             log.error("health.db failed", error=str(exc))
             return {"status": "down", "error": str(exc)}

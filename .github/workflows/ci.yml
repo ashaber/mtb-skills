@@ -97,3 +97,30 @@ jobs:
           pip install -r tests/backend/requirements.txt
       - name: Run backend integration tests (RLS enforced end-to-end over HTTP)
         run: python -m pytest tests/backend -v
+
+  # Dependency vulnerability scan -- frontend (npm audit) + backend (pip-audit).
+  # npm audit is capped at --audit-level=high: this app's small frontend
+  # dependency tree still pulls in enough low/moderate transitive-dep noise
+  # (build tooling, not shipped code) that scanning everything would block
+  # nearly every PR without surfacing anything actionable. pip-audit has no
+  # equivalent severity filter, but the backend's dependency list is short
+  # and tightly pinned (see backend/requirements.txt), so it reports
+  # everything found. See docs/architecture/SECURITY_CHECKLIST.md.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: npm audit (high + critical only)
+        run: npm audit --audit-level=high
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: pip-audit (backend deps)
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt --desc
