@@ -52,6 +52,15 @@ permitted to write outside the calling user's own RLS-scoped view, and it
 can only read coach-role rows by verified email and insert the link
 record. Nothing else uses that path.
 
+The same link step also runs on every `GET /api/me` call, not just a
+coach's very first one — so a `person` row added *after* someone's first
+sign-in (a second team, a promotion to `league_staff`) gets picked up
+automatically the next time the app refreshes identity, rather than
+sitting invisible until a manual database fix (`DEFECTS.md` D31).
+Deliberately scoped to that one low-frequency endpoint, not the shared
+per-request auth dependency every route uses — same narrow-bypass
+discipline as the rest of this section, just re-checked more than once.
+
 ### How access is actually granted, step by step
 
 A coach's authorization to sign in at all is a single fact: **does a
