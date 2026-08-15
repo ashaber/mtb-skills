@@ -14,6 +14,10 @@ CTO, or a future maintainer.
 - **[API.md](API.md)** — how to reach the live, auto-generated API
   reference (Swagger UI / OpenAPI schema), plus a quick-reference endpoint
   table.
+- **[SUPPORT.md](SUPPORT.md)** — the prod-access model, a troubleshooting
+  runbook (queries, log access, symptom → likely cause), the monitoring
+  roadmap, free-tier scale limits, when a Cloud SQL migration would
+  actually make sense, and the continuity/bus-factor plan.
 
 ## Keeping this current
 
