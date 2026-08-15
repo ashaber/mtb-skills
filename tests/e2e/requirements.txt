@@ -1,3 +1,10 @@
 pytest>=8.0
 playwright>=1.44
+# Auto-retries a failed test once before reporting it as a real failure.
+# Added specifically for WebKit's CI flakiness (see pytest.ini's --reruns
+# and conftest.py's `page` fixture docstring) -- Playwright's WebKit build
+# is a proxy for iOS Safari, not the real thing, and its Linux/CI build is
+# measurably less stable under automation than Chromium's; a genuine
+# regression still fails after a retry, a driver hiccup doesn't.
+pytest-rerunfailures>=14.0
 # After pip install: run `playwright install chromium webkit`
