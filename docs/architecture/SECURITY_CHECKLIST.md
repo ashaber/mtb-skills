@@ -29,16 +29,17 @@ a stale ✅ forever.
   `app_caller_hc_team_ids`, `app_caller_league_ids`,
   `app_caller_own_team_ids`, `app_caller_league_team_ids`) have `set
   search_path = public, pg_temp`. *(Last verified: 2026-08-14)*
-- [ ] **Permission revokes on `SECURITY DEFINER` functions.** Gap found:
-  none of the 6 `create or replace function` statements in
-  `supabase/migrations/0002_rls.sql` is followed by any `grant`/`revoke` —
-  so each one sits on Postgres's implicit default (EXECUTE granted to
-  `PUBLIC` at creation time), never explicitly scoped. Not currently
-  exploitable — each function internally scopes by `auth.uid()`, so an
-  anonymous caller executing one just gets an empty result, not a leak —
-  but adding `revoke execute ... from public; grant execute ... to
-  authenticated;` for each is real defense-in-depth, not done yet.
-  *(Found: 2026-08-14)*
+- [x] **Permission grants on `SECURITY DEFINER` functions.** Correction to
+  an earlier pass of this checklist, which flagged these as ungranted based
+  on an incomplete grep: all 6 functions in fact carry an explicit
+  `grant execute ... to public` immediately after their definition
+  (`supabase/migrations/0002_rls.sql:140-145`), and `0003_grants.sql:41-52`
+  *additionally* grants the same 6 explicitly `to authenticated` inside an
+  idempotent `do $$ ... end $$` block, with a comment calling this
+  deliberate belt-and-suspenders ("future-proofing against the public
+  grants ever being narrowed without this file being revisited"). `anon` is
+  never granted anything anywhere in this repo — stated explicitly in
+  `0003_grants.sql`. No gap, no migration needed. *(Corrected: 2026-08-14)*
 - [x] **No service-role key or `DATABASE_URL` in client bundle.** Checked
   every `VITE_*` env var read by `src/env.js` and set by
   `deploy-frontend.yml`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
