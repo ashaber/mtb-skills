@@ -57,10 +57,16 @@ class Caller:
     schema (auth_person is many-to-many) allows more, so callers that care
     (route handlers deriving a write's attributing coach) must not assume
     length 1.
+
+    `email` is the JWT's own verified `email` claim (may be `None` -- not
+    every provider's token carries one), carried through so a route handler
+    that needs it (currently only `GET /api/me`'s D31 relink-check) doesn't
+    have to re-verify the token itself to get it.
     """
 
     sub: str
     personas: list[Persona]
+    email: str | None = None
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -141,4 +147,4 @@ def get_caller(request: Request) -> Caller:
         log.warn("auth.no_persona", sub=sub)
         raise HTTPException(status_code=403, detail="not a recognized coach")
 
-    return Caller(sub=sub, personas=personas)
+    return Caller(sub=sub, personas=personas, email=claims.get("email"))
