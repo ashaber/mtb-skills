@@ -852,15 +852,40 @@ def import_roster(
     with rls_connection(settings.database_url, caller.sub) as conn:
         try:
             summary = roster.import_roster(conn, uuid.UUID(team_id), body.rows)
+        except roster.RosterImportRowDenied as exc:
+            # A specific person-row write was denied by RLS mid-batch (see
+            # app/roster.py's RosterImportRowDenied docstring / DEFECTS.md
+            # D32) -- name the row and give the coach something actionable
+            # instead of a bare "access denied". The whole transaction rolls
+            # back on any exception (rls_connection's own guarantee), so
+            # nothing from this batch was saved, including rows before the
+            # failed one -- worth saying explicitly so a coach doesn't
+            # wonder whether a partial import landed.
+            log.warn(
+                "roster.import_denied",
+                sub=caller.sub,
+                team_id=team_id,
+                row_index=exc.row_index,
+                row_name=exc.row_name,
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f'Import stopped at row {exc.row_index} ("{exc.row_name}") -- access was denied '
+                    "partway through this file. This usually means an earlier row in the same file "
+                    "changed your own coach role (check whether your own name or email appears earlier "
+                    "in the file). No rows from this import were saved."
+                ),
+            ) from exc
         except psycopg.errors.InsufficientPrivilege as exc:
-            # ONLY an actual RLS-policy denial (SQLSTATE 42501) is treated as
-            # a 403. Shouldn't normally happen -- team_id is the caller's own
-            # HC/TD team, so the person/ride_group RLS policies should always
-            # allow it -- but if it does, it's an authorization outcome, not a
-            # 500. Any OTHER psycopg error (missing column, bad FK, etc.) is a
-            # genuine server/schema fault and deliberately propagates to
-            # main.py's handler as a 500 -- NOT masked as "cannot import for
-            # that team", which previously mislabeled schema errors as authz.
+            # Anything else RLS denies in this endpoint (currently: ride_group
+            # creation, which iterates by unique group name rather than by
+            # row and so has no single "row" to name) falls back to this
+            # generic, still-honest message. ONLY an actual RLS-policy denial
+            # (SQLSTATE 42501) is treated as a 403 here -- any OTHER psycopg
+            # error (missing column, bad FK, etc.) is a genuine server/schema
+            # fault and deliberately propagates to main.py's handler as a
+            # 500, not masked as an authz outcome.
             log.warn("roster.import_denied", sub=caller.sub, team_id=team_id, error=str(exc))
             raise HTTPException(status_code=403, detail="cannot import roster for that team") from exc
 

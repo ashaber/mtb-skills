@@ -150,6 +150,29 @@ def _find_matching_person(conn: psycopg.Connection, team_id: uuid.UUID, row: Ros
     return None
 
 
+class RosterImportRowDenied(Exception):
+    """Raised when RLS denies writing one specific row mid-batch, carrying
+    enough context (1-indexed position within this request's rows, and the
+    row's own name) for app/routes.py to build an actionable error instead
+    of surfacing the bare Postgres RLS string.
+
+    The single most common real-world cause (DEFECTS.md D32): the
+    importing coach's own row is in the file, matches their existing
+    `person` row, and its `role` cell doesn't parse to an HC/TD role --
+    silently demoting them mid-transaction. `app_caller_hc_team_ids()`
+    (the RLS helper every write below is gated on) is `STABLE`, which
+    re-evaluates per-STATEMENT, not once per transaction -- so from that
+    row onward the caller genuinely has no HC/TD standing as far as RLS is
+    concerned, and every following row fails the exact same way. Whatever
+    the actual cause, `row_index`/`row_name` are enough to tell the coach
+    which row to look at rather than a generic "access denied"."""
+
+    def __init__(self, row_index: int, row_name: str) -> None:
+        self.row_index = row_index
+        self.row_name = row_name
+        super().__init__(f"row {row_index} ({row_name}) denied by RLS")
+
+
 def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[RosterRowIn]) -> dict[str, Any]:
     """Merge `rows` into `person`/`ride_group` on `team_id`, through the
     already-open (caller-scoped) `conn`. Returns a summary dict:
@@ -157,7 +180,14 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
     where `skipped` is a list of `{"name", "reason"}` for any row that
     couldn't be written (kept simple -- `RosterRowIn` validation already
     rejects a blank name at the request boundary, so a skip here would only
-    ever come from a future case this function doesn't yet handle)."""
+    ever come from a future case this function doesn't yet handle).
+
+    Raises `RosterImportRowDenied` (not the bare `psycopg.errors.
+    InsufficientPrivilege`) if RLS denies a specific person-row write --
+    `row_index` is this row's 1-indexed position within `rows` as submitted
+    (i.e. after the client already dropped any blank-name rows), not
+    necessarily the literal row number in the coach's original spreadsheet
+    -- close enough, paired with `row_name`, for a coach to find the row."""
     people_created = 0
     people_updated = 0
     groups_created = 0
@@ -178,7 +208,7 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
         if created:
             groups_created += 1
 
-    for row in rows:
+    for row_index, row in enumerate(rows, start=1):
         if not row.name:
             # Unreachable in practice -- RosterRowIn._name_non_blank already
             # rejects a blank name at the request boundary -- kept as a
@@ -191,48 +221,51 @@ def import_roster(conn: psycopg.Connection, team_id: uuid.UUID, rows: list[Roste
 
         matched_id = _find_matching_person(conn, team_id, row)
 
-        if matched_id is not None:
-            conn.execute(
-                """
-                update person
-                set name = %s, role = %s, email = %s, ride_group_id = %s, external_id = %s,
-                    grade = %s, category = %s, tags = %s
-                where id = %s
-                """,
-                (
-                    row.name,
-                    row.role,
-                    row.email,
-                    ride_group_id,
-                    row.external_id,
-                    row.grade,
-                    row.category,
-                    row.tags,
-                    matched_id,
-                ),
-            )
-            people_updated += 1
-        else:
-            conn.execute(
-                """
-                insert into person
-                    (id, team_id, ride_group_id, role, name, email, external_id, grade, category, tags)
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    uuid.uuid4(),
-                    team_id,
-                    ride_group_id,
-                    row.role,
-                    row.name,
-                    row.email,
-                    row.external_id,
-                    row.grade,
-                    row.category,
-                    row.tags,
-                ),
-            )
-            people_created += 1
+        try:
+            if matched_id is not None:
+                conn.execute(
+                    """
+                    update person
+                    set name = %s, role = %s, email = %s, ride_group_id = %s, external_id = %s,
+                        grade = %s, category = %s, tags = %s
+                    where id = %s
+                    """,
+                    (
+                        row.name,
+                        row.role,
+                        row.email,
+                        ride_group_id,
+                        row.external_id,
+                        row.grade,
+                        row.category,
+                        row.tags,
+                        matched_id,
+                    ),
+                )
+                people_updated += 1
+            else:
+                conn.execute(
+                    """
+                    insert into person
+                        (id, team_id, ride_group_id, role, name, email, external_id, grade, category, tags)
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        uuid.uuid4(),
+                        team_id,
+                        ride_group_id,
+                        row.role,
+                        row.name,
+                        row.email,
+                        row.external_id,
+                        row.grade,
+                        row.category,
+                        row.tags,
+                    ),
+                )
+                people_created += 1
+        except psycopg.errors.InsufficientPrivilege as exc:
+            raise RosterImportRowDenied(row_index, row.name) from exc
 
     log.info(
         "roster.import",
