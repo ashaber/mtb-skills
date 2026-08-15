@@ -177,6 +177,51 @@ def test_second_login_is_idempotent_no_duplicate_link(
     assert _auth_person_rows(owner_conn, sub) == [(sub, seed["coach_person"])]
 
 
+def test_a_persona_added_after_first_login_is_picked_up_on_next_me_call(
+    client, seed: dict[str, Any], owner_conn: psycopg.Connection
+) -> None:
+    """DEFECTS.md D31: a coach who already has >=1 linked persona previously
+    never re-triggered bootstrap_link on later logins, so a `person` row
+    added after their first sign-in (a second team, a promotion) sat
+    unlinked forever without a manual auth_person insert. Fixed by running
+    bootstrap_link unconditionally inside GET /api/me itself (not
+    get_caller, which backs every route) -- reproduce end to end."""
+    sub = uuid.uuid4()
+
+    first = client.get("/api/me", headers=_auth_header(sub, email=seed["coach_email"]))
+    assert first.status_code == 200
+    assert [p["person_id"] for p in first.json()["personas"]] == [str(seed["coach_person"])]
+
+    # A second team's coach row added later, sharing the SAME email --
+    # exactly the "HC adds a second team/role for an already-active coach"
+    # scenario from D31. No manual auth_person insert here; this is what
+    # the fix is supposed to make unnecessary.
+    new_team = uuid.uuid4()
+    new_group = uuid.uuid4()
+    new_person = uuid.uuid4()
+    owner_conn.execute(
+        "insert into team (id, league_id, name) values (%s, %s, %s)",
+        (new_team, seed["league"], "Second Team"),
+    )
+    owner_conn.execute(
+        "insert into ride_group (id, team_id, name) values (%s, %s, %s)",
+        (new_group, new_team, "Second Group"),
+    )
+    owner_conn.execute(
+        "insert into person (id, team_id, ride_group_id, role, name, email) values (%s, %s, %s, 'coach', %s, %s)",
+        (new_person, new_team, new_group, "Coach X (second team)", seed["coach_email"]),
+    )
+
+    second = client.get("/api/me", headers=_auth_header(sub, email=seed["coach_email"]))
+    assert second.status_code == 200
+    second_person_ids = {p["person_id"] for p in second.json()["personas"]}
+    assert second_person_ids == {str(seed["coach_person"]), str(new_person)}
+
+    assert sorted(pid for _, pid in _auth_person_rows(owner_conn, sub)) == sorted(
+        [seed["coach_person"], new_person]
+    )
+
+
 def test_login_with_unknown_email_gets_403_and_creates_no_link(
     client, seed: dict[str, Any], owner_conn: psycopg.Connection
 ) -> None:

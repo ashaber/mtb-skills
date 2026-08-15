@@ -40,8 +40,9 @@ from app import roster
 from app.config import Settings
 from app.db import rls_connection, service_connection
 from app.deps import Caller, get_caller, get_settings_dep
-from app.identity import Persona
+from app.identity import Persona, resolve_personas
 from app.logging import get_logger
+from app.onboarding import bootstrap_link
 from app.schemas import (
     AssignRideGroupIn,
     AthleteIn,
@@ -270,6 +271,29 @@ def get_me(
     caller: Caller = Depends(get_caller),
     settings: Settings = Depends(get_settings_dep),
 ) -> dict[str, Any]:
+    # D31 relink check: `get_caller` only ever runs `bootstrap_link` when a
+    # caller resolves to ZERO personas (a brand-new coach's very first
+    # request) -- a coach who has ever successfully signed in before never
+    # re-triggers it, so a `person` row added later (a second team, a new
+    # role) sits unlinked forever until someone manually inserts the
+    # `auth_person` row (DEFECTS.md D31). Deliberately scoped to THIS route,
+    # not `get_caller` itself: `get_caller` backs every route in this
+    # module (every roster/observation/attendance call), and running an
+    # extra query there on every single request would cost far more than
+    # this bug is worth. `GET /api/me` is the one endpoint the frontend
+    # actually uses to learn what personas exist at all (src/sync.js's
+    # syncNow() awaits it first and caches the result) -- called on app
+    # open, manual "Sync now", team switch, and sign-in, not on every data
+    # call -- so a relink attempted here is exactly as fresh as the client
+    # can ever observe it, at a fraction of the cost of doing it everywhere.
+    # `bootstrap_link` is a cheap, idempotent no-op when there's nothing new
+    # to link (one indexed SELECT, 0 inserts in the steady state).
+    links_created = bootstrap_link(settings.database_url, caller.sub, caller.email)
+    personas = caller.personas
+    if links_created > 0:
+        with rls_connection(settings.database_url, caller.sub) as conn:
+            personas = resolve_personas(conn, caller.sub)
+
     # `Persona` itself carries no team NAME (only team_id) -- it's resolved
     # here, in a SEPARATE rls_connection from the one get_caller already
     # closed (per deps.py's docstring: never reuse that connection), purely
@@ -280,7 +304,7 @@ def get_me(
     # app_caller_own_team_ids()) -- the caller's own persona team_ids below
     # are always a subset of that, so this never leaks a team name the
     # caller couldn't otherwise read.
-    team_ids = [uuid.UUID(p.team_id) for p in caller.personas]
+    team_ids = [uuid.UUID(p.team_id) for p in personas]
     team_names: dict[str, str] = {}
     if team_ids:
         with rls_connection(settings.database_url, caller.sub) as conn:
@@ -292,7 +316,7 @@ def get_me(
 
     return {
         "personas": [
-            {**_persona_to_dict(p), "team_name": team_names.get(p.team_id)} for p in caller.personas
+            {**_persona_to_dict(p), "team_name": team_names.get(p.team_id)} for p in personas
         ]
     }
 
