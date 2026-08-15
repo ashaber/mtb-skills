@@ -101,6 +101,43 @@ Full narrative: origin story, rubric design principles, motor learning alignment
 - Phase 1 app complete; conference-tested June 2026
 - Climbing skill excluded from v1 — to be added as a separate module
 
+## How this was built
+
+Claude Code (Anthropic's coding agent) wrote the majority of the
+implementation code. That's stated plainly because the more relevant story
+is what the human role was *around* that: **architecture decisions,
+security and data-model judgment calls, product scoping, and independent
+verification** — the parts that don't get outsourced.
+
+Concretely, that meant:
+- **Choosing Postgres Row-Level Security as the actual authorization
+  boundary**, not app-layer `if` statements — a decision that shapes the
+  entire backend and is verified end-to-end over live HTTP in CI, not
+  assumed. See [`docs/architecture/SECURITY.md`](docs/architecture/SECURITY.md).
+- **Modeling identity around a real-world constraint**: NICA's user
+  registry (PitZone) uses one email per *family*, not per person — a
+  parent coach and their student can share a login. The data model
+  separates `auth.users` (email) from `person` (role) specifically so a
+  shared email can never let a login reach a minor's data, and minors
+  never authenticate at all.
+- **Scoping a feature request down instead of over-building it**: when
+  asked for an engagement/feedback "dashboard," recognized that the
+  underlying tables are intentionally deny-all under RLS (this app's
+  identity model has no admin role) and shipped a local, service-role
+  reporting script instead of inventing an unreviewed admin auth surface
+  to expose it on the web.
+- **Treating AI-authored pull requests like any other contributor's PR**:
+  every PR is reviewed for the actual diff and re-verified by
+  independently re-running the test suite from a clean state —
+  self-reported pass counts are not trusted as the record of truth.
+- **Owning the CI/CD and deploy story**: environment promotion
+  (dev → ITG → prod), secret handling, and infrastructure setup are
+  human-directed and human-executed, not delegated.
+
+Full architecture (system landscape diagram, database ERD), API reference,
+and security/RBAC documentation live in
+[`docs/architecture/`](docs/architecture/README.md).
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for the full phased plan:
