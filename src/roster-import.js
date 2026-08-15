@@ -46,17 +46,31 @@ export function parseCsv(text) {
 
 /**
  * Maps a raw CSV role/type cell to the backend's `role` values
- * (app/schemas.py's VALID_ROSTER_ROLES). Case-insensitive substring match,
- * checked in this order: "hc" -> head_coach, "td" -> team_director,
- * anything else (blank, "Lead", "Sweep", ...) -> coach. Only called for a
- * row whose file actually maps a role column (a coach file) — the athlete
- * file has no role column at all, so `mapRows` below assigns 'athlete'
- * directly without ever calling this.
+ * (app/schemas.py's VALID_ROSTER_ROLES). Case-insensitive substring match.
+ * Checks the full-word PitZone export labels FIRST ("head coach" -> head_
+ * coach, "team director" -> team_director) since a real PitZone coach
+ * export spells these out in full, not as "HC"/"TD" — a coach whose own
+ * row uses the full-word label previously silently fell through to plain
+ * 'coach' (neither "head coach" nor "team director" contains the bare "hc"/
+ * "td" substring, since the space breaks it). That's not just a
+ * misclassification: if the caller's OWN row is in the batch, downgrading
+ * them to 'coach' mid-transaction revokes their HC/TD RLS standing for
+ * every row processed afterward in the SAME import, cascading into
+ * `psycopg.errors.InsufficientPrivilege` on every subsequent row and
+ * rolling back the whole batch (see DEFECTS.md D32). The short "hc"/"td"
+ * codes are kept as a fallback for any file that already uses them, then
+ * anything else (blank, "Lead", "Sweep", "Ride Leader", "Group Ride
+ * Coordinator", ...) -> coach. Only called for a row whose file actually
+ * maps a role column (a coach file) — the athlete file has no role column
+ * at all, so `mapRows` below assigns 'athlete' directly without ever
+ * calling this.
  * @param {string|null|undefined} value
  * @returns {'head_coach'|'team_director'|'coach'}
  */
 export function parseRole(value) {
   const v = String(value ?? '').trim().toLowerCase();
+  if (v.includes('head coach')) return 'head_coach';
+  if (v.includes('team director')) return 'team_director';
   if (v.includes('hc')) return 'head_coach';
   if (v.includes('td')) return 'team_director';
   return 'coach';

@@ -54,6 +54,15 @@ describe('parseRole', () => {
     expect(parseRole(null)).toBe('coach');
     expect(parseRole(undefined)).toBe('coach');
     expect(parseRole('Coach')).toBe('coach'); // "coach" itself has no "hc"/"td" substring
+    expect(parseRole('Ride Leader')).toBe('coach');
+    expect(parseRole('Group Ride Coordinator')).toBe('coach');
+  });
+
+  it('maps the full-word PitZone export labels (D32) — neither contains the bare "hc"/"td" substring', () => {
+    expect(parseRole('Head Coach')).toBe('head_coach');
+    expect(parseRole('head coach')).toBe('head_coach');
+    expect(parseRole('Team Director')).toBe('team_director');
+    expect(parseRole('team director')).toBe('team_director');
   });
 });
 
