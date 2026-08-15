@@ -181,6 +181,98 @@ For **each** of `mtb-itg` and `mtb-prod`:
 
 > **Free-tier note:** unused free projects **pause after ~1 week idle**. During the pilot both stay active from real traffic; if `mtb-itg` ever pauses between test sessions, open its dashboard to resume (a few seconds). Not a concern for `mtb-prod` once teams are live.
 
+### 4e. Enable magic-link (email OTP) sign-in
+
+**Why:** several pilot coaches on `@live.com`/`outlook.com` addresses get
+nothing from "Sign in with Google" — a Microsoft-family email isn't
+automatically a Google identity, so the OAuth popup has no account to
+authenticate against (`IDEA-031`). Magic link sidesteps that entirely: no
+third-party account required, just a real inbox. The app code for this
+already shipped (`src/auth.js`'s `signInWithMagicLink`, the Settings →
+Account email input, and `scripts/send_invite.py` for admin-triggered
+sends) — what's left is dashboard config on each Supabase project, plus
+validating the whole path end to end before inviting a real coach.
+
+**i. Enable the provider + redirect URLs** (for **each** of `mtb-itg` and
+`mtb-prod`, same "per project" pattern as step 4c):
+
+1. **Authentication → Providers → Email.** Confirm it's enabled (usually
+   on by default). **Confirmed 2026-08-15: there is no separate "enable
+   magic link/OTP" toggle** on the current dashboard — the Email provider
+   being on is what enables `signInWithOtp()` (the call
+   `signInWithMagicLink` makes), full stop. The "OTP" fields on this same
+   page (OTP length / expiry, "min chars") tune the *numeric-code* variant
+   of this same flow (a 6-digit code instead of a clickable link) — they
+   don't gate anything and don't apply to what this app sends, since
+   `signInWithMagicLink` passes `emailRedirectTo`, which selects the
+   clickable-link email template instead. Safe to leave those at their
+   defaults; don't go looking for a toggle that isn't there.
+2. **Authentication → URL Configuration → Redirect URLs.** Add the same
+   origins already there for Google (the `*.web.app` site for that
+   env) — magic link uses the identical `emailRedirectTo` mechanism, so if
+   Google sign-in already redirects correctly for this project, the
+   allowlist entry likely already covers it; add it only if missing.
+
+**ii. Custom SMTP (deliverability — do this before inviting a real coach,
+not after):**
+
+Until custom SMTP is configured, magic-link emails send from Supabase's
+own shared, rate-limited sending domain and often land in spam. Configure
+under **Authentication → Settings → SMTP Settings** (toggle "Enable Custom
+SMTP", then host/port/user/password/sender fields) using whichever
+provider you choose — no app code change is needed when this is turned
+on; `signInWithMagicLink` and `scripts/send_invite.py` both already call
+the one Supabase endpoint that starts using the new SMTP automatically.
+
+> **Known blocker, carried over from `IDEA-024`:** a real SMTP provider
+> (Resend or otherwise) needs a verified sending domain, and this project
+> doesn't have a registered custom domain today — only Google/GitHub-owned
+> subdomains (`*.web.app`, `ashaber.github.io`), none of which a mail
+> provider can verify DNS ownership of. Until that's resolved, coaches
+> should expect to check spam for the sign-in email. Not a blocker to
+> *testing* the flow (below) — only to it looking polished for real
+> coaches.
+
+**iii. Validate end to end, on ITG first, with a real non-Google inbox:**
+
+1. **Create a test account you don't already have.** A free
+   `outlook.com`/`live.com` signup (https://signup.live.com) reproduces
+   the exact gap pilot coaches hit; an existing personal Microsoft 365
+   address works too if you have one. Either way, use an inbox that has
+   genuinely never touched Google sign-in, so this is a real test of the
+   gap, not just of the button existing.
+2. **Seed a matching `person` row on ITG** — same direct-database-access
+   pattern as any other pilot seeding this project has done (hold
+   `DATABASE_URL_ITG` only in a variable passed straight to `psql`/your
+   client, never echoed or exported — this project's standing secret
+   discipline). Pick (or reuse) a test team/ride group rather than a real
+   one:
+   ```sql
+   insert into person (id, team_id, ride_group_id, role, name, email)
+   values (gen_random_uuid(), '<a test team_id>', '<a test ride_group_id>',
+           'coach', 'Magic Link Test', '<your new live.com/outlook.com address>');
+   ```
+3. **Try the self-serve button first:** open the ITG app URL, Settings →
+   Account, enter the test email, tap "Email me a sign-in link." Check the
+   inbox (and spam) for the email, click the link, confirm it lands back
+   in the app signed in as the "Magic Link Test" persona.
+4. **Then try the admin-invite script**, same target email, to confirm
+   that path independently:
+   ```bash
+   DATABASE_URL='<ITG DATABASE_URL>' \
+   SUPABASE_URL='<ITG VITE_SUPABASE_URL>' \
+   SUPABASE_ANON_KEY='<ITG VITE_SUPABASE_ANON_KEY>' \
+       python scripts/send_invite.py '<your test address>'
+   ```
+   Confirms the script's own DB safety check (only sends to an existing
+   `COACH_ROLES` `person` row) and that it produces the identical email/
+   flow as step 3, just admin-triggered instead of self-serve.
+5. **Only after both pass on ITG**, repeat the dashboard config (i–ii) on
+   `mtb-prod` and invite real `@live.com` pilot coaches
+   (`dcacioppo@live.com`, `j_fiedler@live.com` — see `IDEA-031`) — either
+   have them use the self-serve button themselves, or run
+   `scripts/send_invite.py` against their already-seeded `person` rows.
+
 ## 5. Secret Manager (per env)
 
 This backend needs only the DB URL and a session-signing secret — **no `ANTHROPIC_API_KEY`** (no LLM), unlike swim-coach.

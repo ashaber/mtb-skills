@@ -28,7 +28,7 @@ const FEEDBACK_MODE = localStorage.getItem('mtb_feedback_mode') !== 'false';
 import { SKILL_IDS } from './rubric.js';
 import { loadRubricContent } from './rubric-content.js';
 import { encodeCard, decodeCard, detectMerge } from './trading.js';
-import { isAuthConfigured, signInWithGoogle, signOut, getUser, getAccessToken, onAuthChange } from './auth.js';
+import { isAuthConfigured, signInWithGoogle, signInWithMagicLink, signOut, getUser, getAccessToken, onAuthChange } from './auth.js';
 import { syncNow, api } from './sync.js';
 import { resolveActivePersona, personaRoleLabel } from './reconcile.js';
 import { BACKEND_URL } from './env.js';
@@ -64,6 +64,7 @@ const s = {
   syncSummary:     null,     // { pulled, pushed, error? } | null — last syncNow() result
   syncAt:          null,     // ISO timestamp of last sync attempt
   syncing:         false,
+  magicLinkSent:   null,     // string (the email) | null — set after a successful signInWithMagicLink() send
 };
 
 // Phase 3.2 reconciliation sheet state — { athleteId, submitting: null|'add'|'match'|'delete', error } | null
@@ -961,6 +962,24 @@ function onAppClick(e) {
   if (action === 'sign-in-google') {
     log.info('auth.signin.click');
     signInWithGoogle();
+    return;
+  }
+
+  if (action === 'sign-in-magic-link') {
+    const email = document.getElementById('inp-magic-link-email')?.value.trim() || '';
+    if (!email || !email.includes('@')) {
+      flash('Enter a valid email address');
+      return;
+    }
+    log.info('auth.magiclink.click');
+    signInWithMagicLink(email).then(result => {
+      if (result.error) {
+        flash(`Couldn't send sign-in link: ${result.error}`);
+        return;
+      }
+      s.magicLinkSent = email;
+      draw();
+    });
     return;
   }
 

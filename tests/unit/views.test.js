@@ -119,3 +119,31 @@ describe('viewSettings — team-switcher row (D26)', () => {
     expect(html).not.toContain('Switch team');
   });
 });
+
+describe('viewSettings — magic-link sign-in (IDEA-031)', () => {
+  it('shows the Google button and an email input + button when signed out', () => {
+    const html = viewSettings(minimalSettingsState({ authUser: null }));
+    expect(html).toContain('data-a="sign-in-google"');
+    expect(html).toContain('data-a="sign-in-magic-link"');
+    expect(html).toContain('id="inp-magic-link-email"');
+  });
+
+  it('shows a confirmation message instead of the input once a link has been sent', () => {
+    const html = viewSettings(minimalSettingsState({ authUser: null, magicLinkSent: 'coach@example.com' }));
+    expect(html).not.toContain('id="inp-magic-link-email"');
+    expect(html).toContain('coach@example.com');
+    expect(html).toContain('Check your email');
+  });
+
+  it('escapes an untrusted magicLinkSent value', () => {
+    const html = viewSettings(minimalSettingsState({ authUser: null, magicLinkSent: '<img src=x onerror=alert(1)>' }));
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;img');
+  });
+
+  it('does not render the magic-link UI at all when signed in', () => {
+    const html = viewSettings(minimalSettingsState());
+    expect(html).not.toContain('id="inp-magic-link-email"');
+    expect(html).not.toContain('data-a="sign-in-magic-link"');
+  });
+});
