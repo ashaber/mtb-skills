@@ -1,9 +1,10 @@
 import os
 import subprocess
 import threading
+import time
 import http.server
 import pytest
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Page, sync_playwright
 
 # Repo root = directory containing pytest.ini; pytest sets config.rootpath to it automatically.
 BROWSERS = [
@@ -40,6 +41,38 @@ def base_url(pytestconfig: pytest.Config) -> str:
     httpd.shutdown()
 
 
+def reload_and_wait(pg: Page) -> None:
+    """`page.reload()`, hardened against two real Playwright-WebKit-on-Linux-
+    CI flake patterns (both observed repeatedly in CI, never on chromium):
+
+    1. `reload()` itself occasionally throws "WebKit encountered an
+       internal error" -- a driver-level hiccup, not a real navigation
+       failure (retrying the exact same reload immediately succeeds).
+       Playwright's WebKit build is a Linux-CI proxy for iOS Safari, not
+       the shipped Apple binary, and is known to be less mature under
+       automation than its Chromium build -- this is that surfacing, not
+       evidence of a bug a real iOS user would hit.
+    2. Even when `reload()` itself succeeds, the app can still be mid-boot
+       when the next Playwright action fires -- trusting `reload()`'s
+       return as "the app is ready" is the actual race. Wait for a
+       concrete signal (the tab bar, always present post-boot regardless
+       of which tab) instead of assuming.
+
+    Used by the `page` fixture below for its own post-seed reload; call
+    this directly (instead of a bare `page.reload()`) in any test that
+    reloads mid-test, for the same protection.
+    """
+    for attempt in range(3):
+        try:
+            pg.reload()
+            break
+        except Exception as e:
+            if attempt == 2 or 'internal error' not in str(e).lower():
+                raise
+            time.sleep(0.5)
+    pg.wait_for_selector('[data-a="switch-tab"]', state='visible', timeout=15000)
+
+
 @pytest.fixture(params=BROWSERS)
 def page(request, base_url: str):
     cfg = request.param
@@ -63,7 +96,7 @@ def page(request, base_url: str):
                 role: 'coach', team_id: 'test-team'
             }));
         }""")
-        pg.reload()
+        reload_and_wait(pg)
         try:
             yield pg
             # WebKit rejects SW/module loading on plain HTTP (expected in test

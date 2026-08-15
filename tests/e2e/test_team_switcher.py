@@ -27,6 +27,8 @@ auth-gated feature (not just this one) — out of scope for this increment.
 """
 from playwright.sync_api import Page, expect
 
+from conftest import reload_and_wait
+
 
 def open_settings(page: Page) -> None:
     page.click('[data-a="switch-tab"][data-tab="settings"]')
@@ -61,7 +63,7 @@ def test_settings_still_shows_no_switch_team_control_with_a_stale_cached_multi_p
             cached_at: new Date().toISOString(),
         }));
     }""")
-    page.reload()
+    reload_and_wait(page)
     open_settings(page)
     expect(page.get_by_text('Switch team', exact=True)).to_have_count(0)
     expect(page.get_by_text('Coaching on 2 teams', exact=False)).to_have_count(0)
