@@ -295,11 +295,12 @@ rather than left for someone else to find.
 |---|---|
 | **Highest** | Both Cloud Run services (`mtb-api-itg`, `mtb-api-prod`) currently run as the GCP **default compute service account**, which carries `roles/editor` across the whole GCP project — far more than an API that needs to read two secrets. Not exploited today; the concern is blast radius if the API service itself were ever compromised via an application bug. Fix is well-scoped: a dedicated runtime service account with only `secretmanager.secretAccessor` on the two secrets it actually reads. |
 | Gap | No application-level rate limiting. Cloud Run provides infrastructure-level protection, but there's no per-caller throttling on auth or API endpoints yet. |
-| Gap | No automated static analysis in CI. No linter is currently wired in for the frontend (a plain undefined-variable bug reached production this way — since fixed, see `DEFECTS.md` D30), and no dependency-vulnerability scan runs automatically for either the JS or Python side. |
+| Gap | No automated static analysis (linter) in CI for the frontend — a plain undefined-variable bug reached production this way (since fixed, see `DEFECTS.md` D30). Dependency-vulnerability scanning itself is now wired in (see "Resolved" below); this remaining gap is narrower than it was — no linter, not no scanning. |
 | Gap | Deploy service account (`github-deployer`) is broader than strictly needed — holds `run.admin`, `artifactregistry.writer`, `storage.admin`, and hosting admin. Appropriate for a deploy identity generally, not yet audited line by line against least privilege. |
 | Nicety | CSV roster import doesn't summarize elevated-role grants before submit. A TD/HC importing a coach roster CSV can grant `head_coach`/`team_director` via that file's Role column — correct admin behavior for their own team (see Authentication, above). A short "this file grants N people admin access" summary before final confirm would just make it easier to catch a typo, not a change to what's allowed. |
 | By design | `league_staff` is read-only, on purpose — there is no write RLS policy for that role at all today. A new "league staff" permission level defaults to *no access* until a policy is explicitly written and reviewed, not the other way around. |
 | Not yet a target | No third-party penetration test performed yet. Everything above is from internal review of the live system. |
+| **Resolved (2026-08-14)** | Dependency-vulnerability scanning is now a required CI job (`security` in `.github/workflows/ci.yml`) — `npm audit --audit-level=high` for the frontend, `pip-audit` for the backend, both cleared of their then-current findings before the gate landed (see `docs/architecture/SECURITY_CHECKLIST.md`). |
 
 ---
 
@@ -308,9 +309,8 @@ rather than left for someone else to find.
 Sequenced from what's free and fast to what's worth paying for.
 
 **Now — self-directed:**
-- Dependency vulnerability scan (`npm audit`, Python `pip-audit`) — minutes, zero cost
-- Wire the existing RLS test matrix and a dependency scan into CI as a required check, not just something that exists
-- Fix the runtime service-account scope (above) — the highest-value single change available
+- ~~Dependency vulnerability scan (`npm audit`, Python `pip-audit`)~~ — **done 2026-08-14**, now a required CI job (see Open items, above). The RLS test matrix was already a required CI job before this.
+- Fix the runtime service-account scope (above) — the highest-value single change remaining
 - An adversarial code-and-config review focused specifically on attempting RLS bypass, JWT confusion, and CORS/secret misconfiguration — can be run directly against the current codebase
 
 **Before wider scale:**
