@@ -338,3 +338,77 @@ Andrew, 2026-08-14: a new coach opening the app for the first time needs to know
 4. **Lowest-effort, not interactive:** a short narrated screen recording (Loom or just a phone screen capture) walking through Roster → Practice → Rubric, linked from Settings/About. Zero technical barrier for Tim — record and upload, done — but it's passive video, not something that highlights the live element a coach is actually looking at.
 
 **Recommendation (not yet built):** option 2 — matches the app's existing "structural code + GitHub-editable content" split (`src/rubric.js` vs `public/rubric.json`) instead of introducing a new pattern, keeps the app offline-first, and gives Tim real ongoing ownership of the wording/order without needing a developer for every edit, just for adding an entirely new step.
+
+---
+
+### IDEA-030 — Voice (Claude) as an input mechanism
+
+Andrew, 2026-08-14: hands-free logging while actually coaching — a coach spotting a rider mid-trail can't stop to tap through the app. Speak an observation instead: "Jake's cornering was solid today, bump him to a 3" → parsed into athlete + skill + level, same write as tapping the level pill today.
+
+**Two separate technical pieces, worth naming separately because they have very different constraints:**
+
+1. **Speech-to-text.** The browser's built-in Web Speech API is free and needs no backend, but iOS Safari support is inconsistent/limited — a real problem given coaches are on trail, often on iPhones, per this app's own "real-device test on Android and iOS" DoD item. A bundled on-device model (e.g. Whisper via WASM) would work offline and consistently across browsers but adds real bundle size and CPU cost to a PWA that currently ships one ~560KB JS chunk total.
+2. **Natural-language → structured observation (the actual "Claude" part).** Turning "Jake's cornering was solid, bump him to a 3" into `{athlete_id, skill: 'cornering', level: 3}` needs an LLM call (fuzzy-matching a spoken name against the roster, mapping loose language to the skill enum and 1-5 scale) — this is a real Anthropic API integration: a new backend endpoint (never call the API with a key exposed client-side), a per-call cost, and a hard network requirement.
+
+**Direct tension with the app's core design principle:** this app is offline-first by explicit design — "works fully offline, no login required" is the first line of the About page. Voice-to-structured-observation cannot work offline (step 2 needs a network round-trip no matter what). This would have to be framed as an optional **online enhancement** layered on top of the existing offline tap-based flow, exactly like sign-in/sync already is — never a required path, and it should degrade obviously and immediately (not silently retry/hang) the moment a coach loses signal on trail.
+
+**Scope/privacy note:** should be **push-to-talk, coach-initiated dictation** of a single observation — not passive/ambient listening during practice. Ambient audio capture near minors (student-athletes) would be a real privacy/COPPA-adjacent concern NICA would rightly push back on; explicit, momentary, coach-only dictation avoids that entirely.
+
+**Not scoped/estimated yet** — flagging the idea and its real constraints (iOS STT support, LLM cost per call, offline-first tension, privacy scope) rather than a build plan.
+
+---
+
+### IDEA-031 — Magic link (email OTP) auth, scoped
+
+Already named as a fast-follow in `ROADMAP.md`/`docs/PHASE3_TEAM_VISIBILITY_PLAN.md` ("Google OAuth first, email magic link as a fast-follow") — now a live, confirmed blocker, not a someday item. Scoped 2026-08-14 after pilot kickoff: **every `@live.com` coach who tried "Sign in with Google" got nothing.** Confirmed via `auth.users`: `dcacioppo@live.com` and `j_fiedler@live.com` never even produced a Supabase session row — the Google OAuth flow itself never completed for them, not just an email mismatch afterward. Most likely cause: neither has ever created an actual Google Account tied to their Microsoft/`live.com` address (a `live.com`/`outlook.com` email is not automatically a Google identity), so there's no Google account for the OAuth popup to authenticate against.
+
+**Why this is the right fix, not a workaround:** magic link doesn't require the coach to have any account with a third party at all — just a real inbox.
+
+**Scope, based on reading the actual code:**
+- **Backend: zero changes needed.** `backend/app/deps.py`'s `get_caller` verifies a Supabase JWT and reads its `sub`/`email` claims — completely provider-agnostic. Supabase's magic-link (OTP) flow issues the exact same kind of JWT as Google OAuth does; `app.onboarding.bootstrap_link` matches on the verified `email` claim regardless of which provider produced it. The whole backend auth path is already provider-agnostic by design.
+- **Frontend: one new function, mirroring the existing one.** `src/auth.js`'s `signInWithGoogle()` calls `client.auth.signInWithOAuth({...})`; a new `signInWithMagicLink(email)` would call `client.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })` — same error handling/logging shape as the existing function, `isAuthConfigured()` gate unchanged. `src/views.js`'s Settings → Account sign-in section needs an email input + "Email me a sign-in link" button alongside "Sign in with Google" (not instead of — both should coexist).
+- **Supabase project config (both ITG and prod):** confirm the "Email" (OTP/magic link) provider is enabled in Auth settings on each project, and that the redirect URL allowlist covers the same `*.web.app` origins already configured for Google.
+- **Email deliverability — the part most likely to bite:** Supabase's default built-in email sending has low rate limits and reads as generic/spammy. **Resend is already integrated in this project** (`IDEA-024`'s engagement-report delivery work) — worth configuring Supabase's custom SMTP to send magic-link emails through Resend instead of Supabase's default sender, for reliability and a recognizable "from" address.
+
+**Blocking on:** Andrew setting up a `live.com` test account to validate end-to-end before this ships (his own note). Not yet built.
+
+---
+
+### IDEA-032 — Align confirmed skill level with approved trail level
+
+Tim Curry, in-app feedback 2026-08-14 (Settings tab): "Should we align the skill level with the approved trail level?" Reads as: should trail readiness / "what trails is this rider approved for" be a more explicit, first-class HC/TD-approved status, rather than only the app's own automatic floor-of-confirmed-skills computation? Related to `[[IDEA-001]]` (Trail Network & Ride Plan Checker), which already covers coach-maintained trail minimums, but Tim's question is more specifically about the **approval step** — whether a HC/TD should be able to explicitly sign off "this rider is approved for blue" as its own record, distinct from (though informed by) the raw confirmed-skill-level computation. Not scoped — needs a follow-up conversation with Tim on what "approved" means beyond what trail readiness already computes.
+
+---
+
+### Confirmed independently: in-app onboarding tour ([[IDEA-029]])
+
+Tim Curry, in-app feedback 2026-08-14 (Settings tab), unprompted and before this idea had been shared with him: proposed almost exactly what IDEA-029 already describes — a skippable first-login walkthrough with a "replay tutorial" entry point in Settings, coach and HC/TD flows treated separately (HC/TD's extended to cover roster import and sharing). Real independent validation this is worth building, not just a hypothetical. His exact framing: screenshot/live-view of each page component with arrows + text, skip button, replay button in Settings.
+
+---
+
+### IDEA-033 — Coach progression levels (L1 floater/sweep → L2 → L3 group lead), no app access until promoted
+
+Andrew, 2026-08-14, refined across two follow-ups while prepping for a security review. Original framing (tighten a floating coach's RLS scope) turned out to be solving the wrong problem once the actual requirement came out: **L1 (floater/sweep) coaches are adults and real coaches — never student athletes — but shouldn't have app access or be rated at all** until they progress. L2 and L3 (group lead), once promoted, are meant to have **identical access control** — no seniority-based permission tier between them.
+
+**Confirmed the "no email at all" version needs zero schema/RLS changes** — checked both backend and frontend for any hidden assumption that a `coach`-role row always has an email or `ride_group_id` set; there is none, in either.
+
+**For the preferred short-term fix (email loaded now for future re-import matching, login still blocked regardless), a dedicated role value beats a boolean flag** — Andrew's own follow-up question, and correct: rather than a `person.login_enabled` flag layered onto `role='coach'`, add a new role value (e.g. `coach_l1`) to the CHECK constraint and simply **leave it out of `app.identity.COACH_ROLES`** (`backend/app/identity.py`). This is the exact same mechanism `athlete` already uses to be permanently login-ineligible even on an email match — not a new pattern, the established one. `bootstrap_link`'s query (`role = any(COACH_ROLES)`) never matches a `coach_l1` row, so no `auth_person` link is ever created — stronger than "logs in but RLS shows nothing," and it keeps `role='coach'` an unambiguous "has real access" signal for anyone auditing the schema later, rather than requiring a second flag check everywhere that matters. Still a real migration (new constraint value) and a one-line change to the `COACH_ROLES` tuple — small, but real, same as the flag would have been.
+
+**Open question, not resolved:** should `coach_l1` be assignable via CSV import (a new recognized Role-column value), or manual-only (TD edits the roster row directly)? Leaning manual-only for the short term — bulk-importing an "unpromoted" tier via CSV adds another way to get it wrong, on top of the CSV role-trust gap noted below.
+
+- **L1, no email yet:** `person.role = 'coach_l1'` (displays correctly as a coach everywhere, never conflated with a student athlete), no `email`, no `ride_group_id`. Not signing in isn't a permission the app grants or withholds — it's structural: `coach_l1` isn't in `COACH_ROLES`, so `bootstrap_link` has nothing to match against regardless of what email is on file.
+- **L1, preferred short-term fix — email loaded now, login still blocked:** same as above — the email can be set freely on a `coach_l1` row for future re-import matching; login stays blocked purely because the role isn't in `COACH_ROLES`, not because of anything on the row itself.
+- **Promotion to L2:** HC/TD changes `role` from `coach_l1` to `coach`, assigns a `ride_group_id`, sets `tags: ['L2']` — the same `person_update` (HC/TD-only, already-existing) action used for any roster edit. The role change alone is what flips login eligibility; no other field needs to change for that part.
+- **L2 and L3 already get identical access, automatically**, the moment they share a `ride_group_id` — RLS scopes coach access by ride-group membership, not by seniority (`app_caller_ride_group_ids()`/`observation_insert_ride_group_coach` in `0002_rls.sql` don't distinguish). An assistant lead sharing a ride-group assignment already has exactly the same read/write as the primary lead — not a lesser tier. So "L2 logs a second observation alongside L3," "L2 enters observations for L3," and "L2 becomes group lead for the day when L3 is out" are all already true the instant L2 has that `ride_group_id` — no new mechanism. `ride_group.lead_coach_id` (who's *displayed* as leading) is explicitly advisory/cosmetic today, not RLS-enforced, so "becoming lead for a practice" is a display update, not an access grant.
+
+**Also surfaced during this pass, a separate real gap:** CSV roster import trusts the uploading TD's own Role-column assignments completely, with no confirmation step if a file grants `head_coach`/`team_director` broadly — RLS is working as intended (a TD legitimately manages their own team's roster), the gap is a missing import-time warning, not an authorization hole. Worth a small UI addition alongside whichever of the above ships first.
+
+**Other follow-up, smaller:** surfacing `tags` (L1/L2/L3) visibly in the roster/HC-dashboard UI so a HC/TD can actually see and manage this progression at a glance — not scoped in detail yet.
+
+---
+
+### IDEA-034 — League staff: request-based access instead of always-on league-wide read
+
+Andrew, 2026-08-14, same security-review prep: proposed league staff request access to a specific team on demand rather than seeing every team in their league by default. Today `league_staff` is always-on read-only across the whole league from the moment their `person` row exists — no request or approval step (`app_caller_league_team_ids()` in `0002_rls.sql`).
+
+**Scope for a real fix:** a grant/request table the `_select` policies would check in place of (or in addition to) the blanket league-wide expansion — e.g. default to zero cross-team visibility for `league_staff`, with a per-team grant a HC/TD approves (mirrors the ride-group-lead grant idea above, one level up the hierarchy). Worth deciding whether "always-on once granted" or "time-boxed" is the right default before building. Related to `[[IDEA-021]]`/`[[IDEA-028]]` (the still-open "league staff has no write policy" gap) — this is the read-side tightening counterpart to that.
