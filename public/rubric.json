@@ -37,90 +37,89 @@
     "body_position": {
       "id": "body_position",
       "name": "Body Position",
-      "description": "Foundation for Braking and Cornering. Three accumulated steps: (1) standing ready appropriate to terrain, (2) BBS S/S and F/B, (3) pumping / pressure control.",
-      "calibration_note": "Most student-athletes top out at Level 2. Level 3 is a realistic and meaningful goal for a full season of coaching. Level 4 is genuinely exceptional — fewer than a dozen riders in 12 seasons of IICL coaching have demonstrated it consistently. Level 5 represents elite skill beyond what NICA trails require.",
+      "description": "Foundation for Braking and Cornering. Three skills build in order: (1) ready position for the terrain, (2) Body Bike Separation (BBS) side-to-side and front-to-back, (3) pumping and pressure control.",
+      "calibration_note": "Most riders reach Level 2 without much coaching. Level 3 is a realistic goal for a full season of coaching. Level 4 is rare — few riders reach it. Level 5 is elite, and beyond what NICA trails require.",
       "notes": [
-        "Weight shifts at Levels 1–2 are unintentional failures. At Levels 4–5, intentional F/B pressure control is correct execution — loading for features."
+        "At Levels 1–2, weight shifts are accidents — the rider doesn't mean to move. At Levels 4–5, weight shifts are on purpose — the rider is loading the bike to handle a feature."
       ],
       "dimensions": [
         {
           "label": "Environment & Consistency",
           "levels": {
-            "1": "Flat, predictable surface only.",
-            "2": "Controlled setting. Sometimes on easy trail.",
-            "3": "Trail most of the time. Reverts when over-challenged.",
-            "4": "Always on trail across varied terrain. Largely autonomous — no conscious attention required.",
-            "5": "Bombproof. Fully autonomous. Tactical application of pressure control across all features. Beyond NICA trail scope."
+            "1": "Flat, predictable ground only.",
+            "2": "Controlled spots like a parking lot or grass field. Sometimes on easy trail.",
+            "3": "On trail most of the time. Drops back to old habits when the ride gets hard.",
+            "4": "Always on trail, on any terrain. Rarely has to think about it.",
+            "5": "Always in the right position, even without thinking about it. Applies pressure control on every feature. Beyond what NICA trails require."
           }
         },
         {
-          "label": "Standing Ready",
-          "sublabel": "Neutral / Low",
+          "label": "Ready Position",
+          "sublabel": "Neutral / Tall Ready / Low Ready",
           "levels": {
-            "1": "Knees pinch saddle or seated rather than standing ready. Rigid on bike. Looks at front wheel. 3 Key Essentials absent or inconsistent.",
-            "2": "Standing but rigid. Does not reliably adjust tall/low ready to terrain. Loses ready position with distraction or challenge. 3 Key Essentials fail with distraction.",
-            "3": "Standing ready appropriate to terrain most of the time. Tall/low selection mostly correct. 3 Key Essentials reliable. Reverts to stiff or close vision when significantly over-challenged.",
-            "4": "Always adjusts tall/low ready appropriately. 3 Key Essentials automatic. Never reverts.",
-            "5": "Low ready automatic under all conditions. Tactical adjustment to features."
+            "1": "Knees pinch saddle, or rider sits instead of standing in ready position. Locked arms and legs. Looks down at the front wheel. The 3 Key Essentials are missing or inconsistent.",
+            "2": "Stands, but stays stiff. Does not switch between tall and low ready as the trail changes. Loses ready position when surprised or challenged. The 3 Key Essentials fail too.",
+            "3": "Picks tall or low ready correctly most of the time. The 3 Key Essentials hold, even with some distraction. Reverts to a stiff, front-wheel stare only when badly over-challenged.",
+            "4": "Always picks the right ready position for the terrain. The 3 Key Essentials are automatic. Almost never reverts.",
+            "5": "Low ready is automatic in any condition. Uses ready position to ride better, not just to stay upright."
           }
         },
         {
-          "label": "BBS",
-          "sublabel": "Forward / Back",
+          "label": "Body Bike Separation (BBS)",
+          "sublabel": "Forward / Back (F/B)",
           "levels": {
-            "1": "Absent. Rider static on bike. Weight shifts rigid and uncontrolled.",
-            "2": "Weight shifts forward or back unintentionally — from habit, misunderstanding, or fear. BBS F/B absent or minimal.",
-            "3": "BBS F/B present most of the time. Inconsistent on technical climbs or steep descents.",
-            "4": "BBS F/B always present. Intentional F/B loading for features — lunge on roll-down, step-up.",
-            "5": "Active F/B pressure control automatic. Foundation for front wheel lifts (OTB-201)."
+            "1": "No forward or back motion. Rider stays locked in one spot. Weight shifts are stiff and out of control.",
+            "2": "Weight shifts forward or back by accident — habit, confusion, or fear. BBS F/B is missing or barely there.",
+            "3": "BBS F/B shows up most of the time. Falls apart on technical climbs or steep descents.",
+            "4": "BBS F/B is always there. Shifts on purpose for features — for example, forward on a roll-down or step-up.",
+            "5": "F/B pressure control is automatic. Foundation for front wheel lifts (OTB-201)."
           }
         },
         {
-          "label": "BBS",
-          "sublabel": "Side to Side",
+          "label": "Body Bike Separation (BBS)",
+          "sublabel": "Side to Side (S/S)",
           "levels": {
-            "1": "Absent. Rigid — no lateral movement.",
-            "2": "BBS S/S absent or minimal. Rigidity prevents bike-body separation.",
-            "3": "BBS S/S present most of the time. Reverts on off-camber or through corners under pressure.",
-            "4": "BBS S/S always present. Spontaneous on trail across varied tread and camber.",
-            "5": "Maintained under all conditions."
+            "1": "No side-to-side motion. Rider looks stiff on the bike.",
+            "2": "BBS S/S is minimal. Any motion disappears with a small challenge.",
+            "3": "BBS S/S shows up most of the time, including on trail. Shrinks or disappears on off-camber ground or in hard corners.",
+            "4": "BBS S/S is always there on trail, on any tread or camber. Rarely disappears, even with a surprise.",
+            "5": "BBS S/S holds in any condition. Rider actively uses it to ride better."
           }
         },
         {
           "label": "Pumping / Pressure Control",
           "levels": {
-            "1": "Absent. No awareness of tire loading.",
-            "2": "Absent. Weight shifts are unintentional.",
-            "3": "Emerging — intentional F/B loading beginning to appear on features. Inconsistent.",
-            "4": "Consistent intentional pressure control — loads features deliberately. Foundation for front wheel lifts (OTB-201).",
-            "5": "Full pumping / pressure control automatic. Foundation for wheelies and manuals (OTB-301). Beyond NICA trail scope."
+            "1": "Not aware that tire pressure changes with terrain.",
+            "2": "Aware that weight shifts change tire pressure, but the shifts are still accidental.",
+            "3": "Starts loading features on purpose. Still inconsistent.",
+            "4": "Loads features on purpose, every time. Foundation for front wheel lifts (OTB-201).",
+            "5": "Full pressure control on any terrain. Foundation for wheelies and manuals (OTB-301). Beyond what NICA trails require."
           }
         }
       ],
       "levels": {
         "1": {
-          "consistency": "Beginning to practice new skills ",
+          "consistency": "Beginning to practice new skills",
           "failure_modes": [
             "Seated or knees pinch saddle",
             "Rigid, no BBS",
             "Looks at front wheel",
-            "No ready",
+            "No ready position",
             "3 Key Essentials absent"
           ],
-          "detail": "Knees pinch saddle or seated rather than standing ready. Rigid on bike — no BBS possible. Looks at front wheel. 3 Key Essentials absent or inconsistent: no deep bend in elbows and knees, elbows not wide, weight not in feet.",
+          "detail": "Knees pinch saddle, or rider sits instead of standing in ready position. Rigid on the bike, so no BBS is possible. Looks at the front wheel. The 3 Key Essentials are missing: no bend in elbows and knees, elbows not wide, weight not in the feet.",
           "progression": {
             "adds": [
-              "May be able to ride standing/out of saddle"
+              "May be able to ride standing, out of the saddle"
             ],
             "resolves": [
-          
             ],
-            "terrain": "Smooth, predictable ground — packed dirt, grass or paved path",
+            "terrain": "Smooth, predictable ground — packed dirt, grass, or a paved path",
             "how_to": [
-              "Teach OTB-101 ready possition and practice in teaching conditions",
-              "Cue: heavy feet, light hands — deep bend in elbows and knees",
-              "Game: Follow-the-leader where lead exhibits correct position",
-              "Session on grass or pavement first so terrain isn't competing for attention"
+              "Teach OTB-101 ready position. Practice in easy conditions.",
+              "Cue: heavy feet, light hands. Deep bend in elbows and knees.",
+              "Game: follow-the-leader, with the leader showing correct position.",
+              "Start on grass or pavement so terrain isn't competing for attention."
             ]
           }
         },
@@ -128,28 +127,28 @@
           "consistency": "Falls apart with distraction or challenge",
           "failure_modes": [
             "Standing but rigid",
-            "Weight shifts fwd or back",
+            "Weight shifts forward or back",
             "BBS absent",
-            "Loses ready with distraction"
+            "Loses ready position with distraction"
           ],
-          "detail": "Standing but rigid. Weight shifts forward or back unintentionally — from habit, misunderstanding, or fear. Does not reliably adjust tall/low ready to terrain. BBS S/S and F/B absent or minimal. 3 Key Essentials fail with distraction or challenge.",
+          "detail": "Stands, but stays rigid. Weight shifts forward or back by accident — from habit, confusion, or fear. Does not switch between tall and low ready as the trail changes. BBS S/S and F/B are missing or minimal. The 3 Key Essentials fail with distraction or challenge.",
           "progression": {
             "adds": [
-              "Standing ready position consistently",
-              "3 Key Essentials in calm conditions",
-              "BBS with instruction"
+              "Stands in ready position consistently",
+              "3 Key Essentials hold in calm conditions",
+              "Shows BBS with coaching"
             ],
             "resolves": [
               "No longer seated or pinching the saddle with the knees",
-              "eyes not fixated on the front wheel"
+              "Eyes no longer locked on the front wheel"
             ],
             "terrain": "Smooth, predictable ground — packed dirt, gentle grade, no real obstacles",
             "how_to": [
-              "Ready-position static holds to learn heavy feet",
-              "Ride ready position on progressively more challenging terrain (small bumps and rollers) to learn to trust bike",
-              "Cue: heavy feet, light hands — deep bend in elbows and knees",
-              "Game: red light / green light ridden entirely in standing ready",
-              "Session on grass or pavement first so terrain isn't competing for attention"
+              "Static ready-position holds to learn heavy feet",
+              "Ride ready position on slightly harder terrain — small bumps and rollers — to build trust in the bike",
+              "Cue: heavy feet, light hands. Deep bend in elbows and knees.",
+              "Game: red light, green light — ridden entirely in ready position",
+              "Start on grass or pavement so terrain isn't competing for attention"
             ]
           }
         },
@@ -157,81 +156,81 @@
           "consistency": "Good when easy, falls apart when over-challenged",
           "failure_modes": [
             "BBS falls apart under pressure",
-            "Pressure control only emerging on features",
+            "Pressure control only starting to appear",
             "3 Key Essentials reliable"
           ],
-          "detail": "Standing ready appropriate to terrain most of the time. Tall/low selection mostly correct. 3 Key Essentials reliable. BBS S/S and F/B present most of the time. Pressure control emerging — intentional F/B loading beginning to appear on features, inconsistent. Reverts to stiff or close vision only when significantly over-challenged.",
+          "detail": "Picks tall or low ready correctly most of the time. The 3 Key Essentials hold reliably. BBS S/S and F/B show up most of the time. Pressure control starts to appear on purpose, but is still inconsistent. Reverts to a stiff, front-wheel stare only when badly over-challenged.",
           "progression": {
             "adds": [
               "BBS side-to-side and forward/back appear on trail",
-              "Tall and low ready selected to match the terrain",
-              "3 Key Essentials hold reliably, not only when calm"
+              "Picks tall or low ready to match the terrain",
+              "3 Key Essentials hold reliably, not just when calm"
             ],
             "resolves": [
-              "Rigidity eases — body and bike no longer locked together",
-              "Weight no longer shifts forward or back unintentionally",
+              "Less rigid — body and bike are no longer locked together",
+              "Weight no longer shifts forward or back by accident",
               "Ready position no longer lost to ordinary distraction"
             ],
-            "terrain": "Rolling singletrack with roots, rocks and small features; moderate grade",
+            "terrain": "Rolling singletrack with roots, rocks, and small features; moderate grade",
             "how_to": [
               "BBS S/S drill: figure-8s at walking pace, letting the bike lean under a quiet upper body",
-              "Rollers and water bars to introduce intentional BBS fore/aft",
-              "Cue: let the bike move underneath you — maintain heavy feet light hands",
-              "Add speed and distraction progressively; back off the moment form slips"
+              "Rollers and water bars to introduce BBS forward/back on purpose",
+              "Cue: let the bike move under you. Keep heavy feet, light hands.",
+              "Add speed and distraction slowly. Back off the moment form slips."
             ]
           }
         },
         "4": {
           "consistency": "Falls apart only at extreme consequence",
           "failure_modes": [
-            "BBS always",
-            "Pressure control consistent",
-            "Intentional loading for features",
-            "Largely autonomous"
+            "BBS always present",
+            "Pressure control holds up",
+            "Loads features on purpose",
+            "Barely has to think about it"
           ],
-          "detail": "Always adjusts tall/low ready appropriately to terrain steepness and features. 3 Key Essentials automatic. BBS S/S and F/B always present. Intentional F/B loading for features — lunge on roll-down, step-up. Pressure control consistent. Foundation for front wheel lifts (OTB-201). Largely autonomous — no conscious attention required.",
+          "detail": "Always picks the right ready position for terrain and features. The 3 Key Essentials are automatic. BBS S/S and F/B are always present. Loads features on purpose — for example, a lunge on a roll-down or step-up. Pressure control is consistent. Foundation for front wheel lifts (OTB-201). Largely automatic — takes little conscious thought.",
           "progression": {
             "adds": [
-              "Intentional pressure control — deliberately loads features",
-              "Tall/low adjustment automatic across varied terrain",
-              "Autonomous vs conscious attention",
-              "Anticipates and responds to upcoming weight shifts"
+              "Loads features on purpose, every time",
+              "Switches between tall and low ready on any terrain",
+              "Barely has to think about the movement anymore",
+              "Sees weight shifts coming and adjusts early"
             ],
             "resolves": [
               "BBS no longer falls apart when over-challenged",
-              "No longer reverts to a stiff posture or close vision"
+              "No longer reverts to a stiff posture or a front-wheel stare"
             ],
-            "terrain": "Varied with roots and rocks, drops and rollers; often loose, often steep",
+            "terrain": "Varied terrain with roots and rocks, drops and rollers; often loose, often steep",
             "how_to": [
-              "Lunge drills on roll-downs and step-ups to build deliberate F/B loading",
-              "Pump track or rolling-terrain laps for continuous practice of pressure control",
-              "practice incorporating pressure control into cornering and braking",
-              "Cue: push the bike into the backside, not just over the top",
-              "Raise consequence gradually — form must survive the terrain, not just the drill"
+              "Lunge drills on roll-downs and step-ups to build deliberate loading",
+              "Pump track or rolling-terrain laps for continuous pressure-control practice",
+              "Practice pressure control while cornering and braking",
+              "Cue: push the bike into the back side of the feature, not just over the top",
+              "Raise the stakes slowly — form must hold on the trail, not just in the drill"
             ]
           }
         },
         "5": {
           "consistency": "Essentially never falls apart",
           "failure_modes": [
-            "Full tactical pressure control any terrain"
+            "Full pressure control on any terrain, on purpose"
           ],
-          "detail": "Optimal ready position automatic under all conditions. Full pumping / pressure control automatic across all features and terrain. Foundation for wheelies and manuals (OTB-301). Fully autonomous — tactical application. Beyond NICA trail scope.",
+          "detail": "Ready position is automatic in any condition. Pumping and pressure control are automatic across every feature and terrain. Foundation for wheelies and manuals (OTB-301). Fully automatic, with tactical use. Beyond what NICA trails require.",
           "progression": {
             "adds": [
-              "Full pumping and pressure control autonomous in any conditions",
-              "Tactical application — position chosen for the feature ahead",
+              "Pumping and pressure control are automatic on any terrain",
+              "Chooses body position for the feature ahead, on purpose",
               "Foundation for wheelies and manuals (OTB-301)"
             ],
             "resolves": [
-              "Position essentially never falls apart, even at extreme consequence",
-              "Inefficiencies like riding in ready instead of neutral"
+              "Holds even when the stakes are high",
+              "No longer stays in ready position when neutral is better"
             ],
-            "terrain": "Sustained steep and loose, large features and drops — beyond what NICA courses require",
+            "terrain": "Sustained steep and loose terrain, large features and drops — beyond what NICA courses require",
             "how_to": [
-              "Advanced pressure-control progressions (OTB-301): wheelies, manuals",
-              "Session technical features repeatedly, varying line and speed",
-              "Beyond what NICA trails require — coach only if the athlete is pursuing it"
+              "Advanced pressure-control work: wheelies, manuals",
+              "Repeat hard features, changing line and speed",
+              "Beyond what NICA trails require — coach only if the athlete wants to pursue it"
             ]
           }
         }
@@ -240,50 +239,50 @@
     "braking": {
       "id": "braking",
       "name": "Braking",
-      "description": "Builds on standing ready position. Three accumulated steps: (1) both brakes with modulation, (2) bracing leg and hips back, (3) timing for corners and trail braking.",
-      "calibration_note": "Most student-athletes operate at Level 1–2. Reaching Level 3 is a meaningful seasonal goal. Level 4 requires significant experience and trail time.",
+      "description": "Builds on ready position. Three skills build in order: (1) both brakes, with modulation, (2) bracing leg and hips back, (3) timing brakes for corners and the trail.",
+      "calibration_note": "Most riders operate at Level 1–2. Level 3 is a meaningful goal for a season of coaching. Level 4 takes real experience and trail time.",
       "notes": [
-        "Emergency braking test: an unexpected obstacle placed in the rider's path tests whether correct braking form survives surprise — the real measure of whether braking is internalized. Level 4 requires passing consistently on trail."
+        "Emergency braking test: coach puts an unexpected obstacle in the rider's path. This shows whether braking form holds up under surprise — the real test of whether braking has become automatic. Level 4 requires passing this test consistently on trail."
       ],
       "dimensions": [
         {
           "label": "Environment & Consistency",
           "levels": {
-            "1": "Flat, predictable surface only.",
-            "2": "Controlled setting with warning. Reverts in unexpected scenarios.",
-            "3": "Trail most of the time. Fails at extreme speed or most extreme surprise stops.",
-            "4": "Always solid on any trail terrain — planned and emergency stops. Largely autonomous.",
-            "5": "Any conditions. Tactical brake management. Beyond NICA trail scope."
+            "1": "Flat, predictable ground only.",
+            "2": "Controlled setting, with warning before the stop. Reverts to old habits when the stop is a surprise.",
+            "3": "On trail most of the time. Fails at extreme speed or the hardest surprise stops.",
+            "4": "Always solid on any trail terrain — planned and emergency stops. Barely has to think about it.",
+            "5": "Solid in any condition. Manages brakes on purpose, tactically. Beyond what NICA trails require."
           }
         },
         {
           "label": "Brake Use & Modulation",
           "levels": {
-            "1": "Rear brake only or heavily rear-biased. Two or three fingers on levers — no modulation possible. Grabs brakes resulting in skid. Afraid to brake hard — limited ability to slow down. Brakes in corners as default behavior.",
-            "2": "Even front/rear under perfect conditions. Unexpected stop yanks rear only — skids. Brakes in corners as panic response to speed or consequence.",
-            "3": "Good modulation — rarely skids. Powerful braking, short stopping distance. Consistent front/rear balance.",
-            "4": "Never skids. Both brakes always. Modulation fully consistent. Always brakes before corners.",
-            "5": "Precise modulation, timing, and intentional front/rear pressure for any conditions. Carries speed to last second before corner — brakes hard to precise entry speed. Senses traction loss in real time and modulates."
+            "1": "Rear brake only, or mostly rear brake. Two or three fingers on the levers — no modulation possible. Grabs the brakes and skids. Afraid to brake hard, so can't slow down well. Brakes in corners by default.",
+            "2": "Even front and rear brake in calm conditions. A surprise stop yanks the rear brake only and skids. Brakes in corners as a panic response to speed or consequence.",
+            "3": "Good modulation — rarely skids. Powerful braking with a short stopping distance. Front and rear balance is consistent.",
+            "4": "Never skids. Uses both brakes every time. Modulation is fully consistent. Always brakes before the corner.",
+            "5": "Precise modulation, timing, and front/rear pressure in any condition. Carries speed late, then brakes hard to a precise entry speed. Feels traction loss in real time and adjusts."
           }
         },
         {
           "label": "Upper Body & Weight",
           "levels": {
-            "1": "Upper body shifts forward under hard braking. No weight management. Discomfort braking hard.",
-            "2": "Upper body shifts forward under unexpected stops. Some rearward shift in controlled stops.",
-            "3": "Hips back and down introduced — learning the movement. Present sometimes in normal stops. Not yet reliable under pressure or surprise.",
-            "4": "Hips back and down automatic in all stops including surprise situations.",
-            "5": "Full pressure control — releases front brake first, trails rear to settle suspension. Holds rear brake through steep corners to manage speed. Times braking to high-traction zones."
+            "1": "Upper body shifts forward under hard braking. No weight management. Uncomfortable braking hard.",
+            "2": "Upper body shifts forward on surprise stops. Some rearward shift on stops the rider sees coming.",
+            "3": "Hips back and down is starting to show up — still learning. Present sometimes on normal stops. Not yet reliable under pressure or surprise.",
+            "4": "Hips back and down is automatic on every stop, including surprises.",
+            "5": "Full pressure control — releases the front brake first, then trails the rear to settle the suspension. Holds the rear brake through steep corners to manage speed. Times braking to the best-traction zones."
           }
         },
         {
           "label": "Bracing Leg",
           "levels": {
-            "1": "Absent.",
-            "2": "Present in controlled expected stops. Lost in unexpected scenarios.",
-            "3": "Consistent except most extreme surprise stops.",
-            "4": "Always automatic — planned stops and emergency situations. Passes the emergency braking test consistently on trail.",
-            "5": "Maintained under all conditions including trail braking through corners."
+            "1": "Not present.",
+            "2": "Present on stops the rider sees coming. Lost on surprise stops.",
+            "3": "Consistent, except on the hardest surprise stops.",
+            "4": "Always automatic — planned stops and emergencies. Passes the emergency braking test consistently on trail.",
+            "5": "Holds in any condition, including trail braking through corners."
           }
         }
       ],
@@ -297,7 +296,7 @@
             "Afraid to brake hard",
             "Brakes in corners"
           ],
-          "detail": "Rear brake only or heavily rear-biased. Two or three fingers on levers — no modulation possible. Grabs brakes resulting in skid. Afraid to brake hard — limited ability to slow down. Brakes in corners as default behavior."
+          "detail": "Rear brake only, or mostly rear brake. Two or three fingers on the levers — no modulation possible. Grabs the brakes and skids. Afraid to brake hard, so can't slow down well. Brakes in corners by default."
         },
         "2": {
           "consistency": "Falls apart in unexpected stops",
@@ -307,24 +306,24 @@
             "Body shifts forward",
             "Brakes in corners when scared"
           ],
-          "detail": "Even front/rear braking under perfect conditions. Unexpected stop yanks rear only — skids. Upper body shifts forward compounding the skid. Bracing leg present in controlled expected stops, lost in unexpected scenarios. Brakes in corners as panic response to speed or consequence.",
+          "detail": "Even front and rear braking in calm conditions. A surprise stop yanks the rear brake only, and skids. Upper body shifts forward, making the skid worse. Bracing leg shows up on stops the rider sees coming, but is lost on surprise stops. Brakes in corners as a panic response to speed or consequence.",
           "progression": {
             "adds": [
-              "Uses both brakes with even front/rear in calm conditions",
+              "Uses both brakes evenly in calm conditions",
               "One finger on each lever",
-              "Bracing leg appears in expected, controlled stops"
+              "Bracing leg shows up on stops the rider sees coming"
             ],
             "resolves": [
-              "No longer rear-brake-only or heavily rear-biased",
-              "No longer grabbing the levers into a skid when prepared",
-              "Less fear of braking hard — can actually slow the bike down"
+              "No longer rear-brake-only",
+              "No longer grabs the levers into a skid when prepared",
+              "Less afraid to brake hard — can actually slow the bike down"
             ],
-            "terrain": "Gentle grade with good traction; stops the rider sees coming",
+            "terrain": "Gentle grade with good traction; stops the rider can see coming",
             "how_to": [
-              "Braking box: stop inside a marked zone, both brakes, box progressively shorter",
+              "Braking box: stop inside a marked zone with both brakes. Make the box shorter over time.",
               "Cue: squeeze, don't grab — one finger per lever",
-              "Introduce the bracing leg: drop the heel, stiffen the leading leg on every stop",
-              "Repeat until form holds whenever the stop is expected"
+              "Add the bracing leg: drop the heel, stiffen the front leg on every stop",
+              "Repeat until form holds on every stop the rider expects"
             ]
           }
         },
@@ -335,24 +334,24 @@
             "Bracing leg lost at extreme surprise",
             "Hips back and down: learning, not yet reliable"
           ],
-          "detail": "Good modulation — rarely skids. Powerful braking, short stopping distance. Bracing leg consistent except most extreme surprise stops. Hips back and down introduced — learning the movement, present sometimes in normal stops, not yet reliable under pressure or surprise. Maintains body position enabling transition to cornering.",
+          "detail": "Good modulation — rarely skids. Powerful braking with a short stopping distance. Bracing leg is consistent, except on the hardest surprise stops. Hips back and down is starting to show up — still learning, present sometimes on normal stops, not yet reliable under pressure or surprise. Holds body position well enough to move into cornering.",
           "progression": {
             "adds": [
               "Modulation good enough that skids are rare",
               "Powerful braking with a short stopping distance",
-              "Hips back and down introduced",
-              "Bracing leg holds in all but the most extreme surprise"
+              "Hips back and down starts to show up",
+              "Bracing leg holds except on the hardest surprise stops"
             ],
             "resolves": [
               "No longer yanks the rear brake when surprised",
               "Upper body no longer pitches forward under hard braking",
-              "No longer braking in corners as a panic response"
+              "No longer brakes in corners as a panic response"
             ],
-            "terrain": "Moderate descents and variable traction; stops that come up quickly",
+            "terrain": "Moderate descents with mixed traction; stops that come up quickly",
             "how_to": [
-              "Surprise-stop reps: coach calls the stop late so braking must survive the unexpected",
+              "Surprise-stop reps: coach calls the stop late so braking must survive the surprise",
               "Cue: hips back and down — get behind the saddle as the brakes come on",
-              "Brake-before-the-corner drill: all braking finished before turn-in",
+              "Brake-before-the-corner drill: finish all braking before turn-in",
               "Vary the surface so modulation is trained, not just force"
             ]
           }
@@ -364,51 +363,51 @@
             "Hips back and down automatic",
             "Braces leg always",
             "Brakes before corners",
-            "Always proper braking when surprised"
+            "Braking holds up under surprise"
           ],
-          "detail": "Never skids. Both brakes always consistent. Braking always solid on any terrain — planned and emergency stops. Hips back and down automatic. Always braces leg including emergency situations. Brakes before corners consistently. Correct braking maintained in unexpected stops — passes the emergency braking test on trail.",
+          "detail": "Never skids. Uses both brakes every time. Braking is always solid on any terrain — planned and emergency stops. Hips back and down is automatic. Always braces the leg, including emergencies. Brakes before the corner every time. Braking form holds up on surprise stops — passes the emergency braking test on trail.",
           "progression": {
             "adds": [
               "Hips back and down automatic on every stop",
               "Bracing leg always present, including emergencies",
-              "Braking consistently finished before the corner",
-              "Correct form survives a surprise obstacle"
+              "Braking always finishes before the corner",
+              "Form holds up when a surprise obstacle appears"
             ],
             "resolves": [
               "Never skids",
-              "Braking form no longer collapses under surprise or consequence"
+              "Braking form no longer falls apart under surprise or consequence"
             ],
-            "terrain": "Steep, loose and rutted descents; sudden unplanned stops",
+            "terrain": "Steep, loose, and rutted descents; sudden unplanned stops",
             "how_to": [
               "Emergency braking test on trail: an unexpected obstacle in the rider's path, repeated until form holds",
               "Steep-descent braking with a full hips-back position",
-              "Cue: brake early and hard, release smoothly into the corner",
-              "Assess across varied tread — loose, wet and hardpack"
+              "Cue: brake early and hard, then release smoothly into the corner",
+              "Assess across varied tread — loose, wet, and hardpack"
             ]
           }
         },
         "5": {
           "consistency": "Essentially never falls apart",
           "failure_modes": [
-            "Full tactical braking",
-            "Precise modulation + timing",
-            "Front/rear intentional"
+            "Full braking control, used tactically",
+            "Precise modulation and timing",
+            "Front/rear pressure on purpose"
           ],
-          "detail": "All foundational braking always correct. Precise modulation, timing, and intentional front/rear pressure for any conditions. Carries speed to last second before corner — brakes hard to precise entry speed — releases front first, trails rear to settle suspension. Holds rear brake through steep corners to manage speed. Senses traction loss on slippery surfaces and modulates in real time.",
+          "detail": "All the basics of braking are always correct. Precise modulation, timing, and front/rear pressure on purpose, in any condition. Carries speed late, then brakes hard to a precise entry speed — releases the front brake first, then trails the rear to settle the suspension. Holds the rear brake through steep corners to manage speed. Feels traction loss on slippery ground and adjusts in real time.",
           "progression": {
             "adds": [
-              "Precise modulation and timing tuned to conditions",
+              "Precise modulation and timing, tuned to conditions",
               "Carries speed late, then brakes hard to an exact entry speed",
-              "Releases the front first and trails the rear to settle the suspension",
-              "Senses traction loss in real time and modulates"
+              "Releases the front brake first and trails the rear to settle the suspension",
+              "Feels traction loss in real time and adjusts"
             ],
             "resolves": [
-              "Braking essentially never falls apart in any conditions"
+              "Braking essentially never falls apart, in any condition"
             ],
-            "terrain": "Sustained steep with poor traction and no run-out — beyond what NICA courses require",
+            "terrain": "Sustained steep ground with poor traction and no run-out — beyond what NICA courses require",
             "how_to": [
-              "Trail-braking progressions through long, steep corners",
-              "Traction experiments on deliberately loose surfaces",
+              "Trail-braking practice through long, steep corners",
+              "Traction experiments on purposely loose ground",
               "Beyond what NICA trails require"
             ]
           }
@@ -418,74 +417,74 @@
     "cornering": {
       "id": "cornering",
       "name": "Cornering",
-      "description": "Most extensive step progression. Sequence accumulates: Level 2: BBS S/S lean + maintains ready. Level 3: Low-Look-Lean + hip rotation/counterbalance. Level 4: Full sequence consistent. Level 5: Pumping / pressure control through apex.",
-      "calibration_note": "Most student-athletes reach Level 2. Level 3 requires consistent BBS and introduction of hip rotation — a meaningful seasonal goal for athletes who train regularly.",
+      "description": "The longest skill sequence. Skills build in order: Level 2 adds BBS side-to-side lean and holding ready position. Level 3 adds Low-Look-Lean plus hip rotation and counterbalance. Level 4 makes the full sequence consistent. Level 5 adds pumping and pressure control through the apex.",
+      "calibration_note": "Most riders reach Level 2. Level 3 needs consistent BBS and the start of hip rotation — a realistic goal for a full season for riders who train regularly.",
       "notes": [
-        "Panic is the consistency axis: weight back, braking in corner, squeezing bike and steering are common panic responses. Higher level = higher panic threshold.",
-        "Level 2 diagnostic: correct BBS S/S lean — inside elbow straightens, outside elbow bends acute, seat shifts toward inside thigh. Regress to BBS S/S drill if body-bike locked."
+        "Panic is the consistency axis: weight back, braking in the corner, squeezing the bike, and steering instead of leaning are common panic responses. A higher level means a higher panic threshold.",
+        "Level 2 check: correct BBS S/S lean looks like this — inside elbow straightens, outside elbow bends sharply, seat shifts toward the inside thigh. Go back to the BBS S/S drill if body and bike are still locked together."
       ],
       "dimensions": [
         {
           "label": "Environment & Consistency",
           "levels": {
-            "1": "Flat, predictable surface. Slow speed only.",
-            "2": "Controlled setting. Sometimes on easy trail with distinct corners.",
-            "3": "Easy trail most of the time. Reverts under higher speed or consequence.",
-            "4": "Always consistent on blue and black terrain. Largely autonomous. Panic rare.",
-            "5": "Any conditions. Fully autonomous. Panic essentially absent. Beyond NICA trail scope."
+            "1": "Flat, predictable ground. Slow speed only.",
+            "2": "Controlled setting. Sometimes on easy trail with clear corners.",
+            "3": "Easy trail most of the time. Reverts to old habits at higher speed or consequence.",
+            "4": "Always consistent on blue and black terrain. Barely has to think about it. Panic is rare.",
+            "5": "Any condition. Fully automatic. Panic is essentially absent. Beyond what NICA trails require."
           }
         },
         {
           "label": "Setup",
           "sublabel": "Pedals & Stance",
           "levels": {
-            "1": "Pedals uneven or inside pedal down. Seated — no ready position.",
-            "2": "Outside or inside pedal down. Seated or tall ready entering corner.",
-            "3": "Pedals level on entry most of the time. Low ready present but erodes mid-corner.",
-            "4": "Level pedals consistent. Low ready maintained through the arc always.",
-            "5": "Level pedals and low ready automatic under any conditions."
+            "1": "Pedals uneven, or inside pedal down. Seated — no ready position.",
+            "2": "Outside or inside pedal down. Seated, or tall ready, entering the corner.",
+            "3": "Pedals level on entry most of the time. Low ready shows up but fades mid-corner.",
+            "4": "Pedals level every time. Low ready holds through the whole corner.",
+            "5": "Level pedals and low ready are automatic in any condition."
           }
         },
         {
           "label": "Lean",
           "sublabel": "BBS S/S",
           "levels": {
-            "1": "No bike lean or leans to outside. Steers through all corners.",
-            "2": "Body and bike locked same lean — knees squeezed, no BBS S/S. Steers rather than leans. Eyes on threat rather than exit.",
-            "3": "BBS S/S lean consistent — correct direction, knees wide, elbows hinge, seat shifts toward inside thigh. Lean limited to OTB-101 range.",
-            "4": "BBS S/S lean always consistent. Lean angle appropriate to speed and corner. Eyes through exit consistently.",
-            "5": "BBS S/S maintained under all conditions."
+            "1": "No bike lean, or leans to the outside. Steers through every corner.",
+            "2": "Body and bike lean together, locked — knees squeezed, no BBS S/S. Steers instead of leaning. Eyes on the threat instead of the exit.",
+            "3": "BBS S/S lean is consistent — correct direction, knees wide, elbows hinge, seat shifts toward the inside thigh. Lean stays within the OTB-101 range.",
+            "4": "BBS S/S lean is always consistent. Lean angle matches speed and corner. Eyes stay on the exit every time.",
+            "5": "BBS S/S holds in any condition."
           }
         },
         {
           "label": "Hip Rotation + Counterbalance",
           "sublabel": "OTB-201",
           "levels": {
-            "1": "Absent.",
-            "2": "Absent.",
-            "3": "Present under ideal conditions — visibly greater lean than BBS alone. Absent under pressure.",
-            "4": "Always consistent on blue/black terrain. Lean angle reflects hip rotation throughout.",
-            "5": "Maintained under any conditions including high speed and varied tread."
+            "1": "Not present.",
+            "2": "Not present.",
+            "3": "Shows up in ideal conditions — visibly more lean than BBS alone. Not present under pressure.",
+            "4": "Always consistent on blue and black terrain. Lean angle reflects hip rotation the whole way through.",
+            "5": "Holds in any condition, including high speed and mixed tread."
           }
         },
         {
           "label": "Weight & Pumping / Pressure Control",
           "levels": {
-            "1": "Weight too far forward or back — no awareness.",
-            "2": "Weight too far forward or back — from habit, misunderstanding, or fear. Both directions at this level.",
-            "3": "Weight generally centered. Loses fore/aft balance under pressure. Pressure control absent.",
-            "4": "Weight stable through arc. Pressure control present in ideal conditions — consistent banked corners.",
-            "5": "Pumps the apex — dynamic load through corner peak and mid-corner features. Momentum-dependent. Beyond NICA trail scope."
+            "1": "Weight too far forward or back — no awareness of it.",
+            "2": "Weight too far forward or back — from habit, confusion, or fear. Happens in both directions at this level.",
+            "3": "Weight generally centered. Loses front/back balance under pressure. No pressure control yet.",
+            "4": "Weight stays stable through the corner. Pressure control shows up in ideal conditions — consistent banked corners.",
+            "5": "Pumps the apex — loads the bike on purpose through the corner peak and mid-corner features. Depends on momentum. Beyond what NICA trails require."
           }
         },
         {
           "label": "Panic / Pressure Response",
           "levels": {
-            "1": "Panic at low threshold — steers, brakes in corner, weight back.",
-            "2": "Panic at moderate speed — brakes in corner, weight back, squeezes bike and steers.",
-            "3": "Same panic pattern but higher threshold. Normal trail riding usually clean.",
-            "4": "Panic rare. Not present in normal trail riding. Recovers quickly.",
-            "5": "Panic essentially absent. Correct movement maintained under extreme speed and consequence."
+            "1": "Panics at a low threshold — steers, brakes in the corner, weight back.",
+            "2": "Panics at moderate speed — brakes in the corner, weight back, squeezes the bike and steers.",
+            "3": "Same panic pattern, but a higher threshold. Usually clean on normal trail riding.",
+            "4": "Panic is rare. Not present in normal trail riding. Recovers quickly.",
+            "5": "Panic is essentially absent. Correct movement holds even at extreme speed and consequence."
           }
         }
       ],
@@ -494,39 +493,39 @@
           "consistency": "Falls apart on anything beyond flat",
           "failure_modes": [
             "Steers all corners",
-            "No lean or leans outside",
-            "Seated — no ready",
+            "No lean, or leans outside",
+            "Seated — no ready position",
             "Pedals uneven"
           ],
-          "detail": "Setup: Pedals uneven or inside pedal down. Seated — no ready position. Lean: No bike lean or leans to outside. Steers through all corners. Eyes: On front tire or threat — increases perceived speed, triggers panic."
+          "detail": "Setup: pedals uneven, or inside pedal down. Seated — no ready position. Lean: no bike lean, or leans to the outside. Steers through every corner. Eyes: on the front tire or the threat — this makes speed feel faster and triggers panic."
         },
         "2": {
           "consistency": "Falls apart at faster or unpredictable corners",
           "failure_modes": [
-            "Body-bike locked same lean",
+            "Body and bike locked in the same lean",
             "Knees squeezed",
             "Steers under pressure",
-            "Eyes on threat",
+            "Eyes on the threat",
             "Weight off"
           ],
-          "detail": "Setup: Outside or inside pedal down. Seated or tall ready entering corner. Lean: Body and bike locked same lean — knees squeezed, no BBS S/S. May lean to outside. Steers rather than leans, especially under speed. Eyes: On front tire or threat rather than through exit. Panic: Braking in corner, weight back, squeezes bike and steers to compensate.",
+          "detail": "Setup: outside or inside pedal down. Seated, or tall ready, entering the corner. Lean: body and bike lean together, locked — knees squeezed, no BBS S/S. May lean to the outside. Steers instead of leaning, especially under speed. Eyes: on the front tire or the threat, instead of through the exit. Panic: brakes in the corner, weight back, squeezes the bike and steers to compensate.",
           "progression": {
             "adds": [
               "Level pedals more often than not on entry",
-              "Stands in a ready position through the corner",
-              "The bike begins to lean rather than only being steered"
+              "Stands in ready position through the corner",
+              "The bike starts to lean instead of only being steered"
             ],
             "resolves": [
               "No longer seated through every corner",
-              "No longer steering through all corners",
+              "No longer steers through every corner",
               "Pedals no longer uneven or inside-pedal-down"
             ],
-            "terrain": "Wide, flat corners with good traction and clear sight lines",
+            "terrain": "Wide, flat corners with good traction and a clear view ahead",
             "how_to": [
               "Set the corner up first: level pedals and low ready before turn-in",
-              "BBS S/S drill: figure-8s letting the bike lean under a still upper body",
+              "BBS S/S drill: figure-8s, letting the bike lean under a still upper body",
               "Cue: knees wide — squeezing the bike locks out the lean",
-              "Look-ahead game: coach holds up fingers at the corner exit so eyes leave the front tire"
+              "Look-ahead game: coach holds up fingers at the corner exit so the eyes leave the front tire"
             ]
           }
         },
@@ -535,21 +534,21 @@
           "failure_modes": [
             "BBS lean falls apart under pressure",
             "Hip rotation only in ideal conditions",
-            "Ready erodes",
+            "Ready position fades",
             "Weight shifts"
           ],
-          "detail": "Setup: Pedals level on entry most of the time. Low ready present but erodes mid-corner. Lean: BBS S/S lean consistent — correct direction, knees wide, elbows hinge, seat shifts toward inside thigh. Lean limited to OTB-101 range. Hip: Hip rotation and counterbalance present under ideal conditions only. Eyes: Through exit most of the time. Reverts under pressure.",
+          "detail": "Setup: pedals level on entry most of the time. Low ready shows up but fades mid-corner. Lean: BBS S/S lean is consistent — correct direction, knees wide, elbows hinge, seat shifts toward the inside thigh. Lean stays within the OTB-101 range. Hip: hip rotation and counterbalance show up in ideal conditions only. Eyes: through the exit most of the time. Reverts to old habits under pressure.",
           "progression": {
             "adds": [
-              "BBS S/S lean consistent — inside elbow straightens, seat shifts toward the inside thigh",
-              "Hip rotation and counterbalance appear in ideal conditions",
+              "BBS S/S lean is consistent — inside elbow straightens, seat shifts toward the inside thigh",
+              "Hip rotation and counterbalance show up in ideal conditions",
               "Eyes through the exit most of the time"
             ],
             "resolves": [
               "Body and bike no longer locked in the same lean",
-              "Knees no longer squeezing the bike",
+              "Knees no longer squeeze the bike",
               "Eyes no longer locked on the threat",
-              "Panic responses less frequent — the threshold has risen",
+              "Panic happens less often — the threshold has risen",
               "Weight no longer too far forward or back through the corner"
             ],
             "terrain": "Tighter corners carrying speed; some off-camber and loose tread",
@@ -566,51 +565,51 @@
           "failure_modes": [
             "Hip rotation falls apart at extreme consequence",
             "Pressure control only on consistent banked corners",
-            "Largely autonomous"
+            "Barely has to think about it"
           ],
-          "detail": "Setup: Level pedals consistent. Low ready maintained through arc always. Lean: BBS S/S consistent. Hip: Hip rotation and counterbalance always consistent on blue/black terrain. Eyes: Through exit consistently. Rarely reverts. Weight: Stable through arc. Pressure control present under ideal conditions — consistent banked corners.",
+          "detail": "Setup: pedals level every time. Low ready holds through the whole corner, every time. Lean: BBS S/S is consistent. Hip: hip rotation and counterbalance are always consistent on blue and black terrain. Eyes: on the exit every time. Rarely reverts to old habits. Weight: stable through the corner. Pressure control shows up in ideal conditions — consistent banked corners.",
           "progression": {
             "adds": [
-              "Full sequence consistent on blue and black terrain",
-              "Lean angle matched to speed and corner shape",
-              "Low ready held through the whole arc",
-              "Pressure control emerging on consistent banked corners",
-              "Weight stable through the whole arc"
+              "Full sequence is consistent on blue and black terrain",
+              "Lean angle matches speed and corner shape",
+              "Low ready holds through the whole corner",
+              "Pressure control starts to show up on consistent banked corners",
+              "Weight stays stable through the whole corner"
             ],
             "resolves": [
               "Lean and hip rotation no longer fall apart under speed or consequence",
-              "Ready position no longer erodes mid-corner",
-              "Panic rare in normal trail riding"
+              "Ready position no longer fades mid-corner",
+              "Panic is rare in normal trail riding"
             ],
-            "terrain": "Off-camber, rutted and loose corners; berms and corners with features in them",
+            "terrain": "Off-camber, rutted, and loose corners; berms and corners with features in them",
             "how_to": [
-              "Corner sessioning at progressively higher entry speed on varied camber",
+              "Corner sessions at higher entry speed on varied camber",
               "Berm pumping: load the bike through the apex of banked corners",
-              "Cue: pressure through the apex, eyes already at the next corner",
-              "Introduce off-camber and rutted corners to test the sequence"
+              "Cue: pressure through the apex, eyes already on the next corner",
+              "Add off-camber and rutted corners to test the sequence"
             ]
           }
         },
         "5": {
           "consistency": "Essentially never falls apart",
           "failure_modes": [
-            "Full sequence any terrain",
+            "Full sequence on any terrain",
             "Pumps the apex"
           ],
-          "detail": "Full sequence consistent under any conditions — rocky, off-camber, loose, rutted, drop exits. Pumps the apex: dynamic pressure load through corner peak maximises traction. Applied to mid-corner features (roots, rolls, drops). Momentum-dependent — cannot be held statically.",
+          "detail": "The full sequence holds in any condition — rocky, off-camber, loose, rutted, with drop exits. Pumps the apex: loads the bike on purpose through the corner peak for maximum traction. Applies this to mid-corner features like roots, rolls, and drops. Depends on momentum — can't be held still.",
           "progression": {
             "adds": [
-              "Pumps the apex — dynamic load through the corner peak for maximum traction",
-              "Sequence holds on rocky, off-camber, loose, rutted and drop exits",
-              "Panic essentially absent"
+              "Pumps the apex — loads the bike on purpose through the corner peak for maximum traction",
+              "Sequence holds on rocky, off-camber, loose, rutted corners, and drop exits",
+              "Panic is essentially absent"
             ],
             "resolves": [
               "Cornering essentially never falls apart, at any speed or consequence"
             ],
             "terrain": "Rocky, rutted corners with drops at the exit — beyond what NICA courses require",
             "how_to": [
-              "Mid-corner feature work: roots, rolls and drops inside the arc",
-              "Momentum-dependent pumping drills — the load cannot be held statically",
+              "Mid-corner feature work: roots, rolls, and drops inside the arc",
+              "Momentum-dependent pumping drills — the load can't be held still",
               "Beyond what NICA trails require"
             ]
           }
@@ -619,42 +618,42 @@
     }
   },
   "TRAIL_GUIDE": {
-    "intro": "Trail selection is a safety decision. It requires current skill assessment — not memory from last season, not an impression of fitness or speed, and not a single observation. Skills regress in the off-season. Every rider needs a current assessment before trail decisions are made for the season.",
-    "minimums_note": "These are minimum skill levels to ride a trail class at trail speed. They are a floor, not a ceiling — a higher-rated rider can ride lower-rated trails. A lower-rated rider may ride short sections of higher-rated trails by managing speed or walking technical features.",
-    "trail_ratings_note": "A trail's difficulty rating is earned by its hardest feature, not its average character. The coach's job: identify which specific feature type earns the trail its rating. Assess whether riders have the minimum skill for that feature. Set the minimum based on the feature, not just the trail rating.",
+    "intro": "Trail selection is a safety decision. It needs a current skill assessment. Not a memory from last season. Not a guess based on fitness or speed. Not just one observation. Skills fade in the off-season. Every rider needs a current assessment before the season's trail decisions are made.",
+    "minimums_note": "These are the minimum skill levels needed to ride a trail class at trail speed. They are a floor, not a ceiling. A higher-rated rider can ride lower-rated trails. A lower-rated rider may ride short sections of a harder trail — by slowing down or walking the technical features.",
+    "trail_ratings_note": "A trail's difficulty rating comes from its hardest feature, not its average character. The coach's job: find which specific feature earns the trail its rating. Check whether riders have the minimum skill for that feature. Set the minimum based on the feature, not just the trail's overall rating.",
     "assessment_rules": [
-      "Assess during skills instruction, skills sessioning on trail, and while riding in normal conditions.",
-      "The rider must demonstrate the skill across varied conditions within the trail type — through corners, over water bars, at speed, on varied tread.",
-      "Provide correction until the target level is demonstrated reliably across multiple rides.",
-      "Any item on the failure list = level not met. Speed or trail complexity can trigger any failure mode."
+      "Assess during skills instruction, skills sessions on trail, and normal riding.",
+      "The rider must show the skill in varied conditions on that trail type. For example: through corners, over water bars, at speed, on different tread.",
+      "Keep correcting the rider until the skill is solid. It should show up reliably, on more than one ride.",
+      "Any item on the failure list means the level is not met. Speed or trail difficulty can trigger any failure mode."
     ],
-    "real_example": "A blue trail with features was selected for early-season riders based on a coach's memory that they were 'really good.' Skills were not assessed at the start of the season. Observed skill levels on trail: Body Position 1–2, Cornering 1. Minimum appropriate for this trail: Body Position 3, Cornering 2. One rider crashed. Stiff body position on a small feature was the direct cause. The rider was uninjured but the outcome was predictable from the assessment gap.",
-    "score_notation": "Scores are expressed as Body Position – Braking – Cornering, e.g. 2-3-2.",
+    "real_example": "A blue trail with features was picked for early-season riders. The coach remembered them as 'really good.' Skills were not assessed at the start of the season. Skill levels observed on trail: Body Position 1–2, Cornering 1. Minimum needed for this trail: Body Position 3, Cornering 2. One rider crashed. A stiff body position on a small feature was the direct cause. The rider was not hurt. But the crash was predictable — the gap showed up because no assessment was done.",
+    "score_notation": "Scores are written as Body Position – Braking – Cornering, like 2-3-2.",
     "score_examples": [
-      "New rider at 1-1-1. Goal: reach 2-2-1 before first trail ride.",
-      "Ride group baseline: bring all athletes to 2-2-2 by start of in-season.",
-      "Varsity target: 3-3-3 to safely ride blue trails."
+      "New rider at 1-1-1. Goal: reach 2-2-1 before the first trail ride.",
+      "Ride group baseline: bring every athlete to 2-2-2 by the start of the season.",
+      "Varsity target: 3-3-3, to safely ride blue trails."
     ],
-    "reassessment": "Every two weeks on a consistent reference section exposing cornering, BBS, braking, and body position simultaneously."
+    "reassessment": "Every two weeks, on the same reference section. Pick a section that tests cornering, BBS, braking, and body position all at once."
   },
   "COACH_NOTES": {
-    "fitts_posner": "The 1–5 scale maps directly to the three stages of motor learning described by Fitts and Posner, which NICA coach training covers. Levels 1–2 are the cognitive stage — movements are conscious, inconsistent, and fail under distraction. Level 3 is the associative stage — movements becoming reliable but falling apart under pressure. Level 4 is largely autonomous — foundational movements require no conscious attention, freeing the rider for terrain and tactics. Level 5 is fully autonomous with tactical application. Reaching Level 4 represents substantial skill development; reaching Level 5 is elite.",
-    "calibration": "Most student-athletes operate at Level 1–2. This is not a failure — it reflects the reality of developing athletes with limited trail time. Progress from Level 1 to Level 2 is a meaningful achievement worth recognizing. Level 3 is a realistic goal for athletes who train consistently across a full season. Level 4 is genuinely exceptional — fewer than a dozen riders across 12 seasons of IICL coaching have demonstrated it consistently. Level 5 represents elite skill that exceeds what NICA trails require.",
+    "fitts_posner": "The 1–5 scale matches the three stages of motor learning from Fitts and Posner. NICA coach training covers this. Levels 1–2 are the cognitive stage — movements are conscious, inconsistent, and fail under distraction. Level 3 is the associative stage — movements are getting reliable, but still fall apart under pressure. Level 4 is mostly automatic. The rider barely has to think about the basic movement, which frees them to focus on terrain and tactics. Level 5 is fully automatic, with tactical use on top. Reaching Level 4 is a real achievement. Reaching Level 5 is elite.",
+    "calibration": "Most riders operate at Level 1–2. That's not a failure — it reflects where developing athletes are, given limited trail time. Moving from Level 1 to Level 2 is a real achievement, worth recognizing. Level 3 is a realistic goal for riders who train consistently for a full season. Level 4 is genuinely rare — fewer than a dozen riders across 12 seasons of IICL coaching have shown it consistently. Level 5 is elite skill, beyond what NICA trails require.",
     "common_errors": [
-      "Confusing fitness with skill. A strong climber who steers corners is Level 1 in cornering.",
-      "Scoring best performance rather than consistent performance. 'Most of the time' earns Level 3, not Level 4.",
-      "Assessing on flat terrain only — most skills collapse on steeper or rougher ground.",
-      "Treating Level 4–5 as synonymous with 'fast.' Speed is not a criterion.",
-      "Using last season's assessment. Skills regress in the off-season. Assess at the start of every season."
+      "Confusing fitness with skill. A strong climber who steers through corners is still Level 1 in cornering.",
+      "Scoring the best performance instead of the consistent one. 'Most of the time' earns Level 3, not Level 4.",
+      "Assessing on flat ground only — most skills fall apart on steeper or rougher ground.",
+      "Treating Level 4–5 as the same as 'fast.' Speed is not part of the rubric.",
+      "Using last season's assessment. Skills fade in the off-season. Assess at the start of every season."
     ],
     "interdependencies": [
-      "Braking Level 3 requires Body Position Level 2 or higher.",
-      "Cornering Level 3 requires Body Position Level 2 and Braking Level 2.",
-      "At Levels 1–2, weight shifts are failures. At Levels 4–5 intentional F/B pressure control is correct execution."
+      "Braking Level 3 needs Body Position Level 2 or higher.",
+      "Cornering Level 3 needs Body Position Level 2 and Braking Level 2.",
+      "At Levels 1–2, weight shifts are accidents. At Levels 4–5, on-purpose F/B pressure control is correct execution."
     ],
     "key_essentials": [
-      "Level pedals, evenly weighted",
-      "Finger on each brake lever at all times",
+      "Level pedals, weight even",
+      "A finger on each brake lever at all times",
       "Head up, eyes scanning ahead"
     ]
   }
