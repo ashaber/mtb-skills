@@ -213,25 +213,42 @@ validating the whole path end to end before inviting a real coach.
    Google sign-in already redirects correctly for this project, the
    allowlist entry likely already covers it; add it only if missing.
 
-**ii. Custom SMTP (deliverability — do this before inviting a real coach,
-not after):**
+**ii. Custom SMTP — decided 2026-08-16: not yet, stay on Supabase's
+default mailer for the pilot.**
 
-Until custom SMTP is configured, magic-link emails send from Supabase's
-own shared, rate-limited sending domain and often land in spam. Configure
-under **Authentication → Settings → SMTP Settings** (toggle "Enable Custom
-SMTP", then host/port/user/password/sender fields) using whichever
-provider you choose — no app code change is needed when this is turned
-on; `signInWithMagicLink` and `scripts/send_invite.py` both already call
-the one Supabase endpoint that starts using the new SMTP automatically.
+**Confirmed rate limit, read directly off the dashboard:** Supabase's
+default mailer is capped at **2 emails/hour and 30 SMS/hour** per project
+(Authentication → Emails; this is the number that actually matters, not
+an estimate). That's tight — barely enough to invite the two pilot
+`@live.com` coaches in one sitting, not something to lean on at real
+scale — but sufficient for tonight's actual goal. If a first attempt
+doesn't arrive within a few minutes, **check spam before resending** —
+a second send inside the same hour can blow the limit for both attempts.
 
-> **Known blocker, carried over from `IDEA-024`:** a real SMTP provider
-> (Resend or otherwise) needs a verified sending domain, and this project
-> doesn't have a registered custom domain today — only Google/GitHub-owned
-> subdomains (`*.web.app`, `ashaber.github.io`), none of which a mail
-> provider can verify DNS ownership of. Until that's resolved, coaches
-> should expect to check spam for the sign-in email. Not a blocker to
-> *testing* the flow (below) — only to it looking polished for real
-> coaches.
+**Why not custom SMTP yet:** a real SMTP provider (Resend or otherwise)
+needs a verified sending domain, and neither is available today:
+- `idahomtb.org` (the domain behind `andrew@idahomtb.org`) belongs to
+  **NICA**, not Andrew — no DNS access, so no way to add the TXT/DKIM
+  records a provider needs to verify it. Real path if this is wanted
+  later: ask whoever manages that domain's DNS to add a *dedicated
+  subdomain* (e.g. `mail.idahomtb.org`) for Resend verification — a
+  subdomain is a small, safe ask that can't collide with or break
+  NICA's existing mail on that domain, unlike touching the root domain's
+  own SPF record.
+- Andrew's LLC owns `aristosevents.com`, but (a) it's currently parked at
+  GoDaddy in an unrelated ownership-handoff/hosting cleanup already on
+  Andrew's list, and (b) an events-LLC domain isn't a great brand match
+  for a NICA coaching tool's sign-in emails anyway — worth keeping that
+  cleanup and this decision decoupled rather than merging them.
+- This project's own hosting domains (`*.web.app`, `ashaber.github.io`)
+  are Google/GitHub-owned subdomains — not verifiable by a mail provider
+  either.
+
+No app code change is needed whenever custom SMTP *is* set up later —
+`signInWithMagicLink` and `scripts/send_invite.py` both already call the
+one Supabase endpoint that would start using the new SMTP automatically;
+this is purely a dashboard/DNS decision, revisit once a real domain is
+available.
 
 **iii. Validate end to end, on ITG first, with a real non-Google inbox:**
 
