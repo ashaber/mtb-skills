@@ -9,8 +9,8 @@ vi.mock('../../src/auth.js', () => ({
   isAuthConfigured: () => true,
 }));
 
-import { modalTeamSwitcher, viewSettings } from '../../src/views.js';
-import { saveCachedIdentity, saveActivePersonaId } from '../../src/storage.js';
+import { modalTeamSwitcher, viewRoster, viewSettings } from '../../src/views.js';
+import { saveCachedIdentity, saveActivePersonaId, savePerson } from '../../src/storage.js';
 
 beforeEach(() => {
   localStorage.clear();
@@ -145,5 +145,50 @@ describe('viewSettings — magic-link sign-in (IDEA-031)', () => {
     const html = viewSettings(minimalSettingsState());
     expect(html).not.toContain('id="inp-magic-link-email"');
     expect(html).not.toContain('data-a="sign-in-magic-link"');
+  });
+});
+
+const HC_PERSONA = { person_id: 'hc1', role: 'head_coach', team_id: 't1', ride_group_id: null, name: 'HC', team_name: 'Team' };
+
+function minimalRosterState(overrides = {}) {
+  return {
+    roster_filter: 'all',
+    roster_group_filter: 'all',
+    taking_attendance: false,
+    today_practice: null,
+    authUser: { email: 'hc@example.com', name: 'HC' },
+    draft: {},
+    expandedId: null,
+    ...overrides,
+  };
+}
+
+describe('viewRoster — group-assign button on coach rows', () => {
+  it('shows the reassign-group button on a coach row for an HC/TD caller', () => {
+    saveCachedIdentity([HC_PERSONA]);
+    const coach = savePerson({ name: 'Floater Coach', role: 'coach' });
+    const html = viewRoster(minimalRosterState());
+    expect(html).toContain(`data-a="open-assign-group" data-id="${coach.id}"`);
+  });
+
+  it('still shows it on an athlete row too (unaffected regression check)', () => {
+    saveCachedIdentity([HC_PERSONA]);
+    const athlete = savePerson({ name: 'Rider', role: 'athlete' });
+    const html = viewRoster(minimalRosterState());
+    expect(html).toContain(`data-a="open-assign-group" data-id="${athlete.id}"`);
+  });
+
+  it('does not show it on a coach row when the caller is not HC/TD', () => {
+    saveCachedIdentity([{ ...HC_PERSONA, role: 'coach', ride_group_id: 'g1' }]);
+    const coach = savePerson({ name: 'Floater Coach', role: 'coach' });
+    const html = viewRoster(minimalRosterState());
+    expect(html).not.toContain(`data-a="open-assign-group" data-id="${coach.id}"`);
+  });
+
+  it('does not show it on a coach row when signed out', () => {
+    saveCachedIdentity([HC_PERSONA]);
+    const coach = savePerson({ name: 'Floater Coach', role: 'coach' });
+    const html = viewRoster(minimalRosterState({ authUser: null }));
+    expect(html).not.toContain(`data-a="open-assign-group" data-id="${coach.id}"`);
   });
 });

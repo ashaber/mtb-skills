@@ -136,7 +136,7 @@ export function viewRoster(s) {
   const canAssignGroup = _hcAssignGroupActive(s);
 
   const rows = sorted.map(person => {
-    if (person.role === 'coach') return coachRowHTML(person, s, practice, attendingIds, takingAttendance, rideGroupUI);
+    if (person.role === 'coach') return coachRowHTML(person, s, practice, attendingIds, takingAttendance, rideGroupUI, canAssignGroup);
     return athleteRowHTML(person, s, practice, attendingIds, takingAttendance, rideGroupUI, localOnlyIds.has(person.id), canAssignGroup);
   }).join('');
 
@@ -262,7 +262,7 @@ function athleteRowHTML(a, s, practice, attendingIds, attendanceMode, rideGroupU
   </div>`;
 }
 
-function coachRowHTML(coach, s, practice, attendingIds, attendanceMode, rideGroupUI = false) {
+function coachRowHTML(coach, s, practice, attendingIds, attendanceMode, rideGroupUI = false, canAssignGroup = false) {
   const levelLabel = coach.level ? `L${coach.level}` : '—';
   const isAttending = practice && attendingIds.has(coach.id);
   const groupLabel = rideGroupUI ? (coach.ride_group_name ? esc(coach.ride_group_name) : null) : null;
@@ -312,6 +312,7 @@ function coachRowHTML(coach, s, practice, attendingIds, attendanceMode, rideGrou
           ${!attendanceMode ? `<span class="sep">·</span><span class="ready-row">${readyRowHTML(conf, 14)}</span>` : ''}
         </div>
       </button>
+      ${canAssignGroup && !attendanceMode ? `<button class="group-assign-btn" data-a="open-assign-group" data-id="${coach.id}" title="Reassign ride group" aria-label="Reassign ride group">${GROUP_ICON}</button>` : ''}
       ${!attendanceMode ? `<button class="chips-caret" data-a="toggle-expand" data-id="${coach.id}">
         ${chips}
         <svg class="caret${open?' caret--open':''}" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--dim)" stroke-width="2.4" stroke-linecap="round"><path d="M5 8l5 5 5-5"/></svg>
@@ -1293,7 +1294,7 @@ export function modalAssignGroup(state) {
   const athlete = getPeople().find(p => p.id === state.athleteId);
   if (!athlete) {
     return `<div class="modal-head"><span>Reassign Group</span>${closeBtn}</div>
-      <div class="fg"><p class="modal-hint">That athlete no longer exists locally.</p></div>`;
+      <div class="fg"><p class="modal-hint">That person no longer exists locally.</p></div>`;
   }
 
   const groups = _teamGroupOptions(getPeople());
