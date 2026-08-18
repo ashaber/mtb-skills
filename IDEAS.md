@@ -417,3 +417,28 @@ Andrew, 2026-08-14, refined across two follow-ups while prepping for a security 
 Andrew, 2026-08-14, same security-review prep: proposed league staff request access to a specific team on demand rather than seeing every team in their league by default. Today `league_staff` is always-on read-only across the whole league from the moment their `person` row exists — no request or approval step (`app_caller_league_team_ids()` in `0002_rls.sql`).
 
 **Scope for a real fix:** a grant/request table the `_select` policies would check in place of (or in addition to) the blanket league-wide expansion — e.g. default to zero cross-team visibility for `league_staff`, with a per-team grant a HC/TD approves (mirrors the ride-group-lead grant idea above, one level up the hierarchy). Worth deciding whether "always-on once granted" or "time-boxed" is the right default before building. Related to `[[IDEA-021]]`/`[[IDEA-028]]` (the still-open "league staff has no write policy" gap) — this is the read-side tightening counterpart to that.
+
+---
+
+### IDEA-035 — Floating coach: per-practice, self-service group join with time-boxed roster access
+
+Andrew, 2026-08-17, relaying a question from Michael (Madison team director) prepping for Madison's first real practice tonight — Michael's asking how floating coaches move between ride groups practice-to-practice, and plans to gather more feedback from his own coaches once they've actually used the app tonight, so treat this as a first pass, not a final spec.
+
+**Problem:** a floating/sweep coach doesn't have one fixed ride group — which group they help with varies practice to practice, sometimes decided same-day. Today's data model ties a coach's access to a single, mostly-static `person.ride_group_id` (`app_caller_ride_group_ids()` in `0002_rls.sql`), with no notion of "temporarily also in this other group, just for tonight."
+
+**Proposed flow, as described:**
+1. Before/at the start of a practice, the floating coach picks which ride group they'll be riding with that practice.
+2. When that group's lead takes attendance, the floating coach shows up in the lead's attendance list (pending, not yet on the roster).
+3. The lead clicking the coach into attendance does double duty: it both marks the coach as attending *and* is the acceptance step — the coach's roster now includes that group.
+4. Access rolls back automatically: the group disappears from the floating coach's roster **practice-end + 1 hour** (the grace window is deliberate — long enough to finish logging post-practice observations, not so long it lingers into the next session).
+
+**Why this is a real, if non-trivial, RLS change — not just a UI addition:** `person.ride_group_id` is what `app_caller_ride_group_ids()` reads to decide which group a `coach`-role person can read/write observations for. A floating coach temporarily helping a group they're not permanently assigned to needs RLS itself extended, not just a client-side view filter — a client-only version would either (a) still block the floating coach's actual observation writes at the database layer, or (b) require actually rewriting `person.ride_group_id` per practice, which would race with concurrent practices and leave the coach's "home" assignment in the wrong state. The clean shape is a new, practice-scoped grant table (e.g. `practice_coach_assignment`: `person_id`, `ride_group_id`, `practice_id`, `accepted_at`) that `app_caller_ride_group_ids()` unions into its result set, time-gated live at query time against `practice.ended_at + interval '1 hour'` — no cron/scheduled job needed, this app has none today and shouldn't need to add one just for this.
+
+**Open questions, not resolved — worth confirming with Michael after tonight's real usage before scoping further:**
+- **Read-only roster visibility, or full write (can the floating coach log observations)?** The description says "can see the group on their roster," but the entire point of floating coaches per `[[IDEA-021]]`'s original scoping ("people who work across teams and record ratings") is almost certainly write access, not just viewing. Confirm which.
+- **Same floating-coach population as `[[IDEA-033]]`'s `coach_l1`, or different?** IDEA-033 is about L1 floaters having *zero* app access until promoted to L2. This idea describes a coach who already has login/roster access and just lacks one fixed home group — reads as a *different*, already-promoted population (L2/L3 coaches who rotate rather than sit in one group). Worth explicitly deciding whether this feature depends on IDEA-033 shipping first or is fully independent.
+- **One group per practice, or can a floating coach be accepted into more than one on the same day?**
+- **Does the coach have to re-pick every single practice, or can they set a default/most-common group that just needs a lighter re-confirm?**
+- **What does the floating coach see before being accepted** — can they browse/select from every group on the team, or only ones a HC/TD has made available to float into?
+
+Not scoped in enough detail to estimate yet — flagging the mechanism and its real architectural implication (RLS extension, not just UI) so it's not underestimated as "just add a dropdown" when it's picked up.
